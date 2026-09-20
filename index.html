@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#142b38" />
+  <title>Field Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div>
+          <p class="eyebrow">Frontier Operations / Sector 04</p>
+          <h1>FIELD COMMAND</h1>
+        </div>
+      </div>
+      <div class="mission-status"><span class="status-dot"></span><span id="missionLabel">OPERATIONAL</span><span class="divider"></span><span id="clockLabel">08:42 ZULU</span></div>
+    </header>
+
+    <section class="command-grid">
+      <aside class="left-rail">
+        <div class="panel briefing-panel">
+          <div class="panel-heading"><span>01</span><h2>Briefing</h2><span class="heading-line"></span></div>
+          <p class="briefing-copy">Hold the ridge. Keep the relay online. Enemy armor is moving through the lowland.</p>
+          <div class="objective"><span class="objective-check">✓</span><div><strong>Primary</strong><span>Survive 3 waves</span></div></div>
+          <div class="objective"><span class="objective-check pending">○</span><div><strong>Secondary</strong><span>Maintain 60% morale</span></div></div>
+        </div>
+        <div class="panel intel-panel">
+          <div class="panel-heading"><span>02</span><h2>Field Intel</h2><span class="heading-line"></span></div>
+          <div class="intel-row"><span class="intel-key">THREAT LEVEL</span><strong class="threat">ELEVATED</strong></div>
+          <div class="intel-row"><span class="intel-key">NEXT CONTACT</span><strong id="nextContact">01:24</strong></div>
+          <div class="intel-row"><span class="intel-key">SIGNAL</span><strong class="signal">STABLE</strong></div>
+        </div>
+        <div class="panel log-panel">
+          <div class="panel-heading"><span>03</span><h2>Comms Log</h2><span class="heading-line"></span></div>
+          <div id="log" class="log-list" aria-live="polite"></div>
+        </div>
+      </aside>
+
+      <section class="battle-column">
+        <div class="battle-header">
+          <div><p class="eyebrow">Live tactical map</p><h2>REDSTONE RIDGE</h2></div>
+          <div class="wave-readout"><span>WAVE</span><strong id="waveNumber">01</strong><span>/ 03</span></div>
+        </div>
+        <div class="map-wrap">
+          <div id="battlefield" class="battlefield" role="application" aria-label="Tactical battlefield. Click an open grid tile to deploy the selected troop.">
+            <div class="map-grid"></div>
+            <div class="terrain terrain-a"></div><div class="terrain terrain-b"></div><div class="terrain terrain-c"></div>
+            <div class="ridge ridge-a"></div><div class="ridge ridge-b"></div>
+            <div class="road road-a"></div><div class="road road-b"></div>
+            <div class="objective-zone"><span>RELAY<br />04</span></div>
+            <div class="spawn-zone"><span>HOSTILE<br />APPROACH</span></div>
+            <div id="unitsLayer"></div><div id="enemiesLayer"></div>
+            <div class="map-compass">N<span></span></div>
+            <div class="map-scale"><span></span>100 M</div>
+          </div>
+          <div class="map-caption"><span><i class="legend-dot friendly"></i> FRIENDLY</span><span><i class="legend-dot hostile"></i> HOSTILE</span><span><i class="legend-square"></i> OBJECTIVE</span><span class="map-coordinates">44° 18' N / 71° 09' W</span></div>
+        </div>
+        <div class="battle-controls">
+          <div class="phase-copy"><span class="phase-kicker" id="phaseKicker">DEPLOYMENT PHASE</span><strong id="phaseMessage">Place your squad before contact.</strong></div>
+          <button id="startWave" class="primary-button"><span class="button-icon">▶</span> START WAVE</button>
+          <button id="pauseGame" class="icon-button" aria-label="Pause game" title="Pause game">Ⅱ</button>
+          <button id="resetGame" class="icon-button" aria-label="Reset mission" title="Reset mission">↺</button>
+        </div>
+      </section>
+
+      <aside class="right-rail">
+        <div class="resource-strip"><div><span>SUPPLY</span><strong id="supplyValue">240</strong></div><div><span>COMMAND</span><strong>12<span class="muted"> / 20</span></strong></div></div>
+        <div class="panel roster-panel">
+          <div class="panel-heading"><span>04</span><h2>Unit Roster</h2><span class="heading-line"></span></div>
+          <p class="panel-note">Select a unit, then click a clear position.</p>
+          <div id="unitCards" class="unit-cards">
+            <button class="unit-card selected" data-unit="ranger"><span class="unit-glyph ranger-glyph">R</span><span class="unit-info"><strong>Ranger</strong><small>RIFLE / FLEX</small></span><span class="unit-cost">40</span></button>
+            <button class="unit-card" data-unit="support"><span class="unit-glyph support-glyph">+</span><span class="unit-info"><strong>Field Medic</strong><small>HEAL / SUPPORT</small></span><span class="unit-cost">55</span></button>
+            <button class="unit-card" data-unit="heavy"><span class="unit-glyph heavy-glyph">H</span><span class="unit-info"><strong>Heavy Gunner</strong><small>ARMOR / HOLD</small></span><span class="unit-cost">80</span></button>
+          </div>
+        </div>
+        <div class="panel morale-panel"><div class="panel-heading"><span>05</span><h2>Unit Morale</h2><span class="heading-line"></span></div><div class="morale-top"><strong id="moraleValue">84</strong><span>/ 100</span><em id="moraleState">STEADY</em></div><div class="meter"><span id="moraleBar"></span></div><div class="morale-footer"><span>COHESION</span><span id="cohesionText">GOOD</span></div></div>
+        <div class="panel notes-panel"><div class="panel-heading"><span>06</span><h2>Command Notes</h2><span class="heading-line"></span></div><p id="commandNote">The ridge favors a layered defense. Place your medic behind the first line.</p></div>
+      </aside>
+    </section>
+    <footer class="footer-bar"><span>FIELD COMMAND / TRAINING SIMULATION</span><span>ESC <b>Pause</b> &nbsp; • &nbsp; R <b>Reset</b></span></footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

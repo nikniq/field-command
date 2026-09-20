@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Field Command
+GenericName=Real-Time Strategy Game
+Comment=Mine crystal, build an army and destroy the enemy base
+Exec=field-command
+Icon=field-command
+Terminal=false
+Categories=Game;StrategyGame;
+Keywords=rts;strategy;war;tanks;
+StartupWMClass=Field Command

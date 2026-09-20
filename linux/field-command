@@ -1,0 +1,10 @@
+#!/bin/sh
+# Field Command launcher. Runs from the source tree when present, otherwise from the installed location.
+HERE="$(dirname "$(readlink -f "$0")")"
+if [ -d "$HERE/fieldcommand" ]; then
+    APPDIR="$HERE"
+else
+    APPDIR="${FIELD_COMMAND_HOME:-/usr/share/field-command}"
+fi
+export PYTHONPATH="$APPDIR${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m fieldcommand "$@"

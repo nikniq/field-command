@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>field-command</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Field Command</name>
+  <summary>Real-time strategy: mine crystal, build an army, destroy the enemy base</summary>
+  <description>
+    <p>
+      Field Command is a classic real-time strategy game. Engineers mine crystal and construct a base,
+      Barracks and Factories train Rangers and Siege Tanks, and a computer opponent expands, defends and
+      sends escalating attack waves.
+    </p>
+    <ul>
+      <li>Three difficulty levels and an on-screen objectives guide for new players</li>
+      <li>Online and LAN multiplayer for up to 4 players, free-for-all or teams, with computer players</li>
+      <li>Fog of war, forests, expansions and a clickable minimap</li>
+      <li>Shift-queued orders, control groups, rally points and attack-move</li>
+      <li>All artwork and sound effects are generated procedurally</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">field-command.desktop</launchable>
+  <categories>
+    <category>Game</category>
+    <category>StrategyGame</category>
+  </categories>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">mild</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="1.0.0" date="2026-09-19"/>
+  </releases>
+</component>
