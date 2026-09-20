@@ -297,6 +297,10 @@ final class MenuScene: SKScene {
                              font: Fonts.medium, align: .center, valign: .center)
         foot.position = CGPoint(x: 0, y: -h / 2 + 26)
         content.addChild(foot)
+        let version = makeLabel("v\(appVersion)", size: 12, color: Palette.dim, font: Fonts.medium,
+                                align: .right, valign: .center)
+        version.position = CGPoint(x: w / 2 - 18, y: -h / 2 + 26)
+        content.addChild(version)
     }
 
     // MARK: - Input

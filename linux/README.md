@@ -5,6 +5,9 @@ and destroy every enemy building. This is the Linux port of the macOS (SpriteKit
 `../macos/`, rewritten in Python with pygame. All artwork is drawn procedurally with Cairo and all
 sound effects are synthesised, so there are no asset files.
 
+The Windows edition runs this same package; `../windows/` holds only its entry point and PyInstaller
+build, so a change here lands on both platforms.
+
 ## Play from the source tree (Fedora)
 
 ```sh

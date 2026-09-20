@@ -5,6 +5,7 @@
 # One entry point for the three editions in this repo:
 #   macos/   Swift + SpriteKit app          (built with swift build / build_app.sh)
 #   linux/   Python + pygame app            (byte-compiled, packaged as an RPM)
+#   windows/ the same Python app, frozen    (PyInstaller; must be built on Windows)
 #   ./       web edition (index.html, app.js, styles.css — nothing to compile)
 #
 # Usage:  ./cx.sh [options] <target>...
@@ -15,6 +16,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINUX_DIR="$ROOT/linux"
 MAC_DIR="$ROOT/macos"
+WIN_DIR="$ROOT/windows"
 DIST_DIR="$ROOT/dist"
 
 NAME="field-command"
@@ -66,6 +68,7 @@ ${C_BOLD}Targets${C_OFF}
   tarball      linux source tarball into linux/rpmbuild/SOURCES
   rpm          build the Fedora RPM (implies tarball), copy into dist/
   srpm         build the source RPM only
+  exe          build the Windows executables with PyInstaller (Windows only)
   icons        regenerate the Linux hicolor icon set
   web          stage the web edition (index.html, app.js, styles.css) into dist/web
   test         run the smoke tests for whatever this machine can run
@@ -169,6 +172,26 @@ rpm_build() {
 target_rpm()  { rpm_build -ba; }
 target_srpm() { rpm_build -bs; }
 
+# -------------------------------------------------------- windows targets ----
+
+target_exe() {
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) ;;
+        *) die "the Windows executables must be built on Windows (PyInstaller targets its host OS)" ;;
+    esac
+    local py; py="$(python_bin)"
+    step "Building the Windows executables"
+    run "$py" "$WIN_DIR/build_exe.py"
+    mkdir -p "$DIST_DIR"
+    local found=0
+    while IFS= read -r exe; do
+        run cp "$exe" "$DIST_DIR/"
+        info "$(basename "$exe")"
+        found=1
+    done < <(find "$WIN_DIR/dist" -maxdepth 1 -name '*.exe' 2>/dev/null)
+    [ "$found" -eq 1 ] || warn "no .exe found — check the PyInstaller output above"
+}
+
 # ------------------------------------------------------------ web target ----
 
 target_web() {
@@ -211,12 +234,17 @@ target_all() {
     else
         info "skipping the RPM (needs Linux with rpmbuild)"
     fi
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) target_exe ;;
+        *) info "skipping the Windows executables (not on Windows)" ;;
+    esac
     target_web
 }
 
 target_clean() {
     step "Cleaning"
-    run rm -rf "$MAC_DIR/.build" "$MAC_DIR/build" "$LINUX_DIR/rpmbuild" "$DIST_DIR"
+    run rm -rf "$MAC_DIR/.build" "$MAC_DIR/build" "$LINUX_DIR/rpmbuild" \
+        "$WIN_DIR/build" "$WIN_DIR/dist" "$WIN_DIR/__pycache__" "$DIST_DIR"
     find "$LINUX_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
     info "build output removed"
 }
@@ -243,6 +271,7 @@ for t in "${targets[@]}"; do
         mac-app)  target_mac_app ;;
         mac-zip)  target_mac_zip ;;
         linux)    target_linux ;;
+        exe)      target_exe ;;
         icons)    target_icons ;;
         tarball)  target_tarball ;;
         rpm)      target_rpm ;;

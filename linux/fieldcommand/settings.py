@@ -1,11 +1,19 @@
-"""Player preferences stored in $XDG_CONFIG_HOME/fieldcommand/settings.json."""
+"""Player preferences, stored where the platform keeps them:
+
+    Windows          %APPDATA%\\FieldCommand\\settings.json
+    everywhere else  $XDG_CONFIG_HOME/fieldcommand/settings.json (or ~/.config/...)
+"""
 import json
 import os
+import sys
 
 SPEEDS = [("Slow", 0.75), ("Normal", 1.0), ("Fast", 1.35), ("Faster", 1.7)]
 
 
 def _path():
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+        return os.path.join(base, "FieldCommand", "settings.json")
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
     return os.path.join(base, "fieldcommand", "settings.json")
 

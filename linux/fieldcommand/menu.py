@@ -4,7 +4,7 @@ import random
 
 import pygame
 
-from . import art, audio, mapgen, ui
+from . import __version__, art, audio, mapgen, ui
 from .defs import AMBER, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, PLAYER, TEXT, to255
 from .effects import Effects
 from .game import Camera, GameScene
@@ -219,3 +219,4 @@ class MenuScene:
         for i, l in enumerate(lines):
             ui.blit_text(screen, l, 14, TEXT, (w / 2, ty + 80 + i * 24), align="center")
         ui.blit_text(screen, "1 / 2 / 3 or Enter to deploy  ·  M multiplayer  ·  F11 full screen  ·  Esc quit", 12, DIM, (w / 2, h - 26), align="center")
+        ui.blit_text(screen, f"v{__version__}", 12, DIM, (w - 18, h - 26), align="right")

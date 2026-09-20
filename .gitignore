@@ -14,6 +14,12 @@ linux/rpmbuild/
 *.rpm
 *.tar.gz
 
+# Windows edition (PyInstaller)
+windows/build/
+windows/dist/
+*.exe
+*.ico
+
 # Editors
 .idea/
 .vscode/

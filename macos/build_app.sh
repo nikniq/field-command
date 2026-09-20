@@ -5,6 +5,9 @@ cd "$(dirname "$0")"
 
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/FieldCommand"
+# The title screen shows this same string (Defs.swift), so the bundle cannot drift out of step.
+VERSION="$(sed -n 's/^let appVersion = "\(.*\)"$/\1/p' Sources/FieldCommand/Defs.swift)"
+VERSION="${VERSION:-1.0.0}"
 APP="build/Field Command.app"
 
 rm -rf "$APP"
@@ -29,7 +32,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>FieldCommand</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.strategy-games</string>
@@ -41,4 +44,4 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 codesign --force --deep --sign - "$APP" >/dev/null
-echo "Built: $APP"
+echo "Built: $APP ($VERSION)"

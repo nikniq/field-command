@@ -5,8 +5,10 @@ import pygame
 
 from .defs import to255
 
-SANS = "notosans,cantarell,dejavusans,liberationsans,helveticaneue,helvetica,arial"
-MONO = "notosansmono,dejavusansmono,liberationmono,menlo,monospace"
+# Candidates in preference order; SysFont takes the first that is installed. The list covers Linux
+# (Noto/Cantarell/DejaVu), Windows (Segoe UI/Consolas) and macOS (Helvetica Neue/Menlo).
+SANS = "notosans,cantarell,dejavusans,liberationsans,segoeui,helveticaneue,helvetica,arial"
+MONO = "notosansmono,dejavusansmono,liberationmono,consolas,menlo,monospace"
 _fonts = {}
 _text = OrderedDict()
 
