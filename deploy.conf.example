@@ -1,0 +1,27 @@
+# deploy.conf — target environments for ./deploy.sh
+#
+# Copy to deploy.conf and edit. deploy.conf is gitignored, so host names and
+# accounts stay out of the repository. Variables are named <ENVIRONMENT>_<KEY>
+# with the environment name uppercased.
+#
+# Keys
+#   _HOST         ssh host (omit for the built-in "local" environment)
+#   _USER         ssh user (default: your local username)
+#   _WEB_ROOT     directory the web edition is rsynced into
+#   _SERVER_UNIT  systemd unit for the dedicated game server
+#                 (default: field-command.service)
+#   _COMPONENTS   what "./deploy.sh <env>" deploys when none are named
+
+# --- staging --------------------------------------------------------------
+STAGING_HOST=fc-staging.example.internal
+STAGING_USER=deploy
+STAGING_WEB_ROOT=/var/www/field-command
+STAGING_SERVER_UNIT=field-command.service
+STAGING_COMPONENTS="web rpm server"
+
+# --- production -----------------------------------------------------------
+PROD_HOST=fc.example.com
+PROD_USER=deploy
+PROD_WEB_ROOT=/var/www/field-command
+PROD_SERVER_UNIT=field-command.service
+PROD_COMPONENTS="web rpm server"

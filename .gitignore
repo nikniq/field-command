@@ -1,0 +1,30 @@
+# macOS edition (Swift)
+macos/.build/
+macos/build/
+macos/.swiftpm/
+*.xcuserdatad/
+DerivedData/
+
+# Linux edition (Python)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+linux/rpmbuild/
+*.rpm
+*.tar.gz
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS and stray output
+.DS_Store
+*.log
+
+# Deploy configuration (host names and accounts)
+deploy.conf
+
+# Build output
+dist/
