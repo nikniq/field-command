@@ -53,6 +53,26 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## Bridges
+
+Bridges are structures, not scenery. Each one has 900 hit points and belongs to nobody, so either side can
+break a crossing or put it back.
+
+| | |
+| --- | --- |
+| Demolish | Select troops, press **A**, click the bridge (the deliberate gesture — a plain right-click walks across it) |
+| Rebuild | Select an Engineer, right-click the ruins — 75 crystal, 25 seconds |
+| Hover | Shows condition and what you can do with it |
+| Minimap | Amber while it stands, red outline once it is down |
+
+A fallen bridge blocks its span exactly like the water it crossed: nothing walks over it and nothing shoots
+through it, so on *River Crossing* breaking all three crossings cuts the map in two. Siege Tank shells and
+Snipers work on bridges as well as buildings; Engineers cannot shoot one down. Troops standing on a deck when
+it collapses are pushed clear onto the nearest bank.
+
+Computer players rebuild a crossing near their base when they have crystal to spare, so cutting a bridge buys
+time rather than winning outright.
+
 ## Maps
 
 Seven maps ship with the game; pick one on the title screen (**Map:**) along with the number of computer
@@ -72,7 +92,7 @@ The two mega maps play up to **twelve** players on a world half again as wide an
 4000 x 2800); every other map is the standard size. A twelve-way free-for-all against computer players is
 demanding but runs fine on a normal desktop.
 
-Water and cliffs block movement, building and line of fire; bridges are walkable. Troops path around
+Water and cliffs block movement, building and line of fire; bridges are walkable until someone breaks them. Troops path around
 terrain and buildings with A* on a 40-unit navigation grid (`nav.py`), walking straight when the way is
 clear, re-planning when buildings appear or when they are pushed off course, so they no longer snag on
 the corner of a base. The Mac edition has the same catalogue and the same pathfinding.
@@ -94,8 +114,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same major version: protocol 2 (Field Command 1.1.0, which added the Sniper and the
-Radar Station) refuses 1.0.0 clients rather than letting them mis-read the new units.
+All players must run the same major version: the protocol is at 3 (Field Command 1.2.0, which made bridges
+destructible; 2 added the Sniper and the Radar Station), and a server refuses older clients rather than
+letting them mis-read the game.
 
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.
@@ -118,6 +139,7 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Queue orders | Shift + right-click |
 | Attack-move / Stop | A then click / S |
 | Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
+| Bridges | A then click to demolish · Engineer + right-click to rebuild |
 | Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |
 | Control groups | Ctrl+1–9 assign, 1–9 recall (double-tap to jump) |
 | Idle engineer / army | I · \` or F2 |

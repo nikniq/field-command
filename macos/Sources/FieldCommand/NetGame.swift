@@ -174,6 +174,14 @@ extension GameScene {
         }
         buildings.removeAll { $0.dead }
 
+        for (i, b) in jArr(m["br"]).enumerated() {
+            let v = jArr(b)
+            guard v.count >= 4, i < bridgeNodes.count else { continue }
+            let node = bridgeNodes[i]
+            node.bridgeId = jInt(v[0])
+            node.apply(intact: jInt(v[1]) == 1, hp: jNum(v[2]), progress: jNum(v[3]) / 100)
+        }
+
         var amounts: [Int: Int] = [:]
         for c in jArr(m["c"]) {
             let v = jArr(c)
@@ -253,6 +261,10 @@ extension GameScene {
             } else {
                 hud.flash("Enemy \(k.stats.name) destroyed", color: Palette.good)
             }
+        case "bridge":
+            let down = jInt(e[2]) == 0
+            hud.flash(down ? "Bridge destroyed" : "Bridge rebuilt", color: down ? Palette.bad : Palette.good)
+            if down { alertAttack(at: p(3)) }
         case "elim":
             if jInt(e[1]) == net.slot {
                 hud.flash("You have been eliminated", color: Palette.bad)
@@ -311,6 +323,14 @@ extension GameScene {
     func netSmartCommand(at p: CGPoint, queue: Bool) {
         let us = selectedOwnUnits
         if !us.isEmpty {
+            // A standing bridge is a road: right-click walks across it. Demolition is deliberate — A then click.
+            if let br = bridge(at: p), !br.intact, let w = us.first(where: { $0.kind == .worker }) {
+                sendNet(["rebuild", w.netId, br.bridgeId, queue])
+                marker(at: br.position, color: Palette.amber, size: 34)
+                let rest = us.filter { $0 !== w }
+                if !rest.isEmpty { sendNet(["move", netIds(rest), p.x, p.y, queue, false]) }
+                return
+            }
             let target = entity(at: p)
             if let t = target, !t.team.isFriendly {
                 sendNet(["attack", netIds(us), t.netId, queue])

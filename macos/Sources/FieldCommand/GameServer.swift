@@ -46,6 +46,8 @@ final class GameServer {
     private var mapId = "auto"
     private var paused = false
     private var world: SWorld?
+    /// The live simulation, for the automated tests in Debug.swift.
+    var simulation: SWorld? { world }
     private var pending: [(Int, [Any])] = []
     private var tick = 0
     private var running = false
@@ -476,7 +478,7 @@ final class GameServer {
         func num(_ i: Int) -> Double { i < e.count ? Double(jNum(e[i])) : 0 }
         switch kind {
         case "msg", "alert", "income", "built", "wave", "trained": return jInt(e[1]) == slot
-        case "elim", "gameover", "chat": return true
+        case "elim", "gameover", "chat", "bridge": return true
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
             return w.sees(slot, ent)
@@ -504,6 +506,7 @@ final class GameServer {
                     case .attack(let t) where !t.dead: pts += [3, r1(t.x), r1(t.y)]
                     case .gather(let c) where !c.dead: pts += [4, r1(c.x), r1(c.y)]
                     case .build(_, let x, let y): pts += [6, r1(x), r1(y)]
+                    case .rebuild(let b): pts += [6, r1(b.x), r1(b.y)]
                     default: break
                     }
                 }
@@ -523,6 +526,7 @@ final class GameServer {
         let packed: [[Any]] = events.filter { visible(w, slot, $0) }.map { e in e.map { v in (v as? Double).map { r1($0) } ?? v } }
         return ["t": "snap", "time": (w.elapsed * 100).rounded() / 100, "res": Int(w.resources[slot] ?? 0),
                 "sup": [w.supplyUsed(slot), w.supplyCap(slot)], "u": units, "o": orders, "b": buildings,
+                "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]
     }
 }

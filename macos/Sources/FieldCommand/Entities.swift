@@ -890,3 +890,77 @@ final class Building: Entity {
         }
     }
 }
+
+// MARK: - Bridges
+
+/// A crossing on the client. The footprint comes from the map, the condition from the server: intact it is
+/// a deck you walk over, down it is ruins that block the span until an Engineer puts it back.
+final class BridgeNode: SKNode {
+    /// Assigned from the first snapshot: the server numbers bridges in map order.
+    var bridgeId = -1
+    let rect: CGRect
+    var intact = true
+    var hp: CGFloat = bridgeHP
+    var progress: CGFloat = 0
+    var hovered = false { didSet { marker.isHidden = !hovered } }
+
+    private let deck: SKSpriteNode
+    private let marker: SKSpriteNode
+    private let barBack = SKSpriteNode(color: NSColor(white: 0, alpha: 0.75), size: CGSize(width: 74, height: 6))
+    private let barFill = SKSpriteNode(color: Palette.good, size: CGSize(width: 70, height: 4))
+    private let deckTexture: SKTexture
+    private let ruinsTexture: SKTexture
+
+    init(rect: CGRect, seed: UInt64) {
+        self.rect = rect
+        deckTexture = Terrain.bridgeTexture(rect.size, seed: seed)
+        ruinsTexture = Terrain.bridgeRuinsTexture(rect.size, seed: seed)
+        deck = SKSpriteNode(texture: deckTexture)
+        marker = SKSpriteNode(texture: Art.squareRing)
+        super.init()
+        position = CGPoint(x: rect.midX, y: rect.midY)
+        zPosition = -7.5                     // on the ground, under everything that walks across
+        deck.size = rect.size
+        addChild(deck)
+        marker.size = CGSize(width: rect.width + 18, height: rect.height + 18)
+        marker.color = Palette.amber
+        marker.colorBlendFactor = 1
+        marker.alpha = 0.7
+        marker.isHidden = true
+        addChild(marker)
+        barBack.zPosition = 20
+        barFill.zPosition = 21
+        barFill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        barBack.position = CGPoint(x: 0, y: rect.height / 2 + 12)
+        barFill.position = CGPoint(x: -35, y: rect.height / 2 + 12)
+        barBack.isHidden = true
+        barFill.isHidden = true
+        addChild(barBack)
+        addChild(barFill)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func contains(world p: CGPoint) -> Bool { rect.insetBy(dx: -4, dy: -4).contains(p) }
+
+    func apply(intact nowIntact: Bool, hp newHp: CGFloat, progress p: CGFloat) {
+        if nowIntact != intact {
+            intact = nowIntact
+            deck.texture = nowIntact ? deckTexture : ruinsTexture
+        }
+        hp = newHp
+        progress = p
+        marker.color = intact ? Palette.amber : Palette.dim
+        // Health while it stands, rebuild progress while it does not.
+        let frac: CGFloat? = intact ? (hp < bridgeHP ? hp / bridgeHP : nil) : (p > 0 ? p : nil)
+        if let f = frac {
+            barBack.isHidden = false
+            barFill.isHidden = false
+            barFill.size = CGSize(width: 70 * max(0, min(1, f)), height: 4)
+            barFill.color = intact ? Palette.good : Palette.amber
+        } else {
+            barBack.isHidden = true
+            barFill.isHidden = true
+        }
+    }
+}

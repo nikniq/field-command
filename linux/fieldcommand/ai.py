@@ -5,7 +5,7 @@ import math
 import random
 
 from . import defs
-from .defs import BUILDINGS, rect_distance, square_rect
+from .defs import BRIDGE_COST, BUILDINGS, rect_distance, square_rect
 
 
 class AI:
@@ -50,6 +50,7 @@ class AI:
 
         reserve = self._construct(hq, bases, workers)
         self._produce(hq, bases, workers, reserve)
+        self._rebuild_bridges(hq, workers)
         self._defend(bases, home)
         self._attack(hq, home)
 
@@ -114,6 +115,25 @@ class AI:
         g.resources[self.team] -= cost
         builder.order_build(want, spot[0], spot[1])
         return 0
+
+    def _rebuild_bridges(self, hq, workers):
+        """A fallen crossing near home is worth putting back: it is the road its attacks travel on.
+        One Engineer at a time, and only with crystal to spare, so this never starves the army."""
+        g = self.game
+        if g.resources[self.team] < BRIDGE_COST + 250:
+            return
+        if any(w.order[0] == "rebuild" for w in workers):
+            return
+        down = [b for b in g.bridges if not b.intact and math.hypot(b.x - hq.x, b.y - hq.y) < 2200]
+        if not down:
+            return
+        b = min(down, key=lambda b: math.hypot(b.x - hq.x, b.y - hq.y))
+        free = [w for w in workers if w.order[0] in ("idle", "gather")]
+        if not free:
+            return
+        builder = min(free, key=lambda w: math.hypot(w.x - b.x, w.y - b.y))
+        g.resources[self.team] -= BRIDGE_COST
+        builder.command(("rebuild", b))
 
     def _home_crystal_left(self, bases):
         hqs = [b for b in bases if b.kind == "hq"]

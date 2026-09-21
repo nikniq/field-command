@@ -33,7 +33,7 @@ host choose one in the multiplayer lobby (*Map: Auto* picks one that fits the pl
 The two mega maps play up to **twelve** players on a world half again as wide and tall (6000 x 4200 instead of
 4000 x 2800). Maps carry their own size, so the fog, navigation and terrain grids are built to fit the map in play.
 
-Water and cliffs block movement, building and line of fire; bridges are walkable. Troops path around terrain
+Water and cliffs block movement, building and line of fire; bridges are walkable until someone breaks them. Troops path around terrain
 and buildings with A* on a 40-unit navigation grid (`Nav.swift`), so they no longer snag on the corner of a
 base. The map catalogue and the pathfinding match the Linux edition exactly.
 
@@ -65,8 +65,15 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 2, so a 1.1.0 Mac and a 1.1.0 Linux client play together; neither will accept a
-1.0.0 client, which predates these two.
+Both editions speak protocol 3, so a 1.2.0 Mac and a 1.2.0 Linux client play together; neither accepts an
+older client, which would mis-read the newer units and the state of the bridges.
+
+## Bridges
+
+Bridges have 900 hit points and belong to nobody: press **A** and click one to demolish it (a plain
+right-click still walks across), or right-click the ruins with an Engineer selected to rebuild it for 75
+crystal. A fallen span blocks movement and fire like the water it crossed. The rules and numbers match the
+Linux edition — see `../linux/README.md`.
 
 ## Controls
 
@@ -82,4 +89,5 @@ FC_HOSTTEST=1 .build/release/FieldCommand                     # host a lobby and
 FC_NETTEST=host:port .build/release/FieldCommand              # join a server as a scripted bot
 FC_SNAPSHOT_DIR=/tmp/fc …                                     # write screenshots and a stats log
 FC_MENUSHOT=/tmp/menu.png .build/release/FieldCommand         # render the title screen and exit
+FC_BRIDGETEST=river_crossing .build/release/FieldCommand      # shell a bridge down and rebuild it, headless
 ```

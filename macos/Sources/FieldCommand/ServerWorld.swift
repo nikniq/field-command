@@ -353,6 +353,7 @@ enum SOrder {
     case gather(SCrystal)
     case ret
     case build(BuildingKind, Double, Double)
+    case rebuild(SBridge)
 
     var code: Int {
         switch self {
@@ -363,6 +364,7 @@ enum SOrder {
         case .gather: return 4
         case .ret: return 5
         case .build: return 6
+        case .rebuild: return 7
         }
     }
     var isIdle: Bool { if case .idle = self { return true }; return false }
@@ -385,6 +387,51 @@ final class SCrystal {
         amount -= a
         if amount <= 0 { dead = true }
         return a
+    }
+}
+
+/// A crossing the map ships with. Nobody owns it: any player can shell it down and any Engineer can
+/// rebuild it. While it stands it is pure decoration — the water simply is not there. Once it falls, its
+/// footprint blocks movement and line of fire exactly like the stream it spans.
+final class SBridge: SEntity {
+    let rect: SRect
+    var intact = true
+    var progress = 0.0          // rebuild progress, 0..1
+
+    init(world: SWorld, rect: SRect) {
+        self.rect = rect
+        super.init(world: world, team: -1, maxHp: bridgeHP, sight: 0,
+                   x: (rect.x0 + rect.x1) / 2, y: (rect.y0 + rect.y1) / 2)
+    }
+
+    override func surfaceDistance(_ px: Double, _ py: Double) -> Double { rect.distance(px, py) }
+
+    /// Ruins are rebuilt, not shot at again.
+    override func targetable(by slot: Int) -> Bool { intact }
+
+    /// Neutral, so no owner is alerted — but everyone is told when a crossing goes down.
+    override func takeDamage(_ amount: Double, from attacker: SEntity?) {
+        guard intact else { return }
+        hp -= amount
+        guard hp <= 0 else { return }
+        hp = 0
+        intact = false
+        progress = 0
+        world.emit(["explode", x, y, 34, 1, 0])
+        world.emit(["smoke", x, y, 30])
+        world.emit(["sound", "explosion", x, y])
+        world.emit(["bridge", id, 0, x, y])
+        world.bridgesChanged()
+    }
+
+    func restore() {
+        intact = true
+        hp = maxHp
+        progress = 0
+        world.emit(["flash", x, y, 90, "build"])
+        world.emit(["sound", "complete", x, y])
+        world.emit(["bridge", id, 1, x, y])
+        world.bridgesChanged()
     }
 }
 
@@ -484,7 +531,11 @@ final class SUnit: SEntity {
 
     func refundBuilds(includeCurrent: Bool) {
         if includeCurrent, case .build(let k, _, _) = order { world.refund(k.stats.cost, team) }
-        for q in queued { if case .build(let k, _, _) = q { world.refund(k.stats.cost, team) } }
+        if includeCurrent, case .rebuild = order { world.refund(bridgeCost, team) }
+        for q in queued {
+            if case .build(let k, _, _) = q { world.refund(k.stats.cost, team) }
+            if case .rebuild = q { world.refund(bridgeCost, team) }
+        }
     }
 
     func command(_ o: SOrder) {
@@ -665,6 +716,34 @@ final class SUnit: SEntity {
                 order = .idle
                 g.emit(["msg", team, "Build site blocked", "bad"])
             }
+        case .rebuild(let b):
+            buildTimer += dt
+            if b.intact {
+                // Someone else finished it first; the crystal goes back.
+                g.refund(bridgeCost, team)
+                order = .idle
+                buildTimer = 0
+            } else if stuck > 3 || buildTimer > 60 {
+                g.refund(bridgeCost, team)
+                order = .idle
+                buildTimer = 0
+                g.emit(["msg", team, "An Engineer couldn't reach the bridge", "bad"])
+            } else if b.surfaceDistance(x, y) - radius > 12 {
+                target = (b.x, b.y)
+            } else {
+                b.progress = min(1, b.progress + dt / bridgeRebuildTime)
+                mineTimer += dt
+                if mineTimer > 0.45 {       // reuse the mining bob so the work reads at a glance
+                    mineTimer = 0
+                    g.emit(["pulse", id])
+                    g.emit(["sparks", x, y, 2, 30, "amber"])
+                }
+                if b.progress >= 1 {
+                    b.restore()
+                    order = .idle
+                    buildTimer = 0
+                }
+            }
         }
         if order.isIdle && !queued.isEmpty {
             order = queued.removeFirst()
@@ -679,6 +758,7 @@ final class SUnit: SEntity {
         switch order {
         case .attack(let t): return (t as? SBuilding).map { $0.half + 30 } ?? 30
         case .gather: return 40
+        case .rebuild: return 40
         case .ret: return 120
         default: return 0
         }
@@ -914,7 +994,10 @@ final class SWorld {
     var fog: [Int: SFogGrid] = [:]
     var obstacles: [(Double, Double, Double)] = []
     private var obstacleGrid: [Int: [Int]] = [:]
-    let walls: [SRect]
+    /// `walls` is derived: the map's own water and cliffs plus the span of every fallen bridge.
+    private(set) var walls: [SRect]
+    private var mapWalls: [SRect] = []
+    var bridges: [SBridge] = []
     let nav: SNavGrid
     var navDirty = true
     var pathBudget = 0
@@ -925,10 +1008,11 @@ final class SWorld {
         self.difficulty = difficulty
         setWorldSize(map: map)  // the map carries its own size; grids below are sized from it
         nav = SNavGrid()
-        walls = jArr(map["walls"]).map { w in
+        mapWalls = jArr(map["walls"]).map { w in
             let v = jArr(w)
             return SRect(Double(jNum(v[0])), Double(jNum(v[1])), Double(jNum(v[2])), Double(jNum(v[3])))
         }
+        walls = mapWalls
         for p in list {
             players[p.slot] = p
             resources[p.slot] = 250
@@ -945,6 +1029,13 @@ final class SWorld {
             let o = (Double(jNum(v[0])), Double(jNum(v[1])), Double(jNum(v[2])))
             obstacles.append(o)
             obstacleGrid[Int(o.0 / 128) * 1000 + Int(o.1 / 128), default: []].append(i)
+        }
+        for b in jArr(map["bridges"]) {
+            let v = jArr(b)
+            let br = SBridge(world: self, rect: SRect(Double(jNum(v[0])), Double(jNum(v[1])),
+                                                      Double(jNum(v[2])), Double(jNum(v[3]))))
+            bridges.append(br)
+            byId[br.id] = br
         }
         for c in jArr(map["crystals"]) {
             let v = jArr(c)
@@ -1017,6 +1108,17 @@ final class SWorld {
             updateVisibility()
         }
         checkVictory()
+    }
+
+    /// A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
+    /// Everything that consults `walls` — navigation, collision and building placement — follows from this.
+    func bridgesChanged() {
+        walls = mapWalls + bridges.filter { !$0.intact }.map { $0.rect }
+        navDirty = true
+    }
+
+    func bridge(at x: Double, _ y: Double, slack: Double = 0) -> SBridge? {
+        bridges.first { $0.rect.distance(x, y) <= slack }
     }
 
     private func rebuildNav() {
@@ -1191,9 +1293,16 @@ final class SWorld {
             let us = ownUnits(slot, ids(cmd[1]))
             if !us.isEmpty { moveGroup(us, num(2), num(3), attack: flag(5), queue: flag(4)) }
         case "attack" where cmd.count >= 4:
-            if let t = byId[jInt(cmd[2])] as? SEntity, !t.dead, enemies(t.team, slot) {
-                for u in ownUnits(slot, ids(cmd[1])) { give(u, .attack(t), flag(3)) }
+            if let t = byId[jInt(cmd[2])] as? SEntity, !t.dead {
+                let neutral = (t as? SBridge)?.intact ?? false      // anyone may bring a crossing down
+                if neutral || enemies(t.team, slot) {
+                    for u in ownUnits(slot, ids(cmd[1])) where !(neutral && u.kind == .worker) {
+                        give(u, .attack(t), flag(3))
+                    }
+                }
             }
+        case "rebuild" where cmd.count >= 3:
+            rebuildBridge(slot, jInt(cmd[1]), jInt(cmd[2]), queue: cmd.count > 3 && flag(3))
         case "gather" where cmd.count >= 4:
             if let c = byId[jInt(cmd[2])] as? SCrystal, !c.dead {
                 let us = ownUnits(slot, ids(cmd[1]))
@@ -1278,6 +1387,17 @@ final class SWorld {
     }
 
     // MARK: Construction & production
+
+    private func rebuildBridge(_ slot: Int, _ workerId: Int, _ bridgeId: Int, queue: Bool) {
+        guard let b = byId[bridgeId] as? SBridge, !b.intact,
+              let w = ownUnits(slot, [workerId]).first, w.kind == .worker else { return }
+        guard (resources[slot] ?? 0) >= Double(bridgeCost) else {
+            emit(["msg", slot, "Not enough crystal", "bad"])
+            return
+        }
+        resources[slot, default: 0] -= Double(bridgeCost)
+        give(w, .rebuild(b), queue)
+    }
 
     func hasBuilt(_ k: BuildingKind, _ team: Int) -> Bool { buildings.contains { $0.team == team && $0.kind == k && $0.built } }
 
@@ -1454,6 +1574,11 @@ final class SWorld {
                 let d = hyp(u.x - s.x1, u.y - s.y1) - u.radius
                 if d <= s.splash { u.takeDamage(s.damage * (1 - 0.5 * max(0, d) / s.splash), from: s.attacker) }
             }
+            // Bridges belong to nobody, so shells hit them whoever fired: a tank shelling a crossing is
+            // the ordinary way to break one.
+            for br in bridges where br.intact && br.rect.distance(s.x1, s.y1) <= s.splash * 0.5 {
+                br.takeDamage(s.damage, from: s.attacker)
+            }
             for b in buildings where !b.dead && enemies(b.team, s.team) && b.rect.distance(s.x1, s.y1) <= s.splash * 0.5 {
                 b.takeDamage(s.damage, from: s.attacker)
             }
@@ -1502,6 +1627,7 @@ final class SAI {
         }
         let reserve = construct(hq, bases, workers)
         produce(hq, bases, workers, reserve)
+        rebuildBridges(hq, workers)
         defend(bases, home)
         attack(hq, home)
     }
@@ -1552,6 +1678,20 @@ final class SAI {
         g.resources[team, default: 0] -= cost
         builder.orderBuild(k, spot.0, spot.1, queue: false)
         return 0
+    }
+
+    /// A fallen crossing near home is worth putting back: it is the road its attacks travel on.
+    /// One Engineer at a time, and only with crystal to spare, so this never starves the army.
+    private func rebuildBridges(_ hq: SBuilding, _ workers: [SUnit]) {
+        let g = world
+        guard (g.resources[team] ?? 0) >= Double(bridgeCost) + 250 else { return }
+        if workers.contains(where: { if case .rebuild = $0.order { return true }; return false }) { return }
+        let down = g.bridges.filter { !$0.intact && hyp($0.x - hq.x, $0.y - hq.y) < 2200 }
+        guard let b = down.min(by: { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }) else { return }
+        let free = workers.filter { $0.order.isIdle || { if case .gather = $0.order { return true }; return false }($0) }
+        guard let builder = free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) }) else { return }
+        g.resources[team, default: 0] -= Double(bridgeCost)
+        builder.command(.rebuild(b))
     }
 
     private func homeCrystalLeft(_ bases: [SBuilding]) -> Int {

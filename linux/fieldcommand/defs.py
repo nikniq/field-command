@@ -142,6 +142,12 @@ BUILDINGS = {
 }
 BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar"]
 
+# Bridges. They come with the map rather than being built from scratch, so their numbers live here
+# rather than in BUILDINGS: nobody owns one, anybody can shell it down, any Engineer can rebuild it.
+BRIDGE_HP = 900.0
+BRIDGE_COST = 75
+BRIDGE_REBUILD_TIME = 25.0
+
 
 @dataclass(frozen=True)
 class Difficulty:

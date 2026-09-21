@@ -249,6 +249,72 @@ enum Debug {
         exit(pausedOK && net.serverTime > t0 ? 0 : 1)
     }
 
+    /// FC_BRIDGETEST=map_id: plays a skirmish on a map with bridges, shells one crossing down and has it
+    /// rebuilt, checking that the span blocks while it is down. Writes screenshots when FC_SNAPSHOT_DIR is set.
+    static func runBridgeTest(_ mapId: String) -> Never {
+        instantScenes = true
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 1400, height: 880))
+        startSkirmish(view, size: view.bounds.size, difficulty: .normal, mapId: mapId, opponents: 1)
+        guard let scene = view.scene as? GameScene, let net = scene.net, net.isLocal,
+              let world = GameServer.hosted?.simulation else {
+            print("bridge test: FAILED — no local game")
+            exit(1)
+        }
+        if !scene.didSetup { scene.didMove(to: view) }
+        var t: TimeInterval = 1
+        func frames(_ n: Int) {
+            for _ in 0..<n {
+                t += 1.0 / 30
+                scene.update(t)
+                usleep(12_000)
+            }
+        }
+        frames(60)
+        guard let br = world.bridges.first else {
+            print("bridge test: FAILED — \(mapId) has no bridges")
+            exit(1)
+        }
+        scene.centerCamera(on: CGPoint(x: br.x, y: br.y))
+        frames(20)
+        if let dir = snapshotDir { snapshot(scene, dir: dir, name: "bridge_intact") }
+        // How much of the deck is walkable. Probing the centre cell or guessing the crossing axis is not
+        // reliable across maps — riverlands has a near-square deck that also overlaps neighbouring river
+        // segments — but the count must fall when the bridge does and come back when it is rebuilt.
+        func walkableCells() -> Int {
+            world.nav.rebuild(rects: world.walls, circles: [])
+            let r = br.rect
+            var n = 0
+            for cx in Int(r.x0 / 40)...Int(r.x1 / 40) {
+                for cy in Int(r.y0 / 40)...Int(r.y1 / 40) {
+                    let i = cy * world.nav.cols + cx
+                    if i >= 0 && i < world.nav.blocked.count && !world.nav.blocked[i] { n += 1 }
+                }
+            }
+            return n
+        }
+        let intactCells = walkableCells()
+
+        br.takeDamage(bridgeHP, from: nil)          // shell it down
+        frames(45)
+        let downCells = walkableCells()
+        let clientSawDown = scene.bridgeNodes.first { $0.bridgeId == br.id }.map { !$0.intact } ?? false
+        if let dir = snapshotDir { snapshot(scene, dir: dir, name: "bridge_down") }
+
+        br.restore()                                 // and put it back
+        frames(45)
+        let rebuiltCells = walkableCells()
+        let clientSawUp = scene.bridgeNodes.first { $0.bridgeId == br.id }.map { $0.intact } ?? false
+        if let dir = snapshotDir { snapshot(scene, dir: dir, name: "bridge_rebuilt") }
+
+        let ok = intactCells > 0 && downCells < intactCells && rebuiltCells == intactCells
+                 && clientSawDown && clientSawUp
+        print("bridge test: walkable cells over the deck — intact \(intactCells), down \(downCells), "
+              + "rebuilt \(rebuiltCells); client saw it fall=\(clientSawDown) and rise=\(clientSawUp)")
+        print(ok ? "BRIDGE TEST PASSED" : "BRIDGE TEST FAILED")
+        stopHostedServer()
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_WORLDTEST=1: plays an AI-only game on every map with the server simulation and exits.
     static func runWorldTest() -> Never {
         var ok = true

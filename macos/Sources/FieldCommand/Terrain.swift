@@ -1,4 +1,5 @@
 import AppKit
+import SpriteKit
 
 /// Organic terrain rendering, a port of the Linux edition's terrain.py: water and cliffs are drawn from a blurred,
 /// noise-warped mask of the map's wall rectangles, so overlapping pieces merge into natural lakes, rivers and
@@ -203,10 +204,62 @@ enum Terrain {
         return px.withUnsafeMutableBytes { buf -> CGImage? in
             guard let ctx = CGContext(data: buf.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                       space: Art.srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
-            // Bridges, drawn in world coordinates (the context's origin is bottom-left, y up).
-            ctx.scaleBy(x: CGFloat(1 / res), y: CGFloat(1 / res))
-            for (k, r) in bridges.enumerated() { drawBridge(ctx, r, seed: UInt64(k + 7)) }
+            // Bridges are drawn as their own sprites (BridgeNode), not baked in here: they can be
+            // destroyed and rebuilt during a game. Their spans still shape the water mask above.
             return ctx.makeImage()
+        }
+    }
+
+    /// The deck, as a texture sized to the bridge's own footprint.
+    static func bridgeTexture(_ size: CGSize, seed: UInt64) -> SKTexture {
+        // Art.image already puts the origin at the centre of the canvas.
+        Art.texture("bridge-\(Int(size.width))x\(Int(size.height))-\(seed)", size: size) { ctx in
+            drawBridge(ctx, CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height),
+                       seed: seed)
+        }
+    }
+
+    /// What is left after a bridge comes down: stumps of the piers, broken planks in the water, and the
+    /// burnt ends of the deck still clinging to each bank.
+    static func bridgeRuinsTexture(_ size: CGSize, seed: UInt64) -> SKTexture {
+        Art.texture("bridgeruin-\(Int(size.width))x\(Int(size.height))-\(seed)", size: size) { ctx in
+            var rng = SeededRNG(seed &+ 500)
+            let w = size.width, h = size.height      // origin is already the centre of the canvas
+            let alongX = w >= h
+            let span = alongX ? w : h
+            let stub = max(16, span * 0.22)          // the approach still standing at each bank
+            for near in [true, false] {
+                let piece: CGRect
+                if alongX {
+                    piece = CGRect(x: near ? -w / 2 + 6 : w / 2 - 6 - stub, y: -h / 2 + 6, width: stub, height: h - 12)
+                } else {
+                    piece = CGRect(x: -w / 2 + 6, y: near ? -h / 2 + 6 : h / 2 - 6 - stub, width: w - 12, height: stub)
+                }
+                Art.linear(ctx, Art.rr(piece, 3), [.rgb(0.42, 0.30, 0.18), .rgb(0.28, 0.19, 0.11)],
+                           CGPoint(x: piece.midX, y: piece.maxY), CGPoint(x: piece.midX, y: piece.minY))
+                Art.stroke(ctx, Art.rr(piece, 3), .rgb(0.12, 0.08, 0.04, 0.9), 1.4)
+            }
+            // Pier stumps standing in the stream.
+            let n = max(2, Int(span / 70))
+            for i in 0..<n {
+                let t = (CGFloat(i) + 0.5) / CGFloat(n)
+                let px = alongX ? -w / 2 + t * w : CGFloat.random(in: -w / 4...w / 4, using: &rng)
+                let py = alongX ? CGFloat.random(in: -h / 4...h / 4, using: &rng) : -h / 2 + t * h
+                let post = CGRect(x: px - 5, y: py - 5, width: 10, height: 10)
+                Art.fill(ctx, Art.rr(post, 2), .rgb(0.33, 0.23, 0.13))
+                Art.stroke(ctx, Art.rr(post, 2), .rgb(0.12, 0.08, 0.04, 0.8), 1.2)
+                Art.fill(ctx, Art.circle(CGPoint(x: px, y: py), 7), .rgb(0.6, 0.7, 0.8, 0.18))
+            }
+            // Planks adrift.
+            for _ in 0..<7 {
+                let px = CGFloat.random(in: -w / 2...w / 2, using: &rng)
+                let py = CGFloat.random(in: -h / 2...h / 2, using: &rng)
+                let ln = CGFloat.random(in: 10...26, using: &rng)
+                let a = CGFloat.random(in: 0...(.pi), using: &rng)
+                let dx = cos(a) * ln / 2, dy = sin(a) * ln / 2
+                Art.lines(ctx, [(CGPoint(x: px - dx, y: py - dy), CGPoint(x: px + dx, y: py + dy))],
+                          .rgb(0.30, 0.21, 0.12, 0.85), 3)
+            }
         }
     }
 

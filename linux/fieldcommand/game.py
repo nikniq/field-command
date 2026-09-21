@@ -9,7 +9,8 @@ import random
 import pygame
 
 from . import art, audio, defs, terrain, ui
-from .defs import (AMBER, BAD, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR, TEAM_LIGHT, TEXT, UNITS, clamp, rects_intersect, to255)
+from .defs import (AMBER, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR,
+                   TEAM_LIGHT, TEXT, UNITS, clamp, rects_intersect, to255)
 from .effects import Effects
 from .fogview import FogView
 from .net import STATUS
@@ -19,7 +20,7 @@ SPARK_COLORS = {"hit": (255, 204, 102), "crystal": (102, 235, 255), "amber": (25
 TRACER_COLORS = {0: (1, 0.88, 0.5, 1), 1: (1, 0.75, 0.4, 1), 2: (0.78, 0.95, 1.0, 1)}
 SOUND_GAPS = {"rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08, "snipe": 0.05}
 ORDER_COLORS = {STATUS["move"]: GOOD, STATUS["amove"]: BAD, STATUS["attack"]: BAD, STATUS["gather"]: CRYSTAL,
-                STATUS["build"]: AMBER}
+                STATUS["build"]: AMBER, STATUS["rebuild"]: AMBER}
 
 
 class CommandButton:
@@ -79,14 +80,12 @@ def build_ground(map_spec):
             for k in range(n + 1):
                 t = k / n
                 stamp(ax + (bx - ax) * t + rnd.uniform(-8, 8), ay + (by - ay) * t + rnd.uniform(-8, 8), rnd.uniform(110, 150), 0.42)
-    # Terrain features: water and cliffs are rendered as one organic layer, bridges on top.
+    # Terrain features: water and cliffs are one organic layer. Bridges are drawn per frame instead
+    # of being baked in here, because they can be destroyed and rebuilt.
     m = art.TERRAIN_MARGIN
     layer = terrain.render(map_spec)
     if layer is not None:
         ground.blit(layer, (0, 0))
-    for i, (x0, y0, x1, y1) in enumerate(map_spec.get("bridges", [])):
-        img = art.bridge_patch(int(x1 - x0), int(y1 - y0), i + 7)
-        ground.blit(img, (x0 - m, H - y1 - m))
     tuft = pygame.transform.smoothscale(art.tuft(), (16, 16))
     for _ in range(500):
         ground.blit(tuft, (rnd.uniform(0, W), rnd.uniform(0, H)))
@@ -313,6 +312,11 @@ class GameScene:
                 self.hud.flash(f"Ally's {name} destroyed", AMBER)
             else:
                 self.hud.flash(f"Enemy {name} destroyed", GOOD)
+        elif k == "bridge":
+            down = not ev[2]
+            self.hud.flash("Bridge destroyed" if down else "Bridge rebuilt", BAD if down else GOOD)
+            if down:
+                self.hud.ping(ev[3], ev[4])
         elif k == "elim":
             if ev[1] == me:
                 self.hud.flash("You have been eliminated", BAD)
@@ -634,24 +638,33 @@ class GameScene:
     # ------------------------------------------------------------ hover & cursor
 
     def _update_hover(self, mouse):
-        target, crystal = None, None
+        target, crystal, bridge = None, None, None
         active = mouse and not self.hud.overlay_visible and self.drag_start is None and self.placing is None
         if active and not self.hud.over_hud(mouse):
             wx, wy = self.cam.to_world(*mouse)
             target = self.entity_at(wx, wy)
             if target is None and self.s.fog.is_explored(wx, wy):
                 crystal = self.s.crystal_at(wx, wy)
-        if target is not self.hovered:
+            if target is None and crystal is None:
+                bridge = self.bridge_at(wx, wy)
+        hover = target or bridge
+        if hover is not self.hovered:
             if self.hovered:
                 self.hovered.hovered = False
-            if target:
-                target.hovered = True
-            self.hovered = target
+            if hover:
+                hover.hovered = True
+            self.hovered = hover
         if mouse and target:
             color = TEXT if self.mine(target) else (TEAM_LIGHT[target.team] if self.friendly(target) else BAD)
             self.hud.set_hover(f"{target.name}  {math.ceil(target.hp)}/{int(target.max_hp)}", color, mouse)
         elif mouse and crystal:
             self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
+        elif mouse and bridge:
+            if bridge.intact:
+                self.hud.set_hover(f"Bridge  {math.ceil(bridge.hp)}/{int(bridge.max_hp)}    A then click to demolish",
+                                   AMBER, mouse)
+            else:
+                self.hud.set_hover(f"Bridge down    Engineer + right-click to rebuild ({BRIDGE_COST})", DIM, mouse)
         else:
             self.hud.set_hover(None, TEXT, mouse)
 
@@ -665,6 +678,8 @@ class GameScene:
                     kind = "attack"
                 elif crystal and any(u.kind == "worker" for u in own):
                     kind = "gather"
+                elif bridge is not None and not bridge.intact and any(u.kind == "worker" for u in own):
+                    kind = "gather"      # the build cursor: this Engineer can put the crossing back
         if kind != self._cursor:
             self._cursor = kind
             cur = art.cursors().get(kind) if kind else None
@@ -740,6 +755,13 @@ class GameScene:
     def selected_own_buildings(self):
         return [e for e in self.selection if e.is_building and self.mine(e) and not e.dead]
 
+    def bridge_at(self, x, y, slack=0.0):
+        for b in getattr(self.s, "bridges", ()):
+            r = b.rect
+            if r[0] - slack <= x <= r[2] + slack and r[1] - slack <= y <= r[3] + slack:
+                return b
+        return None
+
     def entity_at(self, x, y):
         best, best_d = None, 1e9
         for u in self.s.units:
@@ -767,6 +789,17 @@ class GameScene:
         us = self.selected_own_units()
         send = self.s.send
         if us:
+            br = self.bridge_at(x, y)
+            if br is not None and not br.intact:
+                workers = [u for u in us if u.kind == "worker"]
+                if workers:
+                    send(["rebuild", workers[0].id, br.id, queue])
+                    self.fx.ring(br.x, br.y, 34, 8, AMBER)
+                    rest = [u for u in us if u.kind != "worker"]
+                    if rest:
+                        send(["move", self._ids(rest), x, y, queue, False])
+                    return
+            # A standing bridge is a road: right-click walks across it. Demolition is deliberate — A then click.
             t = self.entity_at(x, y)
             if t and not self.friendly(t):
                 send(["attack", self._ids(us), t.id, queue])
@@ -797,6 +830,14 @@ class GameScene:
         us = self.selected_own_units()
         if not us:
             return
+        br = self.bridge_at(x, y)
+        if br is not None and br.intact:
+            armed = [u for u in us if u.kind != "worker"]
+            if armed:
+                self.s.send(["attack", self._ids(armed), br.id, queue])
+                self.fx.ring(br.x, br.y, 34, 8, BAD)
+                self.hud.flash("Demolishing the bridge", BAD)
+                return
         t = self.entity_at(x, y)
         if t and not self.friendly(t):
             self.s.send(["attack", self._ids(us), t.id, queue])
@@ -927,6 +968,9 @@ class GameScene:
                                       fade=255 if e.selected else 150)
                 sx, sy = cam.to_screen(e.x, e.y)
                 screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
+        for b in getattr(s, "bridges", ()):
+            if visible(b.x, b.y):
+                self._draw_bridge(screen, b, z)
         glow_px = int(90 / z)
         for c in s.crystals:
             if not visible(c.x, c.y) or not s.fog.is_explored(c.x, c.y):
@@ -983,6 +1027,37 @@ class GameScene:
             self._ground_view = sub if (tw, th) == (iw, ih) else pygame.transform.smoothscale(sub, (max(1, tw), max(1, th)))
             self._ground_key = key
         screen.blit(self._ground_view, (int(round(sx)), int(round(sy))))
+
+    def _draw_bridge(self, screen, b, z):
+        """Deck when it stands, pilings and a progress bar when it does not."""
+        cam = self.cam
+        x0, y0, x1, y1 = b.rect
+        w, h = int(x1 - x0), int(y1 - y0)
+        # bridge_patch/bridge_ruins render 1:1 with world units (not at art.SCALE) and carry a margin
+        # on every side, so the sprite scales by 1/zoom and is offset by that margin.
+        m = art.TERRAIN_MARGIN / z
+        sx, sy = cam.to_screen(x0, y1)              # top-left corner of the span on screen
+        if b.intact:
+            img = art.sprites.get(("bridge", b.id), art.bridge_patch(w, h, b.id + 7), 0, 1 / z)
+        else:
+            img = art.sprites.get(("bridgeruin", b.id), art.bridge_ruins(w, h, b.id + 7), 0, 1 / z)
+        screen.blit(img, (sx - m, sy - m))
+        cx, cy = cam.to_screen(b.x, b.y)
+        if b.intact and b.hp < b.max_hp:
+            self._draw_bar(screen, cx, cy - (y1 - y0) / 2 / z - 10, 70 / z, b.hp / b.max_hp, GOOD)
+        elif not b.intact and b.progress > 0:
+            self._draw_bar(screen, cx, cy, 70 / z, b.progress, AMBER)
+        if b.hovered:
+            col = to255(AMBER if b.intact else DIM)
+            ring = art.sprites.get(("bridgering", b.id, col), art.square_ring(), 0,
+                                   (max(w, h) + 18) / (64 * art.SCALE) / z, tint=(*col, 255), fade=170)
+            screen.blit(ring, (cx - ring.get_width() / 2, cy - ring.get_height() / 2))
+
+    def _draw_bar(self, screen, cx, cy, width, frac, color):
+        w = max(12, int(width))
+        x, y = int(cx - w / 2), int(cy)
+        pygame.draw.rect(screen, (8, 10, 12), (x - 1, y - 1, w + 2, 6))
+        pygame.draw.rect(screen, to255(color), (x, y, int(w * max(0.0, min(1.0, frac))), 4))
 
     def _draw_building(self, screen, b, ts):
         cam = self.cam

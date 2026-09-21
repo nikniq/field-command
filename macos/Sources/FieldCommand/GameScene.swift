@@ -25,6 +25,9 @@ final class GameScene: SKScene {
     var roads: [[CGPoint]] = []
     var walls: [CGRect] = []  // impassable water and cliffs
     var terrainImage: CGImage?
+    /// Crossings, in map order. The server numbers them the same way, so the nth snapshot entry is this
+    /// nth node; their condition arrives with every snapshot.
+    var bridgeNodes: [BridgeNode] = []
     var mapKey = "twin_ridges"
 
     let world = SKNode()
@@ -295,6 +298,14 @@ final class GameScene: SKScene {
             s.size = worldSize
             s.zPosition = -7.9
             world.addChild(s)
+        }
+        // Bridges. Ids are assigned by the server in map order, and the first snapshot fills in condition.
+        if let net {
+            for (i, r) in Terrain.bridges(net.map).enumerated() {
+                let node = BridgeNode(rect: r, seed: UInt64(i + 7))
+                world.addChild(node)
+                bridgeNodes.append(node)
+            }
         }
         func onTerrain(_ p: CGPoint) -> Bool { walls.contains { rectDistance($0, p) < 50 } }
         // Dark void beyond the map edge.
@@ -971,11 +982,14 @@ final class GameScene: SKScene {
     private func updateHover(_ mouse: (world: CGPoint, hud: CGPoint)?) {
         var target: Entity?
         var crystal: Crystal?
+        var hoveredBridge: BridgeNode?
         let active = mouse != nil && !hud.overlayVisible && dragStart == nil && placing == nil
         if active, let m = mouse, !hud.isOverHUD(m.hud) {
             target = entity(at: m.world)
             if target == nil, fog.isExplored(m.world) { crystal = self.crystal(at: m.world) }
+            if target == nil, crystal == nil { hoveredBridge = bridge(at: m.world) }
         }
+        for b in bridgeNodes where b.hovered != (b === hoveredBridge) { b.hovered = (b === hoveredBridge) }
         if target !== hovered {
             hovered?.isHovered = false
             target?.isHovered = true
@@ -986,6 +1000,14 @@ final class GameScene: SKScene {
                 hud.setHover("\(t.displayName)  \(Int(ceil(t.hp)))/\(Int(t.maxHp))", color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
             } else if let c = crystal {
                 hud.setHover("Crystal  \(c.amount)", color: Palette.crystal, at: m.hud)
+            } else if let br = hoveredBridge {
+                if br.intact {
+                    hud.setHover("Bridge  \(Int(ceil(br.hp)))/\(Int(bridgeHP))    A then click to demolish",
+                                 color: Palette.amber, at: m.hud)
+                } else {
+                    hud.setHover("Bridge down    Engineer + right-click to rebuild (\(bridgeCost))",
+                                 color: Palette.dim, at: m.hud)
+                }
             } else {
                 hud.setHover(nil, color: .clear, at: m.hud)
             }
@@ -1002,6 +1024,9 @@ final class GameScene: SKScene {
             } else if !own.isEmpty && placing == nil {
                 if let t = target, !t.team.isFriendly { kind = .attack }
                 else if crystal != nil && own.contains(where: { $0.kind == .worker }) { kind = .gather }
+                else if let br = hoveredBridge, !br.intact, own.contains(where: { $0.kind == .worker }) {
+                    kind = .gather      // the build cursor: this Engineer can put the crossing back
+                }
             }
         }
         Art.cursor(kind).set()
@@ -1162,6 +1187,10 @@ final class GameScene: SKScene {
         if queue { u.enqueue(o) } else { u.command(o) }
     }
 
+    func bridge(at p: CGPoint) -> BridgeNode? {
+        bridgeNodes.first { $0.contains(world: p) }
+    }
+
     func smartCommand(at p: CGPoint, queue: Bool = false) {
         if isNet {
             netSmartCommand(at: p, queue: queue)
@@ -1233,6 +1262,15 @@ final class GameScene: SKScene {
     func issueAttackMove(at p: CGPoint, queue: Bool = false) {
         let us = selectedOwnUnits
         guard !us.isEmpty else { return }
+        if let br = bridge(at: p), br.intact {
+            let armed = us.filter { $0.kind != .worker }
+            if !armed.isEmpty {
+                sendNet(["attack", netIds(armed), br.bridgeId, queue])
+                marker(at: br.position, color: Palette.bad, size: 34)
+                hud.flash("Demolishing the bridge", color: Palette.bad)
+                return
+            }
+        }
         if isNet {
             if let t = entity(at: p), !t.team.isFriendly {
                 sendNet(["attack", netIds(us), t.netId, queue])

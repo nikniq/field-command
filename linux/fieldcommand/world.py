@@ -10,8 +10,9 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import BUILDINGS, UNITS, clamp, rect_distance, rects_intersect, square_rect
-from .entities import IDLE, Building, Crystal, Unit
+from .defs import (BRIDGE_COST, BUILDINGS, UNITS, clamp, rect_distance, rects_intersect,
+                   square_rect)
+from .entities import IDLE, Bridge, Building, Crystal, Unit
 from .fog import FogGrid
 from .nav import NavGrid
 
@@ -53,7 +54,9 @@ class World:
         self.alliance_index = {t: i for i, t in enumerate(teams)}
         self.fog = {t: FogGrid() for t in teams}
 
-        self.walls = [tuple(w[:4]) for w in map_spec.get("walls", [])]
+        self.map_walls = [tuple(w[:4]) for w in map_spec.get("walls", [])]
+        self.bridges = []
+        self.walls = list(self.map_walls)
         self.nav = NavGrid()
         self._nav_dirty = True
         self.path_budget = 0
@@ -61,6 +64,10 @@ class World:
         self._obstacle_grid = {}
         for i, (x, y, *_r) in enumerate(self.obstacles):
             self._obstacle_grid.setdefault((int(x // 128), int(y // 128)), []).append(i)
+        for rect in map_spec.get("bridges", []):
+            b = Bridge(self, tuple(rect))
+            self.bridges.append(b)
+            self.by_id[b.id] = b
         for (x, y, amount, variant) in map_spec["crystals"]:
             c = Crystal(x, y, amount, variant, self.next_id())
             self.crystals.append(c)
@@ -90,6 +97,18 @@ class World:
         self.by_id[e.id] = e
         if e.is_building:
             self._nav_dirty = True
+
+    def bridges_changed(self):
+        """A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
+        Everything that consults `walls` — navigation, collision and building placement — follows from this."""
+        self.walls = self.map_walls + [b.rect for b in self.bridges if not b.intact]
+        self._nav_dirty = True
+
+    def bridge_at(self, x, y, slack=0.0):
+        for b in self.bridges:
+            if rect_distance(b.rect, x, y) <= slack:
+                return b
+        return None
 
     def _rebuild_nav(self):
         rects = list(self.walls) + [b.rect for b in self.buildings if not b.dead]
@@ -311,6 +330,7 @@ class World:
             ["move", ids, x, y, queue, attack]      ["attack", ids, target_id, queue]
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
+            ["rebuild", worker_id, bridge_id, queue]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
         Invalid or foreign references are ignored."""
         if self.game_over or slot not in self.players or not self.players[slot].alive or not cmd:
@@ -323,9 +343,12 @@ class World:
                     self.move_group(us, float(cmd[2]), float(cmd[3]), bool(cmd[5]), bool(cmd[4]))
             elif op == "attack":
                 t = self.by_id.get(cmd[2])
-                if t is not None and not isinstance(t, Crystal) and not t.dead and self.enemies(t.team, slot):
+                neutral = isinstance(t, Bridge) and t.intact      # anyone may bring a crossing down
+                if t is not None and not isinstance(t, Crystal) and not t.dead \
+                        and (neutral or self.enemies(t.team, slot)):
                     for u in self._own_units(slot, cmd[1]):
-                        self._give(u, ("attack", t), bool(cmd[3]))
+                        if u.kind != "worker" or not neutral:
+                            self._give(u, ("attack", t), bool(cmd[3]))
             elif op == "gather":
                 c = self.by_id.get(cmd[2])
                 if isinstance(c, Crystal) and not c.dead:
@@ -346,6 +369,8 @@ class World:
                     u.command(IDLE)
             elif op == "build":
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
+            elif op == "rebuild":
+                self._rebuild_bridge(slot, cmd[1], cmd[2], bool(cmd[3]) if len(cmd) > 3 else False)
             elif op == "train":
                 if cmd[2] in UNITS:
                     self.train(cmd[2], self._own_buildings(slot, cmd[1]), slot)
@@ -418,6 +443,19 @@ class World:
         else:
             self.resources[slot] -= s.cost
             workers[0].order_build(kind, x, y, queue=queue)
+
+    def _rebuild_bridge(self, slot, worker_id, bridge_id, queue):
+        b = self.by_id.get(bridge_id)
+        workers = self._own_units(slot, [worker_id])
+        if not isinstance(b, Bridge) or not workers or workers[0].kind != "worker":
+            return
+        if b.intact:
+            return
+        if self.resources[slot] < BRIDGE_COST:
+            self.emit("msg", slot, "Not enough crystal", "bad")
+            return
+        self.resources[slot] -= BRIDGE_COST
+        self._give(workers[0], ("rebuild", b), queue)
 
     # ------------------------------------------------------------ construction & production
 
@@ -617,3 +655,8 @@ class World:
         for b in self.buildings:
             if not b.dead and self.enemies(b.team, team) and rect_distance(b.rect, x, y) <= radius * 0.5:
                 b.take_damage(damage, attacker)
+        # Bridges belong to nobody, so shells hit them whoever fired: a tank shelling a crossing is the
+        # ordinary way to break one.
+        for br in self.bridges:
+            if br.intact and rect_distance(br.rect, x, y) <= radius * 0.5:
+                br.take_damage(damage, attacker)

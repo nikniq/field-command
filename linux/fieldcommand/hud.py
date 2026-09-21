@@ -304,6 +304,11 @@ class HUD:
             if s.fog.is_explored(c.x, c.y):
                 p = self._mm_point(c.x, c.y)
                 pygame.draw.rect(screen, to255(CRYSTAL), (p[0] - 1, p[1] - 1, 3, 3))
+        for br in getattr(s, "bridges", ()):
+            x0, y0 = self._mm_point(br.rect[0], br.rect[3])
+            x1, y1 = self._mm_point(br.rect[2], br.rect[1])
+            rect = (x0, y0, max(2, x1 - x0), max(2, y1 - y0))
+            pygame.draw.rect(screen, to255(AMBER if br.intact else BAD), rect, 0 if br.intact else 1)
         for b in s.buildings:
             if s.shown(b):
                 p = self._mm_point(b.x, b.y)

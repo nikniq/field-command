@@ -1138,6 +1138,46 @@ def _water_body(c, w, h, rnd):
     linear(c, o, [rgb(0.12, 0.31, 0.42), rgb(0.08, 0.23, 0.33)], (-w, h), (w, -h))
 
 
+def bridge_ruins(w, h, seed=1):
+    """What is left after a bridge comes down: stumps of the piers, a few broken planks in the water,
+    and the burnt ends of the deck still clinging to each bank."""
+    m = TERRAIN_MARGIN
+
+    def d(c):
+        rnd = random.Random(seed + 500)
+        # The approaches survive: a short stub of deck at each end, charred where it tore away.
+        along_x = w >= h
+        span = w if along_x else h
+        stub = max(16.0, span * 0.22)          # the approach still standing at each bank
+        for near in (True, False):
+            if along_x:
+                x = -w / 2 + 6 if near else w / 2 - 6 - stub
+                piece = rr(x, -h / 2 + 6, stub, h - 12, 3)
+            else:
+                y = -h / 2 + 6 if near else h / 2 - 6 - stub
+                piece = rr(-w / 2 + 6, y, w - 12, stub, 3)
+            linear(c, piece, [rgb(0.42, 0.30, 0.18), rgb(0.28, 0.19, 0.11)], (0, h / 2), (0, -h / 2))
+            stroke(c, piece, rgb(0.12, 0.08, 0.04, 0.9), 1.4)
+        # Pier stumps standing in the stream.
+        n = max(2, int(span / 70))
+        for i in range(n):
+            t = (i + 0.5) / n
+            px = (-w / 2 + t * w) if along_x else rnd.uniform(-w / 4, w / 4)
+            py = rnd.uniform(-h / 4, h / 4) if along_x else (-h / 2 + t * h)
+            post = rr(px - 5, py - 5, 10, 10, 2)
+            lit(c, post, rgb(0.33, 0.23, 0.13))
+            stroke(c, post, rgb(0.12, 0.08, 0.04, 0.8), 1.2)
+            fill(c, circle(px, py, 7), rgb(0.6, 0.7, 0.8, 0.18))       # water disturbed around it
+        # Planks adrift.
+        for _ in range(7):
+            px, py = rnd.uniform(-w / 2, w / 2), rnd.uniform(-h / 2, h / 2)
+            ln = rnd.uniform(10, 26)
+            a = rnd.uniform(0, math.pi)
+            dx, dy = math.cos(a) * ln / 2, math.sin(a) * ln / 2
+            lines(c, [((px - dx, py - dy), (px + dx, py + dy))], rgb(0.30, 0.21, 0.12, 0.85), 3)
+    return _to_surface(render((w + 2 * m, h + 2 * m), d, 1))
+
+
 def bridge_patch(w, h, seed=1):
     """A wooden bridge over water, walked along the x axis."""
     m = TERRAIN_MARGIN

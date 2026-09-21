@@ -26,7 +26,7 @@ from .defs import BUILDING_KINDS, DIFFICULTIES, MAX_PLAYERS, UNIT_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -36,7 +36,8 @@ _FLAG = 0x80000000
 
 UNIT_INDEX = {k: i for i, k in enumerate(UNIT_KINDS)}
 BUILDING_INDEX = {k: i for i, k in enumerate(BUILDING_KINDS)}
-STATUS = {"idle": 0, "move": 1, "amove": 2, "attack": 3, "gather": 4, "return": 5, "build": 6}
+STATUS = {"idle": 0, "move": 1, "amove": 2, "attack": 3, "gather": 4, "return": 5, "build": 6,
+          "rebuild": 7}
 
 
 # ---------------------------------------------------------------- framing
@@ -64,7 +65,7 @@ def _r(v, nd=1):
 
 POSITIONAL = {"tracer", "muzzle", "sparks", "smoke", "explode", "flash", "shell", "wreck", "rubble", "shake", "sound"}
 PRIVATE = {"msg", "alert", "income", "built", "wave", "trained"}
-PUBLIC = {"elim", "gameover", "chat"}
+PUBLIC = {"elim", "gameover", "chat", "bridge"}
 
 
 def event_visible(world, slot, ev):
@@ -106,6 +107,8 @@ def order_points(u):
                 pts.append((STATUS[k], t.x, t.y))
         elif k == "build":
             pts.append((STATUS[k], o[2], o[3]))
+        elif k == "rebuild":
+            pts.append((STATUS["build"], o[1].x, o[1].y))
     return pts
 
 
@@ -133,6 +136,7 @@ def snapshot_for(world, slot, events):
     return {"t": "snap", "time": _r(world.elapsed, 2), "res": int(world.resources[slot]),
             "sup": [world.supply_used(slot), world.supply_cap(slot)],
             "u": units, "o": orders, "b": buildings,
+            "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],
             "c": [[c.id, c.amount] for c in world.crystals],
             "p": {str(s): int(p.alive) for s, p in world.players.items()},
             "e": [_pack_event(ev) for ev in events if event_visible(world, slot, ev)]}

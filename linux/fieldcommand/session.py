@@ -1,7 +1,7 @@
 """Sessions connect the client scene to a game: `LocalSession` wraps an in-process World (single player),
 `NetSession` mirrors a remote server from snapshots. Both expose the same view interface:
 
-    slot, players, map, units, buildings, crystals, obstacles, resources, supply_used, supply_cap, elapsed,
+    slot, players, map, units, buildings, crystals, bridges, obstacles, resources, supply_used, supply_cap, elapsed,
     fog (FogGrid for my alliance), game_over, winner_team, can_pause, difficulty,
     send(cmd), update(dt) -> events, shown(e), mine(e), friendly(e), has_built(kind), order_points(u), stats()
 """
@@ -10,7 +10,8 @@ import time
 
 from . import mapgen
 from . import defs
-from .defs import BUILDINGS, BUILDING_KINDS, DIFFICULTIES, UNITS, UNIT_KINDS, angle_lerp, rect_distance, rects_intersect, square_rect
+from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DIFFICULTIES, UNITS, UNIT_KINDS, angle_lerp,
+                   rect_distance, rects_intersect, square_rect)
 from .fog import FogGrid
 from .net import STATUS, event_visible, order_points as world_order_points
 from .settings import settings
@@ -101,6 +102,7 @@ class LocalSession(_Base):
     units = property(lambda self: self.world.units)
     buildings = property(lambda self: self.world.buildings)
     crystals = property(lambda self: self.world.crystals)
+    bridges = property(lambda self: self.world.bridges)
     elapsed = property(lambda self: self.world.elapsed)
     game_over = property(lambda self: self.world.game_over)
     winner_team = property(lambda self: self.world.winner_team)
@@ -171,6 +173,31 @@ class _ProxyCrystal:
     @property
     def scale(self):
         return 0.55 + 0.45 * self.amount / self.max_amount
+
+
+class _ProxyBridge:
+    """Client-side bridge. The footprint comes from the map, the condition from each snapshot."""
+    is_building = False
+    dead = False
+    team = None
+    name = "Bridge"
+
+    def __init__(self, id, rect):
+        x0, y0, x1, y1 = rect
+        self.id = id
+        self.rect = (x0, y0, x1, y1)
+        self.x, self.y = (x0 + x1) / 2, (y0 + y1) / 2
+        self.horizontal = (x1 - x0) >= (y1 - y0)
+        self.intact = True
+        self.hp = self.max_hp = BRIDGE_HP
+        self.progress = 0.0
+        self.selected = self.hovered = False
+
+    def surface_distance(self, px, py):
+        return rect_distance(self.rect, px, py)
+
+    def targetable_by(self, slot):
+        return self.intact
 
 
 class _ProxyUnit:
@@ -253,6 +280,8 @@ class NetSession(_Base):
         self.players = {p["slot"]: _Player(p["slot"], p["name"], p["team"], p["ai"]) for p in start_msg["players"]}
         self.obstacles = [tuple(t) for t in self.map["trees"]]
         self.crystals = [_ProxyCrystal(*c) for c in start_msg["crystals"]]
+        self.bridges = []
+        self._bridges_by_id = {}
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
         self.units, self.buildings = [], []
@@ -278,7 +307,8 @@ class NetSession(_Base):
         return any(b.team == self.slot and b.kind == kind and b.built for b in self.buildings)
 
     def by_id(self, i):
-        return self._units.get(i) or self._buildings.get(i) or self._crystals_by_id.get(i)
+        return (self._units.get(i) or self._buildings.get(i) or self._crystals_by_id.get(i)
+                or self._bridges_by_id.get(i))
 
     def order_points(self, u, with_kind=False):
         pts = u.pts if u.team == self.slot else []
@@ -350,6 +380,17 @@ class NetSession(_Base):
             b.rally = tuple(rally) if rally else None
         for i in [i for i in self._buildings if i not in seen]:
             self._buildings.pop(i).dead = True
+        for (i, intact, hp, prog) in m.get("br", ()):
+            b = self._bridges_by_id.get(i)
+            if b is None:
+                # Bridges arrive in map order, so the nth id belongs to the nth footprint.
+                rects = self.map.get("bridges", [])
+                if len(self.bridges) >= len(rects):
+                    continue
+                b = _ProxyBridge(i, tuple(rects[len(self.bridges)]))
+                self.bridges.append(b)
+                self._bridges_by_id[i] = b
+            b.intact, b.hp, b.progress = bool(intact), hp, prog / 100
         amounts = {i: a for i, a in m["c"]}
         for c in self.crystals:
             if c.id in amounts:

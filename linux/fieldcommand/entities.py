@@ -4,11 +4,13 @@
 
 Orders are tuples:
     ("idle",) ("move", x, y) ("amove", x, y) ("attack", entity) ("gather", crystal) ("return",) ("build", kind, x, y)
+    ("rebuild", bridge)
 """
 import math
 import random
 
-from .defs import BUILDINGS, UNITS, angle_lerp, rect_distance, square_rect
+from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, UNITS, angle_lerp,
+                   rect_distance, square_rect)
 
 IDLE = ("idle",)
 
@@ -82,6 +84,59 @@ class Entity:
 
     def on_damaged(self, attacker):
         pass
+
+
+class Bridge(Entity):
+    """A crossing the map ships with. Nobody owns it: any player can shell it down and any Engineer can
+    rebuild it. While it stands it is pure decoration — the water simply is not there. Once it falls, its
+    footprint blocks movement and line of fire exactly like the stream it spans, which is what makes
+    holding or breaking a crossing worth doing."""
+
+    is_building = False
+
+    def __init__(self, game, rect):
+        x0, y0, x1, y1 = rect
+        super().__init__(game, None, BRIDGE_HP, 0, (x0 + x1) / 2, (y0 + y1) / 2)
+        self.rect = (x0, y0, x1, y1)
+        self.intact = True
+        self.progress = 0.0        # rebuild progress, 0..1
+        self.horizontal = (x1 - x0) >= (y1 - y0)
+
+    @property
+    def name(self):
+        return "Bridge"
+
+    def surface_distance(self, px, py):
+        return rect_distance(self.rect, px, py)
+
+    def targetable_by(self, slot):
+        return self.intact        # ruins are rebuilt, not shot at again
+
+    def take_damage(self, amount, attacker):
+        """Neutral, so no owner is alerted — but everyone is told when a crossing goes down."""
+        if not self.intact:
+            return
+        self.hp -= amount
+        if self.hp <= 0:
+            self.hp = 0.0
+            self.intact = False
+            self.progress = 0.0
+            g = self.game
+            g.emit("explode", self.x, self.y, 34, 1, 0)
+            g.emit("smoke", self.x, self.y, 30)
+            g.emit("sound", "explosion", self.x, self.y)
+            g.emit("bridge", self.id, 0, self.x, self.y)
+            g.bridges_changed()
+
+    def restore(self):
+        self.intact = True
+        self.hp = self.max_hp
+        self.progress = 0.0
+        g = self.game
+        g.emit("flash", self.x, self.y, 90, "build")
+        g.emit("sound", "complete", self.x, self.y)
+        g.emit("bridge", self.id, 1, self.x, self.y)
+        g.bridges_changed()
 
 
 class Unit(Entity):
@@ -166,9 +221,13 @@ class Unit(Entity):
     def refund_builds(self, include_current):
         if include_current and self.order[0] == "build":
             self.game.refund(BUILDINGS[self.order[1]].cost, self.team)
+        if include_current and self.order[0] == "rebuild":
+            self.game.refund(BRIDGE_COST, self.team)
         for q in self.queued:
             if q[0] == "build":
                 self.game.refund(BUILDINGS[q[1]].cost, self.team)
+            elif q[0] == "rebuild":
+                self.game.refund(BRIDGE_COST, self.team)
 
     def order_build(self, kind, x, y, queue=False):
         if queue and not (self.order[0] == "idle" and not self.queued):
@@ -335,6 +394,33 @@ class Unit(Entity):
                 self.order = IDLE
                 g.emit("msg", self.team, "Build site blocked", "bad")
 
+        elif kind == "rebuild":
+            b = o[1]
+            self.build_timer += dt
+            if b.intact:
+                # Someone else finished it first; the crystal goes back.
+                g.refund(BRIDGE_COST, self.team)
+                self.order = IDLE
+                self.build_timer = 0.0
+            elif self.stuck > 3 or self.build_timer > 60:
+                g.refund(BRIDGE_COST, self.team)
+                self.order = IDLE
+                self.build_timer = 0.0
+                g.emit("msg", self.team, "An Engineer couldn't reach the bridge", "bad")
+            elif b.surface_distance(self.x, self.y) - self.radius > 12:
+                target = (b.x, b.y)
+            else:
+                b.progress = min(1.0, b.progress + dt / BRIDGE_REBUILD_TIME)
+                self.mine_timer += dt
+                if self.mine_timer > 0.45:      # reuse the mining bob so the work reads at a glance
+                    self.mine_timer = 0.0
+                    g.emit("pulse", self.id)
+                    g.emit("sparks", self.x, self.y, 2, 30, "amber")
+                if b.progress >= 1.0:
+                    b.restore()
+                    self.order = IDLE
+                    self.build_timer = 0.0
+
         if self.order[0] == "idle" and self.queued:
             self.order = self.queued.pop(0)
             self.stuck = 0
@@ -351,6 +437,8 @@ class Unit(Entity):
         if k == "attack":
             t = self.order[1]
             return t.half + 30 if t.is_building else 30
+        if k == "rebuild":
+            return 40
         if k == "gather":
             return 40
         if k == "return":

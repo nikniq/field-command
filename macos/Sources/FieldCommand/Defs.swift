@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.1.0"
+let appVersion = "1.2.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -280,6 +280,12 @@ enum Difficulty: Int, CaseIterable {
     var pace: CGFloat { [1.35, 1.0, 0.75][rawValue] }
     var workerTarget: Int { [12, 16, 20][rawValue] }
 }
+
+// Bridges come with the map rather than being built from scratch, so their numbers live here rather
+// than in BuildingStats: nobody owns one, anybody can shell it down, any Engineer can rebuild it.
+let bridgeHP: Double = 900
+let bridgeCost = 75
+let bridgeRebuildTime: Double = 25
 
 enum ButtonIcon {
     case attack, stop, unit(UnitKind), building(BuildingKind)
