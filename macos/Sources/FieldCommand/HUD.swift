@@ -442,8 +442,8 @@ final class HUD: SKNode {
             game.cancelQueue(b, index: hit.1)
             return true
         }
-        if let (r, b) = upgradeRect, r.contains(p) {
-            game.cancelUpgrade(b)
+        if let hit = upgradeRect, hit.0.contains(p) {
+            game.cancelUpgrade(hit.1)
             return true
         }
         if let hit = iconRects.first(where: { $0.0.contains(p) }) {

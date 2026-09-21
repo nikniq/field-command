@@ -953,7 +953,8 @@ enum Art {
                     let plate = rr(box(-13, -13, 26, 26), 4)
                     lit(ctx, plate, .rgb(0.5, 0.55, 0.6))
                     stroke(ctx, plate, NSColor(white: 0, alpha: 0.6), 1.2)
-                    for (x, y) in [(-8.0, -8.0), (8, -8), (-8, 8), (8, 8)] { fill(ctx, circle(CGPoint(x: x, y: y), 2), .rgb(0.2, 0.2, 0.22)) }
+                    let rivets: [(CGFloat, CGFloat)] = [(-8, -8), (8, -8), (-8, 8), (8, 8)]
+                    for (x, y) in rivets { fill(ctx, circle(CGPoint(x: x, y: y), 2), .rgb(0.2, 0.2, 0.22)) }
                     fill(ctx, rr(box(-4, -12, 8, 24), 1), Palette.good.withAlphaComponent(0.8))
                     fill(ctx, rr(box(-12, -4, 24, 8), 1), Palette.good.withAlphaComponent(0.8))
                 case .armor:
@@ -963,7 +964,8 @@ enum Art {
                     stroke(ctx, sh, NSColor(white: 0, alpha: 0.6), 1.2)
                     lines(ctx, [(CGPoint(x: 0, y: 12), CGPoint(x: 0, y: -10))], NSColor(white: 1, alpha: 0.5), 2)
                 case .prod:
-                    for (cx, cy, r) in [(-6.0, 3.0, 9.0), (8, -5, 6)] {
+                    let gears: [(CGFloat, CGFloat, CGFloat)] = [(-6, 3, 9), (8, -5, 6)]
+                    for (cx, cy, r) in gears {
                         for i in 0..<8 {
                             let a = CGFloat(i) * .pi / 4
                             fill(ctx, rr(box(cx + cos(a) * r - 2, cy + sin(a) * r - 2, 4, 4), 1), .rgb(0.6, 0.62, 0.65))
