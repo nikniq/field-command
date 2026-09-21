@@ -336,6 +336,18 @@ def tank_outriggers(team):
     return texture(("outriggers", team), (76, 56), d)
 
 
+def icon_plate(w, h):
+    """The dark rounded plate drawn behind command-card icons."""
+    key = ("icon_plate", w, h)
+    t = _cache.get(key)
+    if t is None:
+        t = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(t, (6, 9, 12, 150), (0, 0, w, h), border_radius=7)
+        pygame.draw.rect(t, (255, 255, 255, 22), (0, 0, w, h), 1, border_radius=7)
+        _cache[key] = t
+    return t
+
+
 def icon_upgrade(kind):
     """Command-card icons for building upgrades: a plate, a shield, gears, a crate and a twin barrel."""
     def d(c):

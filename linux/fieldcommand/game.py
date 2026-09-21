@@ -967,9 +967,17 @@ class GameScene:
                                              lambda k=k: self.begin_placement(k)))
             return out
         bs = [b for b in self.selected_own_buildings() if b.built]
-        if bs and all(b.kind == bs[0].kind for b in bs):
+        if bs:
+            # A mixed selection (say a Barracks and a Factory) shows every button any of them offers: training
+            # goes to the buildings that can do it, upgrades to the ones they apply to. The card is never blank.
+            kinds = []
+            for b in bs:
+                if b.kind not in kinds:
+                    kinds.append(b.kind)
+            produces = [k for bk in kinds for k in BUILDINGS[bk].produces]
+            produces = list(dict.fromkeys(produces))
             out = []
-            for k in bs[0].stats.produces:
+            for k in produces:
                 s = UNITS[k]
                 ok = s.requires is None or self.s.has_built(s.requires)
                 tip = (f"{s.desc}\nSupply {s.supply} · {int(s.build_time)}s build time.\n"
@@ -980,13 +988,16 @@ class GameScene:
                                          lambda k=k: self.train(k)))
             for k in UPGRADE_KINDS:
                 u = UPGRADES[k]
-                if not upgrade_applies(k, bs[0].kind):
+                targets = [b for b in bs if upgrade_applies(k, b.kind)]
+                if not targets:
                     continue
-                cost = upgrade_cost(k, bs[0].kind)
-                installed = all(k in b.upgrades for b in bs)
-                busy = any(b.upgrading is not None for b in bs) and not installed
-                ok = not installed and any(b.can_upgrade(k) for b in bs)
+                cost = upgrade_cost(k, targets[0].kind)
+                installed = all(k in b.upgrades for b in targets)
+                busy = any(b.upgrading is not None for b in targets) and not installed
+                ok = not installed and any(b.can_upgrade(k) for b in targets)
                 tip = f"{u.desc}\n{int(u.time)}s to research; this building only."
+                if len(targets) > 1:
+                    tip += f"\nApplies to {len(targets)} selected buildings, one price each."
                 if installed:
                     tip += "\nAlready installed."
                 elif busy:
@@ -1006,7 +1017,7 @@ class GameScene:
         self._draw_ground(screen)
         self.fx.draw_decals(screen, cam)
         v = cam.view_rect()
-        m = 120
+        m = 240      # a Command Center is 160 across plus its shadow; anything nearer the edge than this still shows
 
         def visible(x, y):
             return v[0] - m < x < v[2] + m and v[1] - m < y < v[3] + m

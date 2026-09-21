@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.6.0
+Version:        1.6.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.6.1-1
+- The command card no longer goes blank for a mixed selection of buildings
+- Command-card icons sit on a dark plate for contrast; large buildings no longer pop at the screen edge
+
 * Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.6.0-1
 - Building upgrades: Reinforce, Armour plating, Assembly line, Expanded storage, Twin cannon
 - Network protocol 6

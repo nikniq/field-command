@@ -731,6 +731,13 @@ final class HUD: SKNode {
             icon.size = CGSize(width: ts.width * k, height: ts.height * k)
             if case .unit = b.icon { icon.zRotation = .pi / 2 }
             icon.alpha = b.enabled ? 1 : 0.65
+            // A dark plate behind the picture, so the art reads against the button face in every state.
+            let side = max(icon.size.width, icon.size.height) + 10
+            let plate = SKShapeNode(rectOf: CGSize(width: side, height: side), cornerRadius: 7)
+            plate.fillColor = NSColor(red: 6 / 255, green: 9 / 255, blue: 12 / 255, alpha: 0.59)
+            plate.strokeColor = NSColor(white: 1, alpha: 0.09)
+            plate.lineWidth = 1
+            bg.addChild(at(plate, 0, 5))
             bg.addChild(at(icon, 0, 5))
 
             let badge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.55), size: CGSize(width: 16, height: 16))

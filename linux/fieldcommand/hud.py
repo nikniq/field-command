@@ -493,6 +493,10 @@ class HUD:
                 tex = art.greyscale(tex)
             img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
                                   fade=255 if b.enabled else 160)
+            # A dark plate behind the picture, so the art reads against the button face in every state.
+            pw, ph = max(img.get_width(), img.get_height()) + 10, max(img.get_width(), img.get_height()) + 10
+            plate = art.icon_plate(pw, ph)
+            screen.blit(plate, (r.centerx - pw / 2, r.centery - 5 - ph / 2))
             screen.blit(img, (r.centerx - img.get_width() / 2, r.centery - 5 - img.get_height() / 2))
             pygame.draw.rect(screen, (0, 0, 0), (r.x + 3, r.y + 3, 16, 16))
             ui.blit_text(screen, b.hotkey, 11, AMBER, (r.x + 11, r.y + 11), align="center", bold=True)
