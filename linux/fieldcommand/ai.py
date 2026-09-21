@@ -84,8 +84,8 @@ class AI:
                 want, site = "hq", e
         if want is None:
             plan = [("barracks", 1 if t > 35 else 0), ("turret", 1 if t > 140 else 0), ("factory", 1 if t > 170 else 0),
-                    ("barracks", 2 if t > 230 else 0), ("turret", 2 if t > 300 else 0), ("factory", 2 if t > 420 else 0),
-                    ("barracks", 3 if t > 520 else 0), ("turret", 4 if t > 560 else 0)]
+                    ("barracks", 2 if t > 230 else 0), ("radar", 1 if t > 260 else 0), ("turret", 2 if t > 300 else 0),
+                    ("factory", 2 if t > 420 else 0), ("barracks", 3 if t > 520 else 0), ("turret", 4 if t > 560 else 0)]
             for k, n in plan:
                 if n > 0 and count(k) < n:
                     req = BUILDINGS[k].requires
@@ -170,8 +170,13 @@ class AI:
                 continue
             if b.rally is None and b.kind in ("barracks", "factory"):
                 b.rally = (hq.x + tx / tl * 260, hq.y + ty / tl * 260)
-            if b.kind == "barracks" and money() >= 50:
-                g.train("marine", [b], self.team)
+            if b.kind == "barracks":
+                snipers = sum(1 for u in g.units if u.team == self.team and u.kind == "sniper")
+                rangers = sum(1 for u in g.units if u.team == self.team and u.kind == "marine")
+                if money() >= 125 and g.has_built("factory", self.team) and snipers * 3 < rangers:
+                    g.train("sniper", [b], self.team)
+                elif money() >= 50:
+                    g.train("marine", [b], self.team)
             elif b.kind == "factory" and money() >= 150:
                 g.train("tank", [b], self.team)
 

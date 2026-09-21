@@ -108,7 +108,7 @@ extension GameScene {
                 u = existing
                 u.netFrom = (u.position, u.body.zRotation, u.gun?.zRotation ?? angle)
             } else {
-                let kind = NetProtocol.unitKinds[min(2, max(0, jInt(v[2])))]
+                let kind = NetProtocol.unitKinds[min(NetProtocol.unitKinds.count - 1, max(0, jInt(v[2])))]
                 u = Unit(kind: kind, team: Team(rawValue: jInt(v[1])), at: pos, game: self)
                 u.netId = id
                 u.body.zRotation = angle
@@ -149,7 +149,7 @@ extension GameScene {
             if let existing = net.buildings[id] {
                 b = existing
             } else {
-                let kind = NetProtocol.buildingKinds[min(4, max(0, jInt(v[2])))]
+                let kind = NetProtocol.buildingKinds[min(NetProtocol.buildingKinds.count - 1, max(0, jInt(v[2])))]
                 let built = jInt(v[6]) == 1
                 b = Building(kind: kind, team: Team(rawValue: jInt(v[1])), at: CGPoint(x: jNum(v[3]), y: jNum(v[4])),
                              built: built, game: self)
@@ -164,7 +164,7 @@ extension GameScene {
             let rally = jArr(v[11])
             b.applyNet(hp: jNum(v[5]), built: jInt(v[6]) == 1, progress: jNum(v[7]) / 100,
                        queueProgress: jNum(v[8]) / 100, gunAngle: jNum(v[9]) * .pi / 180,
-                       queue: jArr(v[10]).map { NetProtocol.unitKinds[min(2, max(0, jInt($0)))] },
+                       queue: jArr(v[10]).map { NetProtocol.unitKinds[min(NetProtocol.unitKinds.count - 1, max(0, jInt($0)))] },
                        rally: rally.count == 2 ? CGPoint(x: jNum(rally[0]), y: jNum(rally[1])) : nil)
         }
         for (id, b) in net.buildings where !seen.contains(id) {
@@ -205,8 +205,12 @@ extension GameScene {
         func p(_ i: Int) -> CGPoint { CGPoint(x: jNum(e[i]), y: jNum(e[i + 1])) }
         switch kind {
         case "tracer":
+            // 0 rifle, 1 turret, 2 sniper — same table as the Python client's TRACER_COLORS.
             let style = jInt(e[5])
-            tracer(from: p(1), to: p(3), color: style == 0 ? .rgb(1, 0.88, 0.5) : .rgb(1, 0.75, 0.4), width: style == 0 ? 1.4 : 2)
+            let colors: [NSColor] = [.rgb(1, 0.88, 0.5), .rgb(1, 0.75, 0.4), .rgb(0.78, 0.95, 1.0)]
+            let widths: [CGFloat] = [1.4, 2, 1.1]
+            let i = min(max(0, style), colors.count - 1)
+            tracer(from: p(1), to: p(3), color: colors[i], width: widths[i])
         case "muzzle": muzzleFlash(at: p(1), angle: jNum(e[3]), size: jNum(e[4]))
         case "sparks":
             let colors: [String: NSColor] = ["hit": .rgb(1, 0.8, 0.4), "crystal": Palette.crystal, "amber": Palette.amber]

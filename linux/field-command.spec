@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.0.0
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,5 +49,9 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.1.0-1
+- Add the Sniper (Barracks, needs a Factory) and the Radar Station
+- Network protocol 2: 1.0.0 clients cannot join a 1.1.0 game
+
 * Sat Sep 19 2026 Field Command Developers <noreply@example.invalid> - 1.0.0-1
 - Initial Linux release

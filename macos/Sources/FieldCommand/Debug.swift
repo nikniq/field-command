@@ -259,8 +259,11 @@ enum Debug {
             let t0 = Date()
             while !w.gameOver && w.elapsed < 1500 { w.step(1.0 / 30) }
             ok = ok && w.gameOver
-            print(String(format: "%-15@ over=%@ winner=%@ t=%.0fs real=%.1fs walls=%d units=%d", m.id as NSString,
-                         "\(w.gameOver)", "\(w.winnerTeam ?? -1)", w.elapsed, Date().timeIntervalSince(t0), w.walls.count, w.units.count))
+            let snipers = w.units.filter { $0.kind == .sniper }.count
+            let radars = w.buildings.filter { $0.kind == .radar && $0.built }.count
+            print(String(format: "%-15@ over=%@ winner=%@ t=%.0fs real=%.1fs walls=%d units=%d snipers=%d radars=%d",
+                         m.id as NSString, "\(w.gameOver)", "\(w.winnerTeam ?? -1)", w.elapsed,
+                         Date().timeIntervalSince(t0), w.walls.count, w.units.count, snipers, radars))
         }
         print(ok ? "WORLD TEST PASSED" : "WORLD TEST FAILED")
         exit(ok ? 0 : 1)

@@ -1560,7 +1560,7 @@ final class GameScene: SKScene {
                               tip: "Halt all current and queued orders.") { [weak self] in self?.stopSelected() },
             ]
             if us.contains(where: { $0.kind == .worker }) {
-                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret] {
+                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar] {
                     let s = k.stats
                     let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                     let tip = s.desc + (reqOK ? "" : "\nRequires \(s.requires!.stats.name).")
@@ -1575,8 +1575,11 @@ final class GameScene: SKScene {
         if let first = bs.first, bs.allSatisfy({ $0.kind == first.kind }) {
             return first.stats.produces.map { k in
                 let s = k.stats
-                return CommandButton(icon: .unit(k), title: s.name, hotkey: s.hotkey, cost: s.cost, enabled: true,
-                                     tip: "\(s.desc)\nSupply \(s.supply) · \(Int(s.buildTime))s build time.\nRight-click the map to set a rally point.") { [weak self] in
+                let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
+                var tip = "\(s.desc)\nSupply \(s.supply) · \(Int(s.buildTime))s build time.\nRight-click the map to set a rally point."
+                if !reqOK { tip += "\nRequires \(s.requires!.stats.name)." }
+                return CommandButton(icon: .unit(k), title: s.name, hotkey: s.hotkey, cost: s.cost, enabled: reqOK,
+                                     tip: tip) { [weak self] in
                     guard let self else { return }
                     self.train(k, from: self.selectedOwnBuildings)
                 }

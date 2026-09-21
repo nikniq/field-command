@@ -773,6 +773,13 @@ final class SUnit: SEntity {
             g.emit(["muzzle", mx, my, ang, 26])
             g.emit(["smoke", mx, my, 8])
             g.emit(["sound", "cannon", x, y])
+        case .sniper:
+            let mx = x + ux * 26 + uy * 3, my = y + uy * 26 - ux * 3
+            t.takeDamage(Double(stats.damage), from: self)
+            g.emit(["tracer", mx, my, t.x, t.y, 2])
+            g.emit(["muzzle", mx, my, ang, 18])
+            g.emit(["sparks", t.x, t.y, 6, 90, "hit"])
+            g.emit(["sound", "snipe", x, y])
         case .marine:
             let mx = x + ux * 20 + uy * 4.5, my = y + uy * 20 - ux * 4.5
             t.takeDamage(Double(stats.damage), from: self)
@@ -842,6 +849,7 @@ final class SBuilding: SEntity {
             }
         }
         if kind == .turret { updateTurret(dt) }
+        else if kind == .radar { gunAngle = (gunAngle + dt * 0.8).truncatingRemainder(dividingBy: 2 * .pi) }
     }
 
     private func updateTurret(_ dt: Double) {
@@ -1308,6 +1316,10 @@ final class SWorld {
     }
 
     func train(_ k: UnitKind, _ bs: [SBuilding], _ team: Int) -> Bool {
+        if let req = k.stats.requires, !hasBuilt(req, team) {
+            emit(["msg", team, "Requires \(req.stats.name)", "bad"])
+            return false
+        }
         let cands = bs.filter { $0.built && !$0.dead && $0.stats.produces.contains(k) && $0.queue.count < 5 }
         guard let b = cands.min(by: { $0.queue.count < $1.queue.count }) else {
             emit(["msg", team, "Production queue full", "bad"])
@@ -1519,8 +1531,8 @@ final class SAI {
         }
         if want == nil {
             let plan: [(BuildingKind, Int)] = [(.barracks, t > 35 ? 1 : 0), (.turret, t > 140 ? 1 : 0), (.factory, t > 170 ? 1 : 0),
-                                               (.barracks, t > 230 ? 2 : 0), (.turret, t > 300 ? 2 : 0), (.factory, t > 420 ? 2 : 0),
-                                               (.barracks, t > 520 ? 3 : 0), (.turret, t > 560 ? 4 : 0)]
+                                               (.barracks, t > 230 ? 2 : 0), (.radar, t > 260 ? 1 : 0), (.turret, t > 300 ? 2 : 0),
+                                               (.factory, t > 420 ? 2 : 0), (.barracks, t > 520 ? 3 : 0), (.turret, t > 560 ? 4 : 0)]
             for (k, n) in plan where n > 0 && count(k) < n {
                 if let r = k.stats.requires, !g.hasBuilt(r, team) { continue }
                 want = k
@@ -1597,8 +1609,14 @@ final class SAI {
         let tl = max(1, hyp(tx, ty))
         for b in bases where b.built && b.queue.isEmpty {
             if b.rally == nil && (b.kind == .barracks || b.kind == .factory) { b.rally = (hq.x + tx / tl * 260, hq.y + ty / tl * 260) }
-            if b.kind == .barracks && money() >= 50 {
-                _ = g.train(.marine, [b], team)
+            if b.kind == .barracks {
+                let snipers = g.units.filter { $0.team == team && $0.kind == .sniper }.count
+                let rangers = g.units.filter { $0.team == team && $0.kind == .marine }.count
+                if money() >= 125 && g.hasBuilt(.factory, team) && snipers * 3 < rangers {
+                    _ = g.train(.sniper, [b], team)
+                } else if money() >= 50 {
+                    _ = g.train(.marine, [b], team)
+                }
             } else if b.kind == .factory && money() >= 150 {
                 _ = g.train(.tank, [b], team)
             }

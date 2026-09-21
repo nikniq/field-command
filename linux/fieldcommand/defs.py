@@ -65,8 +65,10 @@ TEAM_COLOR = {i: rgb(r, g, b) for i, (r, g, b, _n) in enumerate(_TEAM_RGB)}
 TEAM_LIGHT = {i: mix(TEAM_COLOR[i], WHITE, 0.45) for i in range(MAX_PLAYERS)}
 TEAM_DARK = {i: mix(TEAM_COLOR[i], BLACK, 0.68) for i in range(MAX_PLAYERS)}
 COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
-UNIT_KINDS = ["worker", "marine", "tank"]
-BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret"]
+# Order matters: the network protocol sends a kind as its index here, so new kinds are appended
+# at the end and the macOS edition's NetProtocol lists must match exactly.
+UNIT_KINDS = ["worker", "marine", "tank", "sniper"]
+BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar"]
 
 
 # ---------------------------------------------------------------- stats
@@ -88,6 +90,7 @@ class UnitStats:
     splash: float
     hotkey: str
     desc: str
+    requires: str = None      # building kind that must be finished before this unit can be trained
 
 
 UNITS = {
@@ -97,6 +100,9 @@ UNITS = {
                         "Versatile rifle infantry."),
     "tank": UnitStats("Siege Tank", "TK", 150, 3, 220, 62, 230, 32, 2.2, 17, 22, 280, 45, "T",
                       "Long-range armor. Shells deal splash damage."),
+    "sniper": UnitStats("Sniper", "SN", 125, 2, 55, 74, 330, 55, 3.2, 10, 24, 360, 0, "N",
+                        "Outranges tanks and turrets, one heavy shot at a time. Helpless up close.",
+                        requires="factory"),
 }
 
 
@@ -125,14 +131,16 @@ BUILDINGS = {
                         "Trains Engineers. Crystal drop-off. +10 supply."),
     "depot": BuildingStats("Supply Depot", "Depot", "SD", 100, 400, 42, 20, 8, (), None, 0, 0, 0, 200, "E",
                            "Provides +8 supply."),
-    "barracks": BuildingStats("Barracks", "Barracks", "BK", 150, 900, 64, 35, 0, ("marine",), "hq", 0, 0, 0, 240, "B",
-                              "Trains Rangers."),
+    "barracks": BuildingStats("Barracks", "Barracks", "BK", 150, 900, 64, 35, 0, ("marine", "sniper"), "hq", 0, 0, 0, 240, "B",
+                              "Trains Rangers, and Snipers once a Factory is up."),
     "factory": BuildingStats("Factory", "Factory", "FC", 200, 1100, 70, 45, 0, ("tank",), "barracks", 0, 0, 0, 240, "F",
                              "Builds Siege Tanks."),
     "turret": BuildingStats("Gun Turret", "Turret", "GT", 100, 380, 30, 22, 0, (), "barracks", 210, 11, 0.7, 270, "T",
                             "Static defense. Fires on nearby enemies."),
+    "radar": BuildingStats("Radar Station", "Radar", "RD", 175, 520, 34, 30, 0, (), "barracks", 0, 0, 0, 900, "D",
+                           "Sweeps a wide circle of the map. Unarmed."),
 }
-BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret"]
+BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar"]
 
 
 @dataclass(frozen=True)

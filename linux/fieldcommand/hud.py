@@ -189,6 +189,8 @@ class HUD:
         ("Train 5 Rangers at the Barracks (R)", lambda s: s.trained_kinds.get("marine", 0) >= 5),
         ("Build a Factory (F)", lambda s: s.has_built("factory")),
         ("Train a Siege Tank (T)", lambda s: s.trained_kinds.get("tank", 0) >= 1),
+        ("Train a Sniper at the Barracks (N)", lambda s: s.trained_kinds.get("sniper", 0) >= 1),
+        ("Build a Radar Station (D) to watch the map", lambda s: s.has_built("radar")),
         ("Destroy every enemy building", lambda g: False),
     ]
 

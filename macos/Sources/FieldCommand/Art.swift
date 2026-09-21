@@ -181,6 +181,7 @@ enum Art {
         case .worker: return CGSize(width: 34, height: 34)
         case .marine: return CGSize(width: 38, height: 36)
         case .tank: return CGSize(width: 54, height: 42)
+        case .sniper: return CGSize(width: 44, height: 36)
         }
     }
 
@@ -190,6 +191,7 @@ enum Art {
             case .worker: drawWorker(ctx, team)
             case .marine: drawMarine(ctx, team)
             case .tank: drawTankHull(ctx, team)
+            case .sniper: drawSniper(ctx, team)
             }
         }
     }
@@ -236,6 +238,33 @@ enum Art {
         stroke(ctx, helm, NSColor(white: 0, alpha: 0.6), 0.8)
         fill(ctx, rr(box(2.2, -2.8, 3, 5.6), 1.2), .rgb(0.45, 0.95, 1.0))
         fill(ctx, ellipse(box(-3, 0.8, 3.2, 2)), NSColor(white: 1, alpha: 0.45))
+    }
+
+    /// Lankier than a Ranger, with a long barrel, a bipod and a cold scope glint.
+    private static func drawSniper(_ ctx: CGContext, _ team: Team) {
+        let c = team.color
+        let barrel = rr(box(-1, -5.6, 25, 2.6), 0.8)
+        lit(ctx, barrel, gunmetal)
+        stroke(ctx, barrel, NSColor(white: 0, alpha: 0.5), 0.6)
+        fill(ctx, rr(box(22, -6.2, 3.4, 3.8), 0.8), .rgb(0.1, 0.1, 0.11))      // muzzle brake
+        lines(ctx, [(CGPoint(x: 16, y: -4.3), CGPoint(x: 13, y: -1.2)),
+                    (CGPoint(x: 16, y: -4.3), CGPoint(x: 19, y: -1.2))], .rgb(0.14, 0.14, 0.15), 1.2)   // bipod
+        let scope = rr(box(5, -8.4, 8, 2.6), 1)
+        lit(ctx, scope, .rgb(0.2, 0.21, 0.23))
+        fill(ctx, circle(CGPoint(x: 12.4, y: -7.1), 1.5), .rgb(0.55, 0.95, 1.0))
+        let body = ellipse(box(-7, -9.5, 14, 19))
+        lit(ctx, body, c.mix(.black, 0.12))
+        rim(ctx, body)
+        stroke(ctx, body, c.mix(.black, 0.6), 1)
+        let cloak = poly([CGPoint(x: -7, y: -9), CGPoint(x: -12.5, y: -4),
+                          CGPoint(x: -13.5, y: 4), CGPoint(x: -7, y: 9)])      // ghillie drape
+        fill(ctx, cloak, c.mix(.black, 0.45).withAlphaComponent(0.85))
+        stroke(ctx, cloak, NSColor(white: 0, alpha: 0.45), 0.7)
+        let helm = circle(CGPoint(x: 0.4, y: 0), 5.0)
+        lit(ctx, helm, c.mix(.black, 0.45))
+        stroke(ctx, helm, NSColor(white: 0, alpha: 0.6), 0.8)
+        fill(ctx, rr(box(2.0, -2.4, 2.8, 4.8), 1.1), .rgb(0.78, 0.95, 1.0))
+        fill(ctx, ellipse(box(-3, 0.8, 3.0, 1.9)), NSColor(white: 1, alpha: 0.4))
     }
 
     private static func drawTankHull(_ ctx: CGContext, _ team: Team) {
@@ -303,6 +332,7 @@ enum Art {
             case .barracks: drawBarracks(ctx, h, team)
             case .factory: drawFactory(ctx, h, team)
             case .turret: drawTurretBase(ctx, h, team)
+            case .radar: drawRadar(ctx, h, team)
             }
             roofKit(ctx, k, h, team)
         }
@@ -320,6 +350,7 @@ enum Art {
         switch k {
         case .hq: return octagon(h * 0.98)
         case .turret: return circle(.zero, h * 0.8)
+        case .radar: return octagon(h * 0.92)
         case .depot: return rr(box(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74), 4)
         case .barracks: return rr(box(-h * 0.9, -h * 0.62, h * 1.8, h * 1.52), 4)
         case .factory: return rr(box(-h * 0.92, -h * 0.66, h * 1.84, h * 1.5), 4)
@@ -391,7 +422,7 @@ enum Art {
                 fill(ctx, rr(box(-h * 0.2, sy * h - 2, h * 0.4, 4), 2), .rgb(0.1, 0.1, 0.11))
             }
             mast(-h * 0.72, -h * 0.72, h * 0.22)
-        case .turret:
+        case .turret, .radar:
             break
         }
 
@@ -571,6 +602,50 @@ enum Art {
         let ring = circle(.zero, h * 0.66)
         lit(ctx, ring, team.color.mix(.black, 0.35))
         stroke(ctx, ring, team.color, 1.5)
+    }
+
+    /// Ringed concrete pad with a lit mounting collar; the dish itself is a separate sprite.
+    private static func drawRadar(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        let pad = octagon(h * 0.92)
+        lit(ctx, pad, concrete, 0.8)
+        stroke(ctx, pad, NSColor(white: 0, alpha: 0.5), 1.2)
+        for i in 0..<3 {
+            let r = h * (0.72 - CGFloat(i) * 0.16)
+            stroke(ctx, circle(.zero, r), team.color.withAlphaComponent(0.35 - CGFloat(i) * 0.07), 1.1)
+        }
+        for i in 0..<8 {
+            let a = CGFloat(i) * .pi / 4
+            fill(ctx, circle(CGPoint(x: cos(a) * h * 0.8, y: sin(a) * h * 0.8), 1.7), .rgb(0.2, 0.2, 0.2))
+        }
+        let collar = circle(.zero, h * 0.2)
+        lit(ctx, collar, team.color.mix(steel, 0.35))
+        stroke(ctx, collar, team.color, 1.3)
+        let boxNode = rr(box(-h * 0.78, -h * 0.18, h * 0.3, h * 0.36), 2)      // console, so it does not read as a turret
+        lit(ctx, boxNode, .rgb(0.3, 0.31, 0.33))
+        stroke(ctx, boxNode, NSColor(white: 0, alpha: 0.55), 0.9)
+        fill(ctx, circle(CGPoint(x: -h * 0.63, y: 0), 1.6), .rgb(0.45, 0.95, 0.5))
+    }
+
+    /// The sweeping dish: a lattice parabola on a short mast, drawn on top of the station.
+    static func radarDish(_ team: Team) -> SKTexture {
+        texture("rdish-\(team.rawValue)", size: CGSize(width: 84, height: 50)) { ctx in
+            let arm = rr(box(-3, -2.6, 14, 5.2), 1.6)
+            lit(ctx, arm, steel)
+            stroke(ctx, arm, NSColor(white: 0, alpha: 0.5), 0.8)
+            let back = ellipse(box(9, -19, 9, 38))
+            fill(ctx, back, team.color.mix(.black, 0.25).withAlphaComponent(0.7))
+            let face = ellipse(box(13, -20, 13, 40))
+            lit(ctx, face, .rgb(0.88, 0.90, 0.92))
+            stroke(ctx, face, NSColor(white: 0, alpha: 0.45), 1.1)
+            lines(ctx, (0..<6).map { i in
+                let y = -15 + CGFloat(i) * 6
+                return (CGPoint(x: 14, y: y), CGPoint(x: 25, y: y))
+            }, NSColor(white: 0, alpha: 0.16), 1)
+            lines(ctx, [(CGPoint(x: 19, y: -19), CGPoint(x: 19, y: 19))], NSColor(white: 0, alpha: 0.16), 1)
+            fill(ctx, rr(box(24, -2, 9, 4), 1.2), gunmetal)                    // feed horn on its boom
+            fill(ctx, circle(CGPoint(x: 33, y: 0), 2.6), team.lightColor)
+            fill(ctx, circle(.zero, 4.0), .rgb(0.26, 0.27, 0.29))
+        }
     }
 
     static func turretGun(_ team: Team) -> SKTexture {

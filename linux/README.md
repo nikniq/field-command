@@ -35,6 +35,24 @@ make rpm
 sudo dnf install rpmbuild/RPMS/noarch/field-command-1.0.0-1.*.noarch.rpm
 ```
 
+## Units and buildings
+
+| | Cost | Trained at | Notes |
+| --- | --- | --- | --- |
+| Engineer | 50 | Command Center | Mines crystal and builds |
+| Ranger | 50 | Barracks | Rifle infantry, 150 range |
+| Sniper | 125 | Barracks (needs a Factory) | 330 range, 55 damage a shot, one shot every 3.2s; 55 HP |
+| Siege Tank | 150 | Factory | 230 range, splash damage |
+
+The **Sniper** outranges everything that can shoot back — Siege Tanks reach 230 and Gun Turrets 210 — so a
+few of them behind your line pick apart tanks and turrets before those can answer. They reload slowly and
+die quickly, so they lose to anything that closes the distance: screen them with Rangers.
+
+The **Radar Station** (175 crystal, needs a Barracks) sees 900 units in every direction, roughly three times
+a Command Center, and its dish sweeps while it works. It carries no weapons and 520 HP, so put it behind
+your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
+arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
+
 ## Maps
 
 Seven maps ship with the game; pick one on the title screen (**Map:**) along with the number of computer
@@ -76,6 +94,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
+All players must run the same major version: protocol 2 (Field Command 1.1.0, which added the Sniper and the
+Radar Station) refuses 1.0.0 clients rather than letting them mis-read the new units.
+
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.
 
@@ -96,8 +117,8 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Move, attack, mine, set rally point | Right-click (Ctrl+left-click also works) |
 | Queue orders | Shift + right-click |
 | Attack-move / Stop | A then click / S |
-| Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret |
-| Train | W Engineer (HQ) · R Ranger (Barracks) · T Siege Tank (Factory) |
+| Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
+| Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |
 | Control groups | Ctrl+1–9 assign, 1–9 recall (double-tap to jump) |
 | Idle engineer / army | I · \` or F2 |
 | Camera | Arrows, screen edges, middle-drag, minimap; wheel or +/− to zoom; Space jumps to alerts |

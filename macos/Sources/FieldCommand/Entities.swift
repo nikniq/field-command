@@ -296,7 +296,7 @@ final class Unit: Entity {
             c.isHidden = true
             body.addChild(c)
             cargoNode = c
-        case .marine:
+        case .marine, .sniper:
             break
         }
         body.zRotation = CGFloat.random(in: 0...(2 * .pi))
@@ -582,6 +582,15 @@ final class Unit: Entity {
             }
             gun?.run(.sequence([.move(by: CGVector(dx: -dir.x * 4, dy: -dir.y * 4), duration: 0.05),
                                 .move(to: .zero, duration: 0.25)]))
+        case .sniper:
+            let side = CGPoint(x: dir.y, y: -dir.x) * 3
+            let muzzle = position + dir * 26 + side
+            t.takeDamage(stats.damage, from: self)
+            if visible {
+                game.tracer(from: muzzle, to: t.position, color: .rgb(0.78, 0.95, 1.0), width: 1.1)
+                game.muzzleFlash(at: muzzle, angle: angle, size: 18)
+                game.impact(at: t.position)
+            }
         case .marine:
             let side = CGPoint(x: dir.y, y: -dir.x) * 4.5
             let muzzle = position + dir * 20 + side
@@ -678,6 +687,12 @@ final class Building: Entity {
             g.zPosition = 1
             addChild(g)
             gun = g
+        case .radar:
+            let d = SKSpriteNode(texture: Art.radarDish(team))
+            d.size = CGSize(width: 84, height: 50)
+            d.zPosition = 1
+            addChild(d)
+            gun = d        // the server turns it, and applyNet follows that angle
         case .factory:
             for (ox, oy) in Art.chimneyOffsets {
                 let e = FX.smokeColumn(rate: 0.6, dark: false)

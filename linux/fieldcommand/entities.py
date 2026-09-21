@@ -448,6 +448,13 @@ class Unit(Entity):
             g.emit("muzzle", mx, my, ang, 26)
             g.emit("smoke", mx, my, 8)
             g.emit("sound", "cannon", self.x, self.y)
+        elif self.kind == "sniper":
+            mx, my = self.x + ux * 26 + uy * 3, self.y + uy * 26 - ux * 3
+            t.take_damage(self.stats.damage, self)
+            g.emit("tracer", mx, my, t.x, t.y, 2)
+            g.emit("muzzle", mx, my, ang, 18)
+            g.emit("sparks", t.x, t.y, 6, 90, "hit")
+            g.emit("sound", "snipe", self.x, self.y)
         elif self.kind == "marine":
             mx, my = self.x + ux * 20 + uy * 4.5, self.y + uy * 20 - ux * 4.5
             t.take_damage(self.stats.damage, self)
@@ -519,6 +526,8 @@ class Building(Entity):
 
         if self.kind == "turret":
             self._update_turret(dt)
+        elif self.kind == "radar":
+            self.gun_angle = (self.gun_angle + dt * 0.8) % (2 * math.pi)
 
     def _update_turret(self, dt):
         g = self.game

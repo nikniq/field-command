@@ -16,8 +16,8 @@ from .net import STATUS
 from .settings import settings
 
 SPARK_COLORS = {"hit": (255, 204, 102), "crystal": (102, 235, 255), "amber": (255, 194, 77)}
-TRACER_COLORS = {0: (1, 0.88, 0.5, 1), 1: (1, 0.75, 0.4, 1)}
-SOUND_GAPS = {"rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08}
+TRACER_COLORS = {0: (1, 0.88, 0.5, 1), 1: (1, 0.75, 0.4, 1), 2: (0.78, 0.95, 1.0, 1)}
+SOUND_GAPS = {"rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08, "snipe": 0.05}
 ORDER_COLORS = {STATUS["move"]: GOOD, STATUS["amove"]: BAD, STATUS["attack"]: BAD, STATUS["gather"]: CRYSTAL,
                 STATUS["build"]: AMBER}
 
@@ -260,7 +260,8 @@ class GameScene:
         fx = self.fx
         me = self.s.slot
         if k == "tracer":
-            fx.tracer(ev[1], ev[2], ev[3], ev[4], TRACER_COLORS.get(ev[5], TRACER_COLORS[0]), 1.4 if ev[5] == 0 else 2)
+            fx.tracer(ev[1], ev[2], ev[3], ev[4], TRACER_COLORS.get(ev[5], TRACER_COLORS[0]),
+                      {0: 1.4, 1: 2, 2: 1.1}.get(ev[5], 1.4))
         elif k == "muzzle":
             fx.muzzle(ev[1], ev[2], ev[3], ev[4])
         elif k == "sparks":
@@ -882,9 +883,13 @@ class GameScene:
             out = []
             for k in bs[0].stats.produces:
                 s = UNITS[k]
-                out.append(CommandButton(("unit", k), s.name, s.hotkey, s.cost, True,
-                                         f"{s.desc}\nSupply {s.supply} · {int(s.build_time)}s build time.\n"
-                                         "Right-click the map to set a rally point.", lambda k=k: self.train(k)))
+                ok = s.requires is None or self.s.has_built(s.requires)
+                tip = (f"{s.desc}\nSupply {s.supply} · {int(s.build_time)}s build time.\n"
+                       "Right-click the map to set a rally point.")
+                if not ok:
+                    tip += f"\nRequires {BUILDINGS[s.requires].name}."
+                out.append(CommandButton(("unit", k), s.name, s.hotkey, s.cost, ok, tip,
+                                         lambda k=k: self.train(k)))
             return out
         return []
 
@@ -994,6 +999,9 @@ class GameScene:
         if b.kind == "turret":
             g = art.sprites.get(("tgun", b.team), art.turret_gun(b.team), math.degrees(b.gun_angle), ts, fade=fade)
             screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
+        if b.kind == "radar" and b.built:
+            d = art.sprites.get(("rdish", b.team), art.radar_dish(b.team), math.degrees(b.gun_angle), ts)
+            screen.blit(d, (sx - d.get_width() / 2, sy - d.get_height() / 2))
         if not b.built:
             s = art.sprites.get(("scaffold", b.half), art.scaffold(b.half), 0, ts)
             screen.blit(s, (sx - s.get_width() / 2, sy - s.get_height() / 2))

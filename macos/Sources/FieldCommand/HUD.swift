@@ -358,6 +358,8 @@ final class HUD: SKNode {
         Objective(text: "Train 5 Rangers at the Barracks (R)") { $0.trainedKinds[.marine, default: 0] >= 5 },
         Objective(text: "Build a Factory (F)") { $0.hasBuilt(.factory, team: Team.local) },
         Objective(text: "Train a Siege Tank (T)") { $0.trainedKinds[.tank, default: 0] >= 1 },
+        Objective(text: "Train a Sniper at the Barracks (N)") { $0.trainedKinds[.sniper, default: 0] >= 1 },
+        Objective(text: "Build a Radar Station (D) to watch the map") { $0.hasBuilt(.radar, team: Team.local) },
         Objective(text: "Destroy every enemy building") { _ in false },
     ]
 

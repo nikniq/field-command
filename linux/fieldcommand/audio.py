@@ -67,6 +67,10 @@ def init():
     _sounds["alert"] = _make(alert * _env(len(alert), decay=0.4), 0.18)
     wave = np.concatenate([_tone(220, n(0.3), "square"), _tone(196, n(0.45), "square")]) * 0.4
     _sounds["wave"] = _make(wave * _env(len(wave), decay=0.6), 0.2)
+    # A sniper's report: a hard crack with a short tail, pitched above the rifle.
+    crack = _lowpass(_noise(n(0.35), rng), 0.55) * _env(n(0.35), attack=0.001, decay=0.05)
+    tail = _lowpass(_noise(n(0.35), rng), 0.06) * _env(n(0.35), attack=0.02, decay=0.16) * 0.5
+    _sounds["snipe"] = _make(crack * 1.6 + tail, 0.42)
     _sounds["pop"] = _make(_tone(660, n(0.08)) * _env(n(0.08), decay=0.03), 0.25)
     _sounds["click"] = _make(_tone(1200, n(0.03)) * _env(n(0.03), decay=0.01), 0.15)
     win = np.concatenate([_tone(f, n(0.18)) * _env(n(0.18), decay=0.2) for f in (523, 659, 784, 1046)])

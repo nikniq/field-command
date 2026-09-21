@@ -474,6 +474,9 @@ class World:
 
     def train(self, kind, bs, team):
         s = UNITS[kind]
+        if s.requires and not self.has_built(s.requires, team):
+            self.emit("msg", team, f"Requires {BUILDINGS[s.requires].name}", "bad")
+            return False
         cands = [b for b in bs if b.built and not b.dead and kind in b.stats.produces and len(b.queue) < 5]
         if not cands:
             self.emit("msg", team, "Production queue full", "bad")

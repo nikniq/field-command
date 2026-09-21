@@ -26,7 +26,8 @@ def _stats(scene):
             if b.team == t:
                 kinds[b.stats.short] = kinds.get(b.stats.short, 0) + 1
         return (f"res={int(g.resources[t])} workers={sum(u.kind == 'worker' for u in us)} "
-                f"rangers={sum(u.kind == 'marine' for u in us)} tanks={sum(u.kind == 'tank' for u in us)} "
+                f"rangers={sum(u.kind == 'marine' for u in us)} snipers={sum(u.kind == 'sniper' for u in us)} "
+                f"tanks={sum(u.kind == 'tank' for u in us)} "
                 f"supply={g.supply_used(t)}/{g.supply_cap(t)} mined={g.crystals_mined[t]} lost={g.units_lost[t]} "
                 f"[{','.join(f'{k}={v}' for k, v in sorted(kinds.items()))}]")
     return f"t={int(g.elapsed)}\n" + "\n".join(f"  {p.name}: {side(s)}" for s, p in g.players.items())

@@ -1,7 +1,7 @@
 # Field Command — macOS edition
 
-A real-time strategy game in Swift and SpriteKit: mine crystal with Engineers, build a base, train Rangers
-and Siege Tanks, and destroy every enemy building. All artwork is drawn procedurally with Core Graphics and
+A real-time strategy game in Swift and SpriteKit: mine crystal with Engineers, build a base, train Rangers,
+Snipers and Siege Tanks, and destroy every enemy building. All artwork is drawn procedurally with Core Graphics and
 all sound effects are synthesised, so there are no asset files. The Linux port lives in `../linux/`.
 
 ## Build and run
@@ -58,6 +58,15 @@ presets.
 
 The server enforces fog of war, so a modified client cannot reveal the map. TCP 47777 carries the game and
 UDP 47778 carries LAN discovery; forward the TCP port for internet play.
+
+## Units and buildings
+
+The catalogue matches the Linux edition exactly — including the **Sniper** (125 crystal at the Barracks once a
+Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
+Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
+
+Both editions speak protocol 2, so a 1.1.0 Mac and a 1.1.0 Linux client play together; neither will accept a
+1.0.0 client, which predates these two.
 
 ## Controls
 

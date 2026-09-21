@@ -20,7 +20,7 @@ CONCRETE = rgb(0.47, 0.48, 0.46)
 STEEL = rgb(0.36, 0.38, 0.41)
 GUNMETAL = rgb(0.22, 0.23, 0.25)
 
-UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42)}
+UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42), "sniper": (44, 36)}
 TURRET_SIZE = (68, 30)
 CHIMNEYS = [(0.58, 0.55), (0.28, 0.62)]
 
@@ -239,7 +239,7 @@ def square_ring():
 
 def unit(kind, team):
     def d(c):
-        {"worker": _worker, "marine": _marine, "tank": _tank_hull}[kind](c, team)
+        {"worker": _worker, "marine": _marine, "tank": _tank_hull, "sniper": _sniper}[kind](c, team)
     return texture(("unit", kind, team), UNIT_SIZE[kind], d)
 
 
@@ -279,6 +279,31 @@ def _marine(c, team):
     stroke(c, helm, rgb(0, 0, 0, 0.6), 0.8)
     fill(c, rr(2.2, -2.8, 3, 5.6, 1.2), rgb(0.45, 0.95, 1.0))
     fill(c, ellipse(-3, 0.8, 3.2, 2), alpha(WHITE, 0.45))
+
+
+def _sniper(c, team):
+    """Lankier than a Ranger, with a long barrel, a bipod and a cold scope glint."""
+    col = TEAM_COLOR[team]
+    barrel = rr(-1, -5.6, 25, 2.6, 0.8)
+    lit(c, barrel, GUNMETAL)
+    stroke(c, barrel, rgb(0, 0, 0, 0.5), 0.6)
+    fill(c, rr(22, -6.2, 3.4, 3.8, 0.8), rgb(0.1, 0.1, 0.11))     # muzzle brake
+    lines(c, [((16, -4.3), (13, -1.2)), ((16, -4.3), (19, -1.2))], rgb(0.14, 0.14, 0.15), 1.2)   # bipod
+    scope = rr(5, -8.4, 8, 2.6, 1)
+    lit(c, scope, rgb(0.2, 0.21, 0.23))
+    fill(c, circle(12.4, -7.1, 1.5), rgb(0.55, 0.95, 1.0))
+    body = ellipse(-7, -9.5, 14, 19)
+    lit(c, body, mix(col, BLACK, 0.12))
+    rim(c, body)
+    stroke(c, body, mix(col, BLACK, 0.6), 1)
+    cloak = poly([(-7, -9), (-12.5, -4), (-13.5, 4), (-7, 9)])     # ghillie drape
+    fill(c, cloak, alpha(mix(col, BLACK, 0.45), 0.85))
+    stroke(c, cloak, rgb(0, 0, 0, 0.45), 0.7)
+    helm = circle(0.4, 0, 5.0)
+    lit(c, helm, mix(col, BLACK, 0.45))
+    stroke(c, helm, rgb(0, 0, 0, 0.6), 0.8)
+    fill(c, rr(2.0, -2.4, 2.8, 4.8, 1.1), rgb(0.78, 0.95, 1.0))
+    fill(c, ellipse(-3, 0.8, 3.0, 1.9), alpha(WHITE, 0.4))
 
 
 def _tank_hull(c, team):
@@ -325,7 +350,8 @@ def building(kind, team):
         if kind != "turret":
             _foundation(c, h)
         _extrude(c, kind, h, team)
-        {"hq": _hq, "depot": _depot, "barracks": _barracks, "factory": _factory, "turret": _turret_base}[kind](c, h, team)
+        {"hq": _hq, "depot": _depot, "barracks": _barracks, "factory": _factory, "turret": _turret_base,
+         "radar": _radar}[kind](c, h, team)
         _roof_kit(c, kind, h, team)
     return texture(("bld", kind, team), building_canvas(kind), d)
 
@@ -336,6 +362,8 @@ def _silhouette(kind, h):
         return _octagon(h * 0.98)
     if kind == "turret":
         return circle(0, 0, h * 0.8)
+    if kind == "radar":
+        return _octagon(h * 0.92)
     if kind == "depot":
         return rr(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74, 4)
     if kind == "barracks":
@@ -556,6 +584,46 @@ def _turret_base(c, h, team):
     ringp = circle(0, 0, h * 0.66)
     lit(c, ringp, mix(TEAM_COLOR[team], BLACK, 0.35))
     stroke(c, ringp, TEAM_COLOR[team], 1.5)
+
+
+def _radar(c, h, team):
+    """Ringed concrete pad with a lit mounting collar; the dish itself is a separate sprite."""
+    pad = _octagon(h * 0.92)
+    lit(c, pad, CONCRETE, 0.8)
+    stroke(c, pad, rgb(0, 0, 0, 0.5), 1.2)
+    for i in range(3):
+        r = h * (0.72 - i * 0.16)
+        stroke(c, circle(0, 0, r), alpha(TEAM_COLOR[team], 0.35 - i * 0.07), 1.1)
+    for i in range(8):
+        a = i * math.pi / 4
+        fill(c, circle(math.cos(a) * h * 0.8, math.sin(a) * h * 0.8, 1.7), rgb(0.2, 0.2, 0.2))
+    collar = circle(0, 0, h * 0.2)
+    lit(c, collar, mix(TEAM_COLOR[team], STEEL, 0.35))
+    stroke(c, collar, TEAM_COLOR[team], 1.3)
+    # Console box at the edge, so the pad does not read as a turret.
+    box = rr(-h * 0.78, -h * 0.18, h * 0.3, h * 0.36, 2)
+    lit(c, box, rgb(0.3, 0.31, 0.33))
+    stroke(c, box, rgb(0, 0, 0, 0.55), 0.9)
+    fill(c, circle(-h * 0.63, 0, 1.6), rgb(0.45, 0.95, 0.5))
+
+
+def radar_dish(team):
+    """The sweeping dish: a lattice parabola on a short mast, drawn on top of the station."""
+    def d(c):
+        arm = rr(-3, -2.6, 14, 5.2, 1.6)
+        lit(c, arm, STEEL)
+        stroke(c, arm, rgb(0, 0, 0, 0.5), 0.8)
+        back = ellipse(9, -19, 9, 38)
+        fill(c, back, alpha(mix(TEAM_COLOR[team], BLACK, 0.25), 0.7))
+        face = ellipse(13, -20, 13, 40)
+        lit(c, face, rgb(0.88, 0.90, 0.92))
+        stroke(c, face, rgb(0, 0, 0, 0.45), 1.1)
+        lines(c, [((14, -15 + i * 6), (25, -15 + i * 6)) for i in range(6)], rgb(0, 0, 0, 0.16), 1)
+        lines(c, [((19, -19), (19, 19))], rgb(0, 0, 0, 0.16), 1)
+        fill(c, rr(24, -2, 9, 4, 1.2), GUNMETAL)            # feed horn on its boom
+        fill(c, circle(33, 0, 2.6), TEAM_LIGHT[team])
+        fill(c, circle(0, 0, 4.0), rgb(0.26, 0.27, 0.29))
+    return texture(("rdish", team), (84, 50), d)
 
 
 def turret_gun(team):

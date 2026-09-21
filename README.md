@@ -1,7 +1,7 @@
 # Field Command
 
-A real-time strategy game: mine crystal with Engineers, build a base, train Rangers and Siege Tanks,
-and destroy every enemy building. All artwork is drawn procedurally and all sound is synthesised, so
+A real-time strategy game: mine crystal with Engineers, build a base, train Rangers, Snipers and Siege
+Tanks, and destroy every enemy building. All artwork is drawn procedurally and all sound is synthesised, so
 there are no asset files anywhere in this repository.
 
 | Edition | Language | Where |

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.0.0"
+let appVersion = "1.1.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -179,10 +179,12 @@ struct UnitStats {
     let splash: CGFloat
     let hotkey: String
     let desc: String
+    /// Building that must be finished before this unit can be trained.
+    var requires: BuildingKind? = nil
 }
 
 enum UnitKind: CaseIterable {
-    case worker, marine, tank
+    case worker, marine, tank, sniper
 
     var stats: UnitStats {
         switch self {
@@ -198,6 +200,11 @@ enum UnitKind: CaseIterable {
             return UnitStats(name: "Siege Tank", glyph: "TK", cost: 150, supply: 3, hp: 220, speed: 62, range: 230,
                              damage: 32, cooldown: 2.2, radius: 17, buildTime: 22, sight: 280, splash: 45, hotkey: "T",
                              desc: "Long-range armor. Shells deal splash damage.")
+        case .sniper:
+            return UnitStats(name: "Sniper", glyph: "SN", cost: 125, supply: 2, hp: 55, speed: 74, range: 330,
+                             damage: 55, cooldown: 3.2, radius: 10, buildTime: 24, sight: 360, splash: 0, hotkey: "N",
+                             desc: "Outranges tanks and turrets, one heavy shot at a time. Helpless up close.",
+                             requires: .factory)
         }
     }
 }
@@ -224,7 +231,7 @@ struct BuildingStats {
 }
 
 enum BuildingKind: CaseIterable {
-    case hq, depot, barracks, factory, turret
+    case hq, depot, barracks, factory, turret, radar
 
     var stats: BuildingStats {
         switch self {
@@ -239,8 +246,9 @@ enum BuildingKind: CaseIterable {
                                  cooldown: 0, sight: 200, hotkey: "E", desc: "Provides +8 supply.")
         case .barracks:
             return BuildingStats(name: "Barracks", short: "Barracks", glyph: "BK", cost: 150, hp: 900, half: 64,
-                                 buildTime: 35, supply: 0, produces: [.marine], requires: .hq, range: 0, damage: 0,
-                                 cooldown: 0, sight: 240, hotkey: "B", desc: "Trains Rangers.")
+                                 buildTime: 35, supply: 0, produces: [.marine, .sniper], requires: .hq, range: 0, damage: 0,
+                                 cooldown: 0, sight: 240, hotkey: "B",
+                                 desc: "Trains Rangers, and Snipers once a Factory is up.")
         case .factory:
             return BuildingStats(name: "Factory", short: "Factory", glyph: "FC", cost: 200, hp: 1100, half: 70,
                                  buildTime: 45, supply: 0, produces: [.tank], requires: .barracks, range: 0,
@@ -250,6 +258,11 @@ enum BuildingKind: CaseIterable {
                                  buildTime: 22, supply: 0, produces: [], requires: .barracks, range: 210,
                                  damage: 11, cooldown: 0.7, sight: 270, hotkey: "T",
                                  desc: "Static defense. Fires on nearby enemies.")
+        case .radar:
+            return BuildingStats(name: "Radar Station", short: "Radar", glyph: "RD", cost: 175, hp: 520, half: 34,
+                                 buildTime: 30, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
+                                 cooldown: 0, sight: 900, hotkey: "D",
+                                 desc: "Sweeps a wide circle of the map. Unarmed.")
         }
     }
 }
