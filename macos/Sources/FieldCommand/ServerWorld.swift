@@ -354,6 +354,7 @@ enum SOrder {
     case ret
     case build(BuildingKind, Double, Double)
     case rebuild(SBridge)
+    case repair(SBuilding)
 
     var code: Int {
         switch self {
@@ -365,6 +366,7 @@ enum SOrder {
         case .ret: return 5
         case .build: return 6
         case .rebuild: return 7
+        case .repair: return 8
         }
     }
     var isIdle: Bool { if case .idle = self { return true }; return false }
@@ -550,6 +552,29 @@ final class SUnit: SEntity {
 
     func enqueue(_ o: SOrder) {
         if order.isIdle && queued.isEmpty { command(o) } else { queued.append(o) }
+    }
+
+    func orderRepair(_ b: SBuilding, queue: Bool) {
+        if queue && !(order.isIdle && queued.isEmpty) {
+            queued.append(.repair(b))
+            return
+        }
+        switch order {
+        case .gather(let c): resumeGather = c
+        case .ret: resumeGather = homeCrystal
+        default: resumeGather = nil
+        }
+        command(.repair(b))
+    }
+
+    /// After repairing, an Engineer goes back to what it was doing, as it does after placing a building.
+    private func afterWork() {
+        let rg = resumeGather
+        resumeGather = nil
+        if !queued.isEmpty { order = .idle }
+        else if carrying > 0 { order = .ret }
+        else if let rg, !rg.dead { order = .gather(rg) }
+        else { order = .idle }
     }
 
     func orderBuild(_ k: BuildingKind, _ bx: Double, _ by: Double, queue: Bool) {
@@ -744,6 +769,36 @@ final class SUnit: SEntity {
                     buildTimer = 0
                 }
             }
+        case .repair(let b):
+            if b.dead || b.hp >= b.maxHp || !g.allied(b.team, team) {
+                afterWork()
+            } else if stuck > 3 {
+                afterWork()
+                g.emit(["msg", team, "An Engineer couldn't reach the building", "bad"])
+            } else if b.surfaceDistance(x, y) - radius > 12 {
+                target = (b.x, b.y)
+            } else {
+                let heal = min(b.maxHp - b.hp, b.maxHp * dt / repairTime)
+                let price = heal / b.maxHp * Double(b.stats.cost) * repairCostRatio
+                if (g.resources[team] ?? 0) < price {
+                    // Out of crystal: stop rather than repair on credit.
+                    afterWork()
+                    g.emit(["msg", team, "Not enough crystal to keep repairing", "bad"])
+                } else {
+                    g.resources[team, default: 0] -= price
+                    b.hp += heal
+                    mineTimer += dt
+                    if mineTimer > 0.45 {       // the same work bob as mining and rebuilding
+                        mineTimer = 0
+                        g.emit(["pulse", id])
+                        g.emit(["sparks", x, y, 2, 30, "amber"])
+                    }
+                    if b.hp >= b.maxHp {
+                        b.hp = b.maxHp
+                        afterWork()
+                    }
+                }
+            }
         }
         if order.isIdle && !queued.isEmpty {
             order = queued.removeFirst()
@@ -759,6 +814,7 @@ final class SUnit: SEntity {
         case .attack(let t): return (t as? SBuilding).map { $0.half + 30 } ?? 30
         case .gather: return 40
         case .rebuild: return 40
+        case .repair(let b): return b.half + 30
         case .ret: return 120
         default: return 0
         }
@@ -1065,7 +1121,8 @@ final class SWorld {
         return idCounter
     }
 
-    private func add(_ e: SEntity) {
+    /// Internal rather than private so the automated tests in Debug.swift can place units.
+    func add(_ e: SEntity) {
         if let b = e as? SBuilding {
             buildings.append(b)
             navDirty = true
@@ -1300,6 +1357,11 @@ final class SWorld {
                         give(u, .attack(t), flag(3))
                     }
                 }
+            }
+        case "repair" where cmd.count >= 3:
+            if let b = byId[jInt(cmd[2])] as? SBuilding, !b.dead, b.built, allied(b.team, slot) {
+                let queue = cmd.count > 3 && flag(3)
+                for u in ownUnits(slot, ids(cmd[1])) where u.kind == .worker { u.orderRepair(b, queue: queue) }
             }
         case "rebuild" where cmd.count >= 3:
             rebuildBridge(slot, jInt(cmd[1]), jInt(cmd[2]), queue: cmd.count > 3 && flag(3))
@@ -1628,6 +1690,7 @@ final class SAI {
         let reserve = construct(hq, bases, workers)
         produce(hq, bases, workers, reserve)
         rebuildBridges(hq, workers)
+        repair(bases, workers)
         defend(bases, home)
         attack(hq, home)
     }
@@ -1692,6 +1755,18 @@ final class SAI {
         guard let builder = free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) }) else { return }
         g.resources[team, default: 0] -= Double(bridgeCost)
         builder.command(.rebuild(b))
+    }
+
+    /// Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,
+    /// so the economy keeps running while the base is patched up.
+    private func repair(_ bases: [SBuilding], _ workers: [SUnit]) {
+        let g = world
+        guard (g.resources[team] ?? 0) >= 150 else { return }
+        if workers.contains(where: { if case .repair = $0.order { return true }; return false }) { return }
+        let hurt = bases.filter { $0.built && !$0.dead && $0.hp < $0.maxHp * 0.7 }
+        guard let b = hurt.min(by: { $0.hp / $0.maxHp < $1.hp / $1.maxHp }) else { return }
+        let free = workers.filter { $0.order.isIdle || { if case .gather = $0.order { return true }; return false }($0) }
+        free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) })?.orderRepair(b, queue: false)
     }
 
     private func homeCrystalLeft(_ bases: [SBuilding]) -> Int {

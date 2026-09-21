@@ -997,7 +997,11 @@ final class GameScene: SKScene {
         }
         if let m = mouse {
             if let t = target {
-                hud.setHover("\(t.displayName)  \(Int(ceil(t.hp)))/\(Int(t.maxHp))", color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
+                var label = "\(t.displayName)  \(Int(ceil(t.hp)))/\(Int(t.maxHp))"
+                if let b = t as? Building, isRepairable(b), selectedOwnUnits.contains(where: { $0.kind == .worker }) {
+                    label += "    right-click to repair"
+                }
+                hud.setHover(label, color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
             } else if let c = crystal {
                 hud.setHover("Crystal  \(c.amount)", color: Palette.crystal, at: m.hud)
             } else if let br = hoveredBridge {
@@ -1024,6 +1028,9 @@ final class GameScene: SKScene {
             } else if !own.isEmpty && placing == nil {
                 if let t = target, !t.team.isFriendly { kind = .attack }
                 else if crystal != nil && own.contains(where: { $0.kind == .worker }) { kind = .gather }
+                else if let b = target as? Building, isRepairable(b), own.contains(where: { $0.kind == .worker }) {
+                    kind = .gather      // the work cursor: this Engineer can mend it
+                }
                 else if let br = hoveredBridge, !br.intact, own.contains(where: { $0.kind == .worker }) {
                     kind = .gather      // the build cursor: this Engineer can put the crossing back
                 }
@@ -1185,6 +1192,10 @@ final class GameScene: SKScene {
 
     private func give(_ u: Unit, _ o: Order, queue: Bool) {
         if queue { u.enqueue(o) } else { u.command(o) }
+    }
+
+    func isRepairable(_ b: Building) -> Bool {
+        !b.dead && b.built && b.hp < b.maxHp && b.team.isFriendly
     }
 
     func bridge(at p: CGPoint) -> BridgeNode? {

@@ -65,8 +65,14 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 3, so a 1.2.0 Mac and a 1.2.0 Linux client play together; neither accepts an
-older client, which would mis-read the newer units and the state of the bridges.
+Both editions speak protocol 4, so a 1.3.0 Mac and a 1.3.0 Linux client play together; neither accepts an
+older client, which would mis-read the newer units, orders and the state of the bridges.
+
+## Repair
+
+Select Engineers and right-click a damaged friendly building to repair it: 30 seconds for a full bar with one
+Engineer (more stack), at 35% of the building's price for a full bar, charged as it heals. The rules and
+numbers match the Linux edition exactly — `FC_REPAIRTEST` checks them.
 
 ## Bridges
 
@@ -90,4 +96,5 @@ FC_NETTEST=host:port .build/release/FieldCommand              # join a server as
 FC_SNAPSHOT_DIR=/tmp/fc …                                     # write screenshots and a stats log
 FC_MENUSHOT=/tmp/menu.png .build/release/FieldCommand         # render the title screen and exit
 FC_BRIDGETEST=river_crossing .build/release/FieldCommand      # shell a bridge down and rebuild it, headless
+FC_REPAIRTEST=1 .build/release/FieldCommand                   # repair time, cost and limits, headless
 ```

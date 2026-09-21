@@ -466,8 +466,12 @@ class HUD:
                 tex, fit, rot = art.unit(b.icon[1], g.s.slot), (40 if b.icon[1] == "tank" else 30), 90
             else:
                 tex, fit, rot = art.building(b.icon[1], g.s.slot), 38, 0
+            if not b.enabled:
+                # Locked, not missing: keep the art legible in greyscale so the button still says what it
+                # builds. (At the old 35% opacity it vanished into the dark disabled button.)
+                tex = art.greyscale(tex)
             img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
-                                  fade=255 if b.enabled else 90)
+                                  fade=255 if b.enabled else 160)
             screen.blit(img, (r.centerx - img.get_width() / 2, r.centery - 5 - img.get_height() / 2))
             pygame.draw.rect(screen, (0, 0, 0), (r.x + 3, r.y + 3, 16, 16))
             ui.blit_text(screen, b.hotkey, 11, AMBER, (r.x + 11, r.y + 11), align="center", bold=True)

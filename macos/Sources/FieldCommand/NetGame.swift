@@ -342,6 +342,18 @@ extension GameScene {
                 marker(at: c.position, color: Palette.crystal, size: 26)
                 return
             }
+            // Engineers mend a damaged friendly building. Ahead of the HQ branch, so an Engineer carrying
+            // crystal to a damaged Command Center repairs it rather than only dropping off.
+            if let b = target as? Building, isRepairable(b) {
+                let workers = us.filter { $0.kind == .worker }
+                if !workers.isEmpty {
+                    sendNet(["repair", netIds(workers), b.netId, queue])
+                    marker(at: b.position, color: Palette.amber, size: b.half + 10)
+                    let rest = us.filter { $0.kind != .worker }
+                    if !rest.isEmpty { sendNet(["move", netIds(rest), p.x, p.y, queue, false]) }
+                    return
+                }
+            }
             if let b = target as? Building, b.team.isLocal, b.kind == .hq, b.built {
                 let carriers = us.filter { $0.kind == .worker && $0.carrying > 0 }
                 let rest = us.filter { !($0.kind == .worker && $0.carrying > 0) }

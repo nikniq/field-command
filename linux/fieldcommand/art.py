@@ -1002,6 +1002,21 @@ class SpriteCache:
 sprites = SpriteCache()
 
 
+def greyscale(tex):
+    """A cached greyscale copy of a texture, alpha untouched — for things that are shown but unavailable."""
+    key = ("grey", id(tex))
+    g = _cache.get(key)
+    if g is None or g[0] is not tex:
+        out = tex.copy()
+        rgb_ = pygame.surfarray.pixels3d(out)
+        lum = (rgb_[..., 0] * 0.30 + rgb_[..., 1] * 0.59 + rgb_[..., 2] * 0.11).astype(np.uint8)
+        rgb_[..., 0] = rgb_[..., 1] = rgb_[..., 2] = lum
+        del rgb_
+        g = (tex, out)            # keep the source alive so id(tex) cannot be reused by another texture
+        _cache[key] = g
+    return g[1]
+
+
 def tinted_glow(size, color, level):
     """Glow sprite for additive blending: premultiplied onto black (additive blits ignore alpha),
     tinted to `color` (0-255 RGB) at brightness level 0..8."""
@@ -1139,6 +1154,14 @@ def _water_body(c, w, h, rnd):
 
 
 def bridge_ruins(w, h, seed=1):
+    key = ("bridgeruins", w, h, seed)
+    t = _cache.get(key)
+    if t is None:
+        t = _cache[key] = _bridge_ruins(w, h, seed)
+    return t
+
+
+def _bridge_ruins(w, h, seed=1):
     """What is left after a bridge comes down: stumps of the piers, a few broken planks in the water,
     and the burnt ends of the deck still clinging to each bank."""
     m = TERRAIN_MARGIN
@@ -1179,7 +1202,15 @@ def bridge_ruins(w, h, seed=1):
 
 
 def bridge_patch(w, h, seed=1):
-    """A wooden bridge over water, walked along the x axis."""
+    """A wooden bridge over water, walked along the x axis. Cached: bridges are drawn every frame."""
+    key = ("bridgepatch", w, h, seed)
+    t = _cache.get(key)
+    if t is None:
+        t = _cache[key] = _bridge_patch(w, h, seed)
+    return t
+
+
+def _bridge_patch(w, h, seed=1):
     m = TERRAIN_MARGIN
 
     def d(c):

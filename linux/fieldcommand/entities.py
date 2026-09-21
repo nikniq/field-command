@@ -4,13 +4,13 @@
 
 Orders are tuples:
     ("idle",) ("move", x, y) ("amove", x, y) ("attack", entity) ("gather", crystal) ("return",) ("build", kind, x, y)
-    ("rebuild", bridge)
+    ("rebuild", bridge) ("repair", building)
 """
 import math
 import random
 
-from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, UNITS, angle_lerp,
-                   rect_distance, square_rect)
+from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, REPAIR_COST_RATIO, REPAIR_TIME,
+                   UNITS, angle_lerp, rect_distance, square_rect)
 
 IDLE = ("idle",)
 
@@ -196,7 +196,13 @@ class Unit(Entity):
             return "Returning cargo" if self.carrying else "Mining crystal"
         if o == "return":
             return "Returning cargo"
-        return f"Heading to build {BUILDINGS[self.order[1]].name}"
+        if o == "rebuild":
+            return "Rebuilding a bridge"
+        if o == "repair":
+            return f"Repairing {self.order[1].name}"
+        if o == "build":
+            return f"Heading to build {BUILDINGS[self.order[1]].name}"
+        return "Busy"
 
     def surface_distance(self, px, py):
         return math.hypot(px - self.x, py - self.y) - self.radius
@@ -236,6 +242,26 @@ class Unit(Entity):
         o = self.order[0]
         self.resume_gather = self.order[1] if o == "gather" else self.home_crystal if o == "return" else None
         self.command(("build", kind, x, y))
+
+    def _after_work(self):
+        rg = self.resume_gather
+        self.resume_gather = None
+        if self.queued:
+            self.order = IDLE
+        elif self.carrying:
+            self.order = ("return",)
+        elif rg and not rg.dead:
+            self.order = ("gather", rg)
+        else:
+            self.order = IDLE
+
+    def order_repair(self, building, queue=False):
+        if queue and not (self.order[0] == "idle" and not self.queued):
+            self.queued.append(("repair", building))
+            return
+        o = self.order[0]
+        self.resume_gather = self.order[1] if o == "gather" else self.home_crystal if o == "return" else None
+        self.command(("repair", building))
 
     def _finish_attack(self):
         if self.resume_point:
@@ -421,6 +447,34 @@ class Unit(Entity):
                     self.order = IDLE
                     self.build_timer = 0.0
 
+        elif kind == "repair":
+            b = o[1]
+            if b.dead or b.hp >= b.max_hp or not g.allied(b.team, self.team):
+                self._after_work()
+            elif self.stuck > 3:
+                self._after_work()
+                g.emit("msg", self.team, "An Engineer couldn't reach the building", "bad")
+            elif b.surface_distance(self.x, self.y) - self.radius > 12:
+                target = (b.x, b.y)
+            else:
+                heal = min(b.max_hp - b.hp, b.max_hp * dt / REPAIR_TIME)
+                price = heal / b.max_hp * b.stats.cost * REPAIR_COST_RATIO
+                if g.resources[self.team] < price:
+                    # Out of crystal: stop rather than repair on credit.
+                    self._after_work()
+                    g.emit("msg", self.team, "Not enough crystal to keep repairing", "bad")
+                else:
+                    g.resources[self.team] -= price
+                    b.hp += heal
+                    self.mine_timer += dt
+                    if self.mine_timer > 0.45:      # the same work bob as mining and rebuilding
+                        self.mine_timer = 0.0
+                        g.emit("pulse", self.id)
+                        g.emit("sparks", self.x, self.y, 2, 30, "amber")
+                    if b.hp >= b.max_hp:
+                        b.hp = b.max_hp
+                        self._after_work()
+
         if self.order[0] == "idle" and self.queued:
             self.order = self.queued.pop(0)
             self.stuck = 0
@@ -439,6 +493,8 @@ class Unit(Entity):
             return t.half + 30 if t.is_building else 30
         if k == "rebuild":
             return 40
+        if k == "repair":
+            return self.order[1].half + 30
         if k == "gather":
             return 40
         if k == "return":

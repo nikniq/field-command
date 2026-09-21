@@ -315,6 +315,76 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_REPAIRTEST=1: checks Engineer repair on the server simulation — time, cost, stacking, running out of
+    /// crystal, and refusing enemy buildings — then exits. The Python edition's numbers must match exactly.
+    static func runRepairTest() -> Never {
+        func fresh() -> (SWorld, SBuilding) {
+            let map = SMapGen.generate("twin_ridges")
+            let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: players, difficulty: .normal)
+            for u in w.units where u.team == 0 { u.command(.idle) }      // no income while we measure
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            return (w, hq)
+        }
+        func engineer(_ w: SWorld, _ hq: SBuilding, dy: Double = 0) -> SUnit {
+            let u = SUnit(world: w, kind: .worker, team: 0, x: hq.x + 140, y: hq.y + dy)
+            w.add(u)
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool) {
+            var t = 0.0
+            while t < secs && !done() { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        }
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+
+        // One Engineer, half a Command Center.
+        var (w, hq) = fresh()
+        hq.hp = hq.maxHp * 0.5
+        w.resources[0] = 1000
+        let e = engineer(w, hq)
+        w.apply(0, ["repair", [e.id], hq.id, false])
+        let t0 = w.elapsed
+        run(w, 40) { hq.hp >= hq.maxHp }
+        let spent = 1000 - (w.resources[0] ?? 0)
+        let expected = 0.5 * Double(BuildingKind.hq.stats.cost) * repairCostRatio
+        print(String(format: "repair test: one Engineer, half an HQ: %.1fs, %.1f crystal (expected %.1f)",
+                     w.elapsed - t0, spent, expected))
+        check(hq.hp == hq.maxHp, "the HQ is back to full health")
+        check(abs(spent - expected) < 0.5, "a half-bar repair costs half of 35% of the building's price")
+        check({ if case .repair = e.order { return false }; return true }(), "the Engineer went back to work")
+
+        // Three Engineers stack.
+        (w, hq) = fresh()
+        hq.hp = hq.maxHp * 0.5
+        w.resources[0] = 1000
+        let crew = [-40.0, 0, 40].map { engineer(w, hq, dy: $0) }
+        w.apply(0, ["repair", crew.map { $0.id }, hq.id, false])
+        let t1 = w.elapsed
+        run(w, 40) { hq.hp >= hq.maxHp }
+        check(w.elapsed - t1 < repairTime * 0.5 * 0.8, String(format: "three Engineers stack (%.1fs)", w.elapsed - t1))
+
+        // Out of crystal: it stops, never goes into debt.
+        (w, hq) = fresh()
+        hq.hp = hq.maxHp * 0.5
+        w.resources[0] = 3
+        let broke = engineer(w, hq)
+        w.apply(0, ["repair", [broke.id], hq.id, false])
+        run(w, 20) { if case .repair = broke.order { return false }; return true }
+        check((w.resources[0] ?? 0) >= 0 && hq.hp < hq.maxHp, "stops when the crystal runs out, without debt")
+
+        // Enemy buildings and construction sites are refused.
+        (w, hq) = fresh()
+        let enemy = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+        enemy.hp = 500
+        let e2 = engineer(w, hq)
+        w.apply(0, ["repair", [e2.id], enemy.id, false])
+        check({ if case .repair = e2.order { return false }; return true }(), "refuses to repair an enemy building")
+
+        print(ok ? "REPAIR TEST PASSED" : "REPAIR TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_WORLDTEST=1: plays an AI-only game on every map with the server simulation and exits.
     static func runWorldTest() -> Never {
         var ok = true

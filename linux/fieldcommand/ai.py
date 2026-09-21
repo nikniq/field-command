@@ -51,6 +51,7 @@ class AI:
         reserve = self._construct(hq, bases, workers)
         self._produce(hq, bases, workers, reserve)
         self._rebuild_bridges(hq, workers)
+        self._repair(bases, workers)
         self._defend(bases, home)
         self._attack(hq, home)
 
@@ -134,6 +135,20 @@ class AI:
         builder = min(free, key=lambda w: math.hypot(w.x - b.x, w.y - b.y))
         g.resources[self.team] -= BRIDGE_COST
         builder.command(("rebuild", b))
+
+    def _repair(self, bases, workers):
+        """Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,
+        so the economy keeps running while the base is patched up."""
+        g = self.game
+        if g.resources[self.team] < 150 or any(w.order[0] == "repair" for w in workers):
+            return
+        hurt = [b for b in bases if b.built and not b.dead and b.hp < b.max_hp * 0.7]
+        if not hurt:
+            return
+        b = min(hurt, key=lambda b: b.hp / b.max_hp)
+        free = [w for w in workers if w.order[0] in ("idle", "gather")]
+        if free:
+            min(free, key=lambda w: math.hypot(w.x - b.x, w.y - b.y)).order_repair(b)
 
     def _home_crystal_left(self, bases):
         hqs = [b for b in bases if b.kind == "hq"]

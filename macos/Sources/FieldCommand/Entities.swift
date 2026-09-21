@@ -252,6 +252,8 @@ final class Unit: Entity {
             case 4: return carrying > 0 ? "Returning cargo" : "Mining crystal"
             case 5: return "Returning cargo"
             case 6: return "Heading to build"
+            case 7: return "Rebuilding a bridge"
+            case 8: return "Repairing"
             default: return "Idle"
             }
         }

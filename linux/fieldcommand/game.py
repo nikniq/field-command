@@ -656,7 +656,10 @@ class GameScene:
             self.hovered = hover
         if mouse and target:
             color = TEXT if self.mine(target) else (TEAM_LIGHT[target.team] if self.friendly(target) else BAD)
-            self.hud.set_hover(f"{target.name}  {math.ceil(target.hp)}/{int(target.max_hp)}", color, mouse)
+            label = f"{target.name}  {math.ceil(target.hp)}/{int(target.max_hp)}"
+            if self._repairable(target) and any(u.kind == "worker" for u in self.selected_own_units()):
+                label += "    right-click to repair"
+            self.hud.set_hover(label, color, mouse)
         elif mouse and crystal:
             self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
         elif mouse and bridge:
@@ -678,6 +681,8 @@ class GameScene:
                     kind = "attack"
                 elif crystal and any(u.kind == "worker" for u in own):
                     kind = "gather"
+                elif target and self._repairable(target) and any(u.kind == "worker" for u in own):
+                    kind = "gather"      # the work cursor: this Engineer can mend it
                 elif bridge is not None and not bridge.intact and any(u.kind == "worker" for u in own):
                     kind = "gather"      # the build cursor: this Engineer can put the crossing back
         if kind != self._cursor:
@@ -755,6 +760,9 @@ class GameScene:
     def selected_own_buildings(self):
         return [e for e in self.selection if e.is_building and self.mine(e) and not e.dead]
 
+    def _repairable(self, e):
+        return e.is_building and not e.dead and e.built and e.hp < e.max_hp and self.friendly(e)
+
     def bridge_at(self, x, y, slack=0.0):
         for b in getattr(self.s, "bridges", ()):
             r = b.rect
@@ -810,6 +818,15 @@ class GameScene:
                 send(["gather", self._ids(us), c.id, queue])
                 self.fx.ring(c.x, c.y, 26, 6, CRYSTAL)
                 return
+            if t is not None and self._repairable(t):
+                workers = [u for u in us if u.kind == "worker"]
+                if workers:
+                    send(["repair", self._ids(workers), t.id, queue])
+                    self.fx.ring(t.x, t.y, t.half + 10, 8, AMBER)
+                    rest = [u for u in us if u.kind != "worker"]
+                    if rest:
+                        send(["move", self._ids(rest), x, y, queue, False])
+                    return
             if t is not None and t.is_building and self.mine(t) and t.kind == "hq" and t.built:
                 carriers = [u for u in us if u.kind == "worker" and u.carrying]
                 rest = [u for u in us if u not in carriers]

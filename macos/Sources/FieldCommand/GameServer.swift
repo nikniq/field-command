@@ -507,6 +507,7 @@ final class GameServer {
                     case .gather(let c) where !c.dead: pts += [4, r1(c.x), r1(c.y)]
                     case .build(_, let x, let y): pts += [6, r1(x), r1(y)]
                     case .rebuild(let b): pts += [6, r1(b.x), r1(b.y)]
+                    case .repair(let b): if !b.dead { pts += [6, r1(b.x), r1(b.y)] }
                     default: break
                     }
                 }

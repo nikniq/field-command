@@ -53,6 +53,18 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## Repair
+
+Select Engineers and right-click a damaged building of yours or an ally's to repair it. One Engineer restores
+a full health bar in 30 seconds, and more Engineers work proportionally faster. A full bar costs 35% of the
+building's price, charged as the health goes back on, so patching a half-wrecked Command Center costs 70
+crystal. If the crystal runs out, repair stops rather than going into debt. When the job is done each
+Engineer goes back to what it was doing. Buildings still under construction finish on their own and cannot
+be repaired.
+
+Computer players send an Engineer to their worst-damaged building once it drops below 70%, one at a time,
+when they have crystal to spare.
+
 ## Bridges
 
 Bridges are structures, not scenery. Each one has 900 hit points and belongs to nobody, so either side can
@@ -114,9 +126,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same major version: the protocol is at 3 (Field Command 1.2.0, which made bridges
-destructible; 2 added the Sniper and the Radar Station), and a server refuses older clients rather than
-letting them mis-read the game.
+All players must run the same version: the protocol is at 4 (Field Command 1.3.0, which added repair; 3 made
+bridges destructible; 2 added the Sniper and the Radar Station), and a server refuses older clients rather
+than letting them mis-read the game.
 
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.
@@ -139,6 +151,7 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Queue orders | Shift + right-click |
 | Attack-move / Stop | A then click / S |
 | Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
+| Repair | Engineer + right-click a damaged building |
 | Bridges | A then click to demolish · Engineer + right-click to rebuild |
 | Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |
 | Control groups | Ctrl+1–9 assign, 1–9 recall (double-tap to jump) |

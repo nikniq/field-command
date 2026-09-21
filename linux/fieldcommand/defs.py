@@ -148,6 +148,11 @@ BRIDGE_HP = 900.0
 BRIDGE_COST = 75
 BRIDGE_REBUILD_TIME = 25.0
 
+# Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
+# full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
+REPAIR_TIME = 30.0
+REPAIR_COST_RATIO = 0.35
+
 
 @dataclass(frozen=True)
 class Difficulty:

@@ -227,9 +227,11 @@ class _ProxyUnit:
 
     def status_text(self):
         k = STATUS_NAMES.get(self.status, "idle")
+        # .get with a default: a status this client does not know must never take the HUD down.
         return {"idle": "Idle", "move": "Moving", "amove": "Attack-moving", "attack": "Engaging target",
                 "gather": "Returning cargo" if self.carrying else "Mining crystal", "return": "Returning cargo",
-                "build": "Heading to build"}[k]
+                "build": "Heading to build", "rebuild": "Rebuilding a bridge",
+                "repair": "Repairing"}.get(k, "Busy")
 
     def surface_distance(self, px, py):
         return math.hypot(px - self.x, py - self.y) - self.radius

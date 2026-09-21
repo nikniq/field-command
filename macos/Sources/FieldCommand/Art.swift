@@ -886,6 +886,33 @@ enum Art {
         }
     }
 
+    /// A cached greyscale copy of a texture, alpha untouched — for things that are shown but unavailable.
+    /// Done in pixels rather than with a sprite colour blend so the result is certain: grey, not darker blue.
+    static func greyscale(_ tex: SKTexture, key: String) -> SKTexture {
+        let k = "grey-\(key)"
+        if let t = cache[k] { return t }
+        let src = tex.cgImage()
+        let w = src.width, h = src.height
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = ctx.data else { return tex }
+        ctx.draw(src, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let px = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        for i in 0..<(w * h) {
+            // Premultiplied channels, and the weights sum to 1, so the result never exceeds alpha.
+            let l = 0.30 * Double(px[i * 4]) + 0.59 * Double(px[i * 4 + 1]) + 0.11 * Double(px[i * 4 + 2])
+            let v = UInt8(min(255, l))
+            px[i * 4] = v
+            px[i * 4 + 1] = v
+            px[i * 4 + 2] = v
+        }
+        guard let img = ctx.makeImage() else { return tex }
+        let t = SKTexture(cgImage: img)
+        t.filteringMode = .linear
+        cache[k] = t
+        return t
+    }
+
     static func icon(_ icon: ButtonIcon) -> SKTexture {
         switch icon {
         case .unit(let k): return unit(k, Team.local)

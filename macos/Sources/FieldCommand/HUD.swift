@@ -695,7 +695,10 @@ final class HUD: SKNode {
             buttonBGs.append(bg)
             buttonRects.append(r)
 
-            let icon = SKSpriteNode(texture: Art.icon(b.icon))
+            // Locked, not missing: a greyscale icon keeps saying what the button builds. (At the old 35% alpha
+            // the art vanished into the dark disabled button.)
+            let icon = SKSpriteNode(texture: b.enabled ? Art.icon(b.icon)
+                                                       : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)"))
             let ts = icon.texture!.size()
             let fit: CGFloat
             switch b.icon {
@@ -706,7 +709,7 @@ final class HUD: SKNode {
             let k = fit / max(ts.width, ts.height)
             icon.size = CGSize(width: ts.width * k, height: ts.height * k)
             if case .unit = b.icon { icon.zRotation = .pi / 2 }
-            icon.alpha = b.enabled ? 1 : 0.35
+            icon.alpha = b.enabled ? 1 : 0.65
             bg.addChild(at(icon, 0, 5))
 
             let badge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.55), size: CGSize(width: 16, height: 16))

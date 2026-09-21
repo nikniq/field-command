@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.2.0
+Version:        1.3.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.3.0-1
+- Engineers repair damaged buildings, paying for the health as it goes back on
+- Locked build icons stay visible in greyscale instead of fading into the button
+- Fix a crash selecting an Engineer that is rebuilding a bridge
+- Cache bridge artwork, which was being re-rendered every frame
+- Network protocol 4
+
 * Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.2.0-1
 - Bridges can be destroyed and rebuilt by Engineers; a fallen span blocks the crossing
 - Network protocol 3: bridge condition now travels with each snapshot

@@ -330,7 +330,7 @@ class World:
             ["move", ids, x, y, queue, attack]      ["attack", ids, target_id, queue]
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
-            ["rebuild", worker_id, bridge_id, queue]
+            ["rebuild", worker_id, bridge_id, queue]  ["repair", worker_ids, building_id, queue]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
         Invalid or foreign references are ignored."""
         if self.game_over or slot not in self.players or not self.players[slot].alive or not cmd:
@@ -369,6 +369,13 @@ class World:
                     u.command(IDLE)
             elif op == "build":
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
+            elif op == "repair":
+                b = self.by_id.get(cmd[2])
+                if isinstance(b, Building) and not b.dead and b.built and self.allied(b.team, slot):
+                    queue = bool(cmd[3]) if len(cmd) > 3 else False
+                    for u in self._own_units(slot, cmd[1]):
+                        if u.kind == "worker":
+                            u.order_repair(b, queue)
             elif op == "rebuild":
                 self._rebuild_bridge(slot, cmd[1], cmd[2], bool(cmd[3]) if len(cmd) > 3 else False)
             elif op == "train":
