@@ -22,3 +22,10 @@ with the same maps, units and pathfinding. The server is authoritative and enfor
 ```
 
 See [`deploy.conf.example`](deploy.conf.example) for how environments are configured.
+
+## Tests
+
+`./cx.sh test` runs everything this machine can: the Python edition's simulation suite, the cross-edition
+parity checks, and (on a Mac) the headless Swift tests. [`tests/README.md`](tests/README.md) has the
+details. GitHub Actions runs all of it on Linux, Windows and macOS on every push, and builds the RPM, the
+Windows executable and the Mac app as downloadable artifacts.

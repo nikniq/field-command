@@ -71,7 +71,7 @@ ${C_BOLD}Targets${C_OFF}
   exe          build the Windows executables with PyInstaller (Windows only)
   icons        regenerate the Linux hicolor icon set
   web          stage the web edition (index.html, app.js, styles.css) into dist/web
-  test         run the smoke tests for whatever this machine can run
+  test         run the test suites for whatever this machine can run (see tests/README.md)
   all          everything this machine is able to build
   clean        remove build output (macos/.build, linux/rpmbuild, dist, __pycache__)
   version      print the version this tree builds
@@ -205,21 +205,31 @@ target_web() {
 # ----------------------------------------------------------- test / misc ----
 
 target_test() {
-    local ran=0
-    if on_macos && [ -d "$MAC_DIR/.build" ]; then
+    local py; py="$(python_bin)"
+    local failed=0
+    step "Python edition: simulation tests"
+    if "$py" -c "import pytest, numpy" 2>/dev/null; then
+        ( cd "$LINUX_DIR" && run "$py" -m pytest tests -q ) || failed=1
+        step "Cross-edition parity"
+        ( cd "$ROOT" && run "$py" -m pytest tests -q ) || failed=1
+    else
+        warn "skipping: pytest and numpy are needed ($py -m pip install pytest numpy)"
+    fi
+    if on_macos; then
         local bin
-        bin="$(cd "$MAC_DIR" && swift build -c "$CONFIGURATION" --show-bin-path)/FieldCommand"
+        bin="$(cd "$MAC_DIR" && swift build -c "$CONFIGURATION" --show-bin-path 2>/dev/null)/FieldCommand"
         if [ -x "$bin" ]; then
-            step "macOS: headless world test"
-            run env FC_WORLDTEST=1 "$bin"
-            ran=1
+            for t in FC_WORLDTEST FC_REPAIRTEST FC_TEAMSTEST; do
+                step "macOS: $t"
+                run env "$t=1" "$bin" 2>&1 | grep -E "PASSED|FAILED|ok  |FAIL" || failed=1
+            done
+            step "macOS: FC_BRIDGETEST"
+            run env FC_BRIDGETEST=river_crossing "$bin" 2>&1 | grep -E "PASSED|FAILED" || failed=1
+        else
+            warn "skipping the macOS tests: build first (./cx.sh mac)"
         fi
     fi
-    if command -v python3 >/dev/null 2>&1; then
-        step "Linux: headless AI-vs-AI smoke test"
-        ( cd "$LINUX_DIR" && run make test ) && ran=1 || warn "the Linux smoke test failed (pygame installed?)"
-    fi
-    [ "$ran" -eq 1 ] || warn "nothing testable on this machine"
+    [ "$failed" -eq 0 ] || die "tests failed"
 }
 
 target_all() {

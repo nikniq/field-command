@@ -174,7 +174,8 @@ Settings (game speed, edge scrolling, sound, objectives, fullscreen) are saved t
 ## Developer options
 
 ```sh
-make test                                   # headless AI-vs-AI match, prints the result
+make test                                   # the test suite (pip install pytest numpy)
+make smoke                                  # headless AI-vs-AI match, prints the result
 FC_AUTOSTART=1 ./field-command              # skip the menu (0 easy, 1 normal, 2 hard)
 FC_HEADLESS=1 FC_AUTOPLAY=1 FC_SNAPSHOT_DIR=/tmp/fc ./field-command   # screenshots + stats log
 FC_MAP=riverlands FC_OPPONENTS=11 FC_AUTOSTART=1 ./field-command      # a specific map and opponent count

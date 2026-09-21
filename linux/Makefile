@@ -1,6 +1,7 @@
 # Field Command (Linux edition)
 #   make run               play from the source tree
-#   make test              headless AI-vs-AI smoke test
+#   make test              the test suite (pytest)
+#   make smoke             headless AI-vs-AI game, no window
 #   sudo make install      install to /usr/local (PREFIX=/usr for system packaging)
 #   make rpm               build a Fedora RPM into ./rpmbuild
 
@@ -12,12 +13,15 @@ DATADIR  := $(PREFIX)/share
 APPDIR   := $(DATADIR)/$(NAME)
 PYTHON   ?= python3
 
-.PHONY: run test install uninstall icons dist rpm clean
+.PHONY: run test smoke install uninstall icons dist rpm clean
 
 run:
 	./field-command
 
 test:
+	$(PYTHON) -m pytest tests -q
+
+smoke:
 	FC_HEADLESS=1 FC_AUTOPLAY=1 FC_AUTOSTART=1 $(PYTHON) -m fieldcommand
 
 icons:
@@ -45,7 +49,7 @@ uninstall:
 
 dist:
 	mkdir -p rpmbuild/SOURCES
-	tar --exclude='__pycache__' --exclude='rpmbuild' -czf rpmbuild/SOURCES/$(NAME)-$(VERSION).tar.gz \
+	tar --exclude='__pycache__' --exclude='rpmbuild' --exclude='tests' --exclude='.pytest_cache' -czf rpmbuild/SOURCES/$(NAME)-$(VERSION).tar.gz \
 		--transform 's|^\.|$(NAME)-$(VERSION)|' .
 
 rpm: dist
