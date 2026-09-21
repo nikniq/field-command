@@ -462,6 +462,8 @@ class HUD:
                 tex, fit, rot = art.icon_attack(), 30, 0
             elif kind == "stop":
                 tex, fit, rot = art.icon_stop(), 30, 0
+            elif kind == "siege":
+                tex, fit, rot = art.icon_siege(b.icon[1]), 34, 0
             elif kind == "unit":
                 tex, fit, rot = art.unit(b.icon[1], g.s.slot), (40 if b.icon[1] == "tank" else 30), 90
             else:

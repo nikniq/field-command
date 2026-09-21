@@ -42,11 +42,19 @@ sudo dnf install rpmbuild/RPMS/noarch/field-command-1.0.0-1.*.noarch.rpm
 | Engineer | 50 | Command Center | Mines crystal and builds |
 | Ranger | 50 | Barracks | Rifle infantry, 150 range |
 | Sniper | 125 | Barracks (needs a Factory) | 330 range, 55 damage a shot, one shot every 3.2s; 55 HP |
-| Siege Tank | 150 | Factory | 230 range, splash damage |
+| Siege Tank | 150 | Factory | 230 range, splash damage; can dig in (see below) |
 
 The **Sniper** outranges everything that can shoot back — Siege Tanks reach 230 and Gun Turrets 210 — so a
 few of them behind your line pick apart tanks and turrets before those can answer. They reload slowly and
 die quickly, so they lose to anything that closes the distance: screen them with Rangers.
+
+The **Siege Tank** can dig in — select it and press **G** (or the *Siege* button). It takes 2.5 seconds to set
+up, during which it neither moves nor fires; dug in, it reaches 340 with 50-damage shells and a wider splash,
+sees as far as it shoots, and cannot move or hit anything closer than 90. Press **G** again to pack up (another
+2.5 seconds), or simply give it a move order and it packs up on its own. Mobile, a Sniper outranges it; sieged,
+it outranges the Sniper — so tanks want to be set up before the Snipers arrive, and something up close to
+handle what slips inside the ring. Computer players dig in when an enemy building is in reach and pack up
+when nothing is.
 
 The **Radar Station** (175 crystal, needs a Barracks) sees 900 units in every direction, roughly three times
 a Command Center, and its dish sweeps while it works. It carries no weapons and 520 HP, so put it behind
@@ -133,9 +141,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same version: the protocol is at 4 (Field Command 1.3.0, which added repair; 3 made
-bridges destructible; 2 added the Sniper and the Radar Station), and a server refuses older clients rather
-than letting them mis-read the game.
+All players must run the same version: the protocol is at 5 (Field Command 1.5.0, siege mode; 4 repair; 3
+destructible bridges; 2 the Sniper and the Radar Station), and a server refuses older clients rather than
+letting them mis-read the game.
 
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.
@@ -158,6 +166,7 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Queue orders | Shift + right-click |
 | Attack-move / Stop | A then click / S |
 | Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
+| Siege / unsiege | G with Siege Tanks selected (a move order also packs them up) |
 | Repair | Engineer + right-click a damaged building |
 | Bridges | A then click to demolish · Engineer + right-click to rebuild |
 | Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |

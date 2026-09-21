@@ -443,7 +443,7 @@ class SEntity {
     let team: Int
     var hp: Double
     let maxHp: Double
-    let sight: Double
+    var sight: Double
     var x, y: Double
     var dead = false
     var visMask = 0
@@ -496,6 +496,9 @@ final class SUnit: SEntity {
     var homeCrystal: SCrystal?
     var resumeGather: SCrystal?
     var mineTimer = 0.0, buildTimer = 0.0, stuck = 0.0
+    // Siege mode (tanks only) and the time left in a transition.
+    var mode: SiegeMode = .mobile
+    var modeTimer = 0.0
     var lastX: Double, lastY: Double
     var wasMoving = false
     var scan = Double.random(in: 0...0.3)
@@ -604,6 +607,35 @@ final class SUnit: SEntity {
         return d < slack || (stuck > 0.5 && d < radius * 4 + 30) || stuck > 3
     }
 
+    // MARK: Siege mode
+
+    var sieged: Bool { mode == .sieged }
+    var canSiege: Bool { kind == .tank }
+    var attackRange: Double { sieged ? siegeRange : Double(stats.range) }
+    var minRange: Double { sieged ? siegeMinRange : 0 }
+    override var sight: Double {
+        get { sieged ? siegeSight : super.sight }
+        set { super.sight = newValue }
+    }
+
+    func inRange(_ t: SEntity) -> Bool {
+        let d = distanceTo(t)
+        return d >= minRange && d <= attackRange
+    }
+
+    /// Starts digging in or packing up; a no-op if already there or on the way.
+    func setSiege(_ on: Bool) {
+        guard canSiege else { return }
+        if on && (mode == .mobile || mode == .unsieging) {
+            mode = .sieging
+            modeTimer = siegeTransition
+            path = nil
+        } else if !on && (mode == .sieged || mode == .sieging) {
+            mode = .unsieging
+            modeTimer = siegeTransition
+        }
+    }
+
     func update(_ dt: Double) {
         let g = world
         cooldown = max(0, cooldown - dt)
@@ -613,13 +645,22 @@ final class SUnit: SEntity {
         lastX = x
         lastY = y
         wasMoving = false
+        if mode == .sieging || mode == .unsieging {
+            modeTimer -= dt
+            if modeTimer <= 0 {
+                mode = mode == .sieging ? .sieged : .mobile
+                modeTimer = 0
+                if mode == .sieged { g.emit(["sound", "siege", x, y]) }
+            }
+            return          // switching: no orders, no shots
+        }
         var target: (Double, Double)?
 
         switch order {
         case .idle:
             if kind != .worker && scan <= 0 && queued.isEmpty {
                 scan = 0.3
-                if let t = g.findTarget(self, Double(stats.sight)) { order = .attack(t) }
+                if let t = g.findTarget(self, sight, minRange: minRange) { order = .attack(t) }
             }
         case .move(let px, let py):
             if closeEnough(px, py, 5) {
@@ -632,7 +673,7 @@ final class SUnit: SEntity {
             var engaged = false
             if scan <= 0 {
                 scan = 0.25
-                if let t = g.findTarget(self, Double(stats.sight)) {
+                if let t = g.findTarget(self, sight, minRange: minRange) {
                     resumePoint = (px, py)
                     order = .attack(t)
                     engaged = true
@@ -654,16 +695,22 @@ final class SUnit: SEntity {
             if scan <= 0 && kind != .worker {
                 scan = 0.4
                 let armed = (t as? SUnit).map { $0.kind != .worker } ?? false
-                if !armed, let better = g.findTarget(self, Double(stats.range) + 20) as? SUnit, better.kind != .worker {
+                if !armed, let better = g.findTarget(self, attackRange + 20, minRange: minRange) as? SUnit, better.kind != .worker {
                     order = .attack(better)
                     break
                 }
             }
-            if distanceTo(t) > Double(stats.range) {
-                target = (t.x, t.y)
-            } else {
+            if inRange(t) {
                 aim(t.x, t.y, dt)
                 if cooldown <= 0 { fire(t) }
+            } else if sieged {
+                // Dug in: hold and wait for it to come into the ring rather than chase it.
+                if distanceTo(t) < minRange && scan <= 0 {
+                    scan = 0.4
+                    if let other = g.findTarget(self, attackRange, minRange: minRange) { order = .attack(other) }
+                }
+            } else {
+                target = (t.x, t.y)
             }
         case .gather(let c):
             if carrying >= 8 {
@@ -805,7 +852,9 @@ final class SUnit: SEntity {
             stuck = 0
             buildTimer = 0
         }
-        if let (tx, ty) = target { navigate(tx, ty, dt) }
+        if let (tx, ty) = target {
+            if sieged { setSiege(false) } else { navigate(tx, ty, dt) }   // going somewhere packs the tank up first
+        }
     }
 
     /// How much of the approach line to ignore: the target's own footprint is solid by design.
@@ -896,7 +945,7 @@ final class SUnit: SEntity {
 
     private func fire(_ t: SEntity) {
         let g = world
-        cooldown = Double(stats.cooldown)
+        cooldown = sieged ? siegeCooldown : Double(stats.cooldown)
         let d = max(1e-3, hyp(t.x - x, t.y - y))
         let ux = (t.x - x) / d, uy = (t.y - y) / d
         let ang = atan2(uy, ux)
@@ -905,9 +954,10 @@ final class SUnit: SEntity {
         switch kind {
         case .tank:
             let mx = x + ux * 33, my = y + uy * 33
-            g.launchShell(mx, my, t.x + jx, t.y + jy, Double(stats.damage), Double(stats.splash), team, self)
-            g.emit(["muzzle", mx, my, ang, 26])
-            g.emit(["smoke", mx, my, 8])
+            g.launchShell(mx, my, t.x + jx, t.y + jy, sieged ? siegeDamage : Double(stats.damage),
+                          sieged ? siegeSplash : Double(stats.splash), team, self)
+            g.emit(["muzzle", mx, my, ang, sieged ? 32 : 26])
+            g.emit(["smoke", mx, my, sieged ? 11 : 8])
             g.emit(["sound", "cannon", x, y])
         case .sniper:
             let mx = x + ux * 26 + uy * 3, my = y + uy * 26 - ux * 3
@@ -1358,6 +1408,8 @@ final class SWorld {
                     }
                 }
             }
+        case "siege" where cmd.count >= 3:
+            for u in ownUnits(slot, ids(cmd[1])) { u.setSiege(flag(2)) }
         case "repair" where cmd.count >= 3:
             if let b = byId[jInt(cmd[2])] as? SBuilding, !b.dead, b.built, allied(b.team, slot) {
                 let queue = cmd.count > 3 && flag(3)
@@ -1573,13 +1625,14 @@ final class SWorld {
         buildings.filter { $0.team == team && $0.kind == .hq && $0.built && !$0.dead }.min { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }
     }
 
-    func findTarget(_ e: SEntity, _ radius: Double) -> SEntity? {
+    /// The best enemy within `radius` of `e` — and, for a sieged tank, no closer than `minRange`.
+    func findTarget(_ e: SEntity, _ radius: Double, minRange: Double = 0) -> SEntity? {
         var best: SEntity?
         var bestScore = 1e9
         let lim = radius + 40
         for u in units where !u.dead && !allied(u.team, e.team) && abs(u.x - e.x) <= lim && abs(u.y - e.y) <= lim {
             let d = e.distanceTo(u)
-            if d > radius || !u.targetable(by: e.team) { continue }
+            if d > radius || d < minRange || !u.targetable(by: e.team) { continue }
             let score = d + (u.kind == .worker ? 60 : 0)
             if score < bestScore {
                 best = u
@@ -1588,7 +1641,7 @@ final class SWorld {
         }
         for b in buildings where !b.dead && !allied(b.team, e.team) {
             let d = e.distanceTo(b)
-            if d > radius || !b.targetable(by: e.team) { continue }
+            if d > radius || d < minRange || !b.targetable(by: e.team) { continue }
             let score = d + (b.kind == .turret ? 30 : 200)
             if score < bestScore {
                 best = b
@@ -1862,6 +1915,17 @@ final class SAI {
         }
         for u in attackers where u.order.isIdle {
             if let t = g.primaryTarget(team, u.x, u.y) { u.command(.amove(t.x, t.y)) }
+        }
+        siege(home)
+    }
+
+    /// Tanks dig in when an enemy building is within sieged range and pack up when nothing is.
+    private func siege(_ home: [SUnit]) {
+        let g = world
+        for u in home + attackers where u.canSiege && u.mode != .sieging && u.mode != .unsieging {
+            let near = g.findTarget(u, siegeRange - 20, minRange: siegeMinRange)
+            if !u.sieged, let n = near, n.isBuilding { u.setSiege(true) }
+            else if u.sieged && near == nil { u.setSiege(false) }
         }
     }
 }

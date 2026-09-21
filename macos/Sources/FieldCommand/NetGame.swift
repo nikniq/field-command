@@ -118,6 +118,7 @@ extension GameScene {
                 addUnit(u)
             }
             u.netTo = (pos, angle, gunAngle)
+            if v.count > 9 { u.setMode(SiegeMode(rawValue: jInt(v[9])) ?? .mobile) }
             let hp = jNum(v[7])
             if hp != u.hp {
                 u.hp = hp

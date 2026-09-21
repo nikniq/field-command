@@ -298,6 +298,23 @@ enum Art {
 
     static let turretSize = CGSize(width: 68, height: 30)
 
+    /// Four stabiliser legs that fold out under a sieged tank. Drawn under the hull, rotated with it.
+    static func tankOutriggers(_ team: Team) -> SKTexture {
+        texture("outriggers-\(team.rawValue)", size: CGSize(width: 76, height: 56)) { ctx in
+            for sx: CGFloat in [-1, 1] {
+                for sy: CGFloat in [-1, 1] {
+                    let leg = poly([CGPoint(x: sx * 14, y: sy * 8), CGPoint(x: sx * 30, y: sy * 24),
+                                    CGPoint(x: sx * 34, y: sy * 20), CGPoint(x: sx * 18, y: sy * 5)])
+                    lit(ctx, leg, .rgb(0.3, 0.31, 0.33))
+                    stroke(ctx, leg, NSColor(white: 0, alpha: 0.6), 1)
+                    let foot = circle(CGPoint(x: sx * 31, y: sy * 22), 4.5)
+                    lit(ctx, foot, team.color.mix(.black, 0.4))
+                    stroke(ctx, foot, NSColor(white: 0, alpha: 0.6), 0.9)
+                }
+            }
+        }
+    }
+
     static func tankTurret(_ team: Team) -> SKTexture {
         texture("turret-\(team.rawValue)", size: turretSize) { ctx in
             let barrel = rr(box(4, -2.7, 25, 5.4), 1.5)
@@ -927,6 +944,24 @@ enum Art {
                 lines(ctx, t, NSColor(white: 0, alpha: 0.6), 5)
                 lines(ctx, t, c, 2.5)
                 fill(ctx, circle(.zero, 2.5), c)
+            }
+        case .siege(let on):
+            // A tank silhouette over splayed legs (dig in) or over wheels (pack up).
+            return texture("icon-siege-\(on)", size: CGSize(width: 40, height: 40)) { ctx in
+                if on {
+                    for sx: CGFloat in [-1, 1] {
+                        lines(ctx, [(CGPoint(x: sx * 6, y: 0), CGPoint(x: sx * 15, y: -11))], .rgb(0.75, 0.78, 0.8), 3)
+                        fill(ctx, circle(CGPoint(x: sx * 15, y: -11), 2.6), Palette.amber)
+                    }
+                } else {
+                    for sx: CGFloat in [-1, 1] { fill(ctx, circle(CGPoint(x: sx * 9, y: -9), 4), .rgb(0.2, 0.2, 0.21)) }
+                }
+                let hull = rr(box(-11, -6, 22, 12), 3)
+                lit(ctx, hull, .rgb(0.55, 0.6, 0.66))
+                stroke(ctx, hull, NSColor(white: 0, alpha: 0.6), 1)
+                fill(ctx, rr(box(-3, -2, 18, 4), 1), .rgb(0.35, 0.36, 0.38))
+                fill(ctx, circle(CGPoint(x: -2, y: 0), 4.5), .rgb(0.4, 0.44, 0.5))
+                if on { stroke(ctx, circle(.zero, 17), Palette.amber.withAlphaComponent(0.8), 1.5) }
             }
         case .stop:
             return texture("icon-stop", size: CGSize(width: 40, height: 40)) { ctx in

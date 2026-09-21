@@ -5,7 +5,7 @@ import math
 import random
 
 from . import defs
-from .defs import BRIDGE_COST, BUILDINGS, rect_distance, square_rect
+from .defs import BRIDGE_COST, BUILDINGS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect
 
 
 class AI:
@@ -247,3 +247,16 @@ class AI:
                 t = g.primary_target(self.team, u.x, u.y)
                 if t:
                     u.command(("amove", t.x, t.y))
+        self._siege(home)
+
+    def _siege(self, home):
+        """Tanks dig in when an enemy building is within sieged range and pack up when nothing is."""
+        g = self.game
+        for u in home + self.attackers:
+            if not u.can_siege or u.mode in (1, 3):
+                continue
+            near = g.find_target(u, SIEGE_RANGE - 20, min_range=SIEGE_MIN_RANGE)
+            if not u.sieged and near is not None and near.is_building:
+                u.set_siege(True)
+            elif u.sieged and near is None:
+                u.set_siege(False)

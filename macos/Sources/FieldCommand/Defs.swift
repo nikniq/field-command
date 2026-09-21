@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.4.0"
+let appVersion = "1.5.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -292,6 +292,19 @@ let bridgeRebuildTime: Double = 25
 let repairTime: Double = 30
 let repairCostRatio: Double = 0.35
 
+// Siege mode. A Siege Tank can dig in: it stops moving and takes `siegeTransition` seconds to switch either
+// way, and while sieged it fires further and harder but cannot hit anything closer than `siegeMinRange`.
+// Mobile, a Sniper (330) outranges it; sieged, it outranges the Sniper — but has to be set up first.
+let siegeRange: Double = 340
+let siegeMinRange: Double = 90
+let siegeDamage: Double = 50
+let siegeSplash: Double = 65
+let siegeCooldown: Double = 3.2
+let siegeTransition: Double = 2.5
+let siegeSight: Double = 360          // dug in, a tank sees as far as it shoots
+
+enum SiegeMode: Int { case mobile = 0, sieging, sieged, unsieging }
+
 // MARK: - Single-player teams
 
 /// The alliance a slot plays for: its own in a free-for-all (teams 0), otherwise dealt round-robin into
@@ -317,7 +330,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, unit(UnitKind), building(BuildingKind)
+    case attack, stop, siege(Bool), unit(UnitKind), building(BuildingKind)
 }
 
 struct CommandButton {

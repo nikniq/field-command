@@ -322,6 +322,40 @@ def _tank_hull(c, team):
     fill(c, rr(-9, -11, 3.5, 22, 0), alpha(TEAM_COLOR[team], 0.8))
 
 
+def tank_outriggers(team):
+    """Four stabiliser legs that fold out under a sieged tank. Drawn under the hull, rotated with it."""
+    def d(c):
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                leg = poly([(sx * 14, sy * 8), (sx * 30, sy * 24), (sx * 34, sy * 20), (sx * 18, sy * 5)])
+                lit(c, leg, rgb(0.3, 0.31, 0.33))
+                stroke(c, leg, rgb(0, 0, 0, 0.6), 1)
+                foot = circle(sx * 31, sy * 22, 4.5)
+                lit(c, foot, mix(TEAM_COLOR[team], BLACK, 0.4))
+                stroke(c, foot, rgb(0, 0, 0, 0.6), 0.9)
+    return texture(("outriggers", team), (76, 56), d)
+
+
+def icon_siege(on):
+    """Command-card icon: a tank silhouette over splayed legs (dig in) or over wheels (pack up)."""
+    def d(c):
+        if on:
+            for sx in (-1, 1):
+                lines(c, [((sx * 6, 0), (sx * 15, -11))], rgb(0.75, 0.78, 0.8), 3)
+                fill(c, circle(sx * 15, -11, 2.6), AMBER)
+        else:
+            for sx in (-1, 1):
+                fill(c, circle(sx * 9, -9, 4), rgb(0.2, 0.2, 0.21))
+        hull = rr(-11, -6, 22, 12, 3)
+        lit(c, hull, rgb(0.55, 0.6, 0.66))
+        stroke(c, hull, rgb(0, 0, 0, 0.6), 1)
+        fill(c, rr(-3, -2, 18, 4, 1), rgb(0.35, 0.36, 0.38))
+        fill(c, circle(-2, 0, 4.5), rgb(0.4, 0.44, 0.5))
+        if on:
+            stroke(c, circle(0, 0, 17), alpha(AMBER, 0.8), 1.5)
+    return texture(("icon_siege", on), (40, 40), d)
+
+
 def tank_turret(team):
     def d(c):
         linear(c, rr(4, -2.7, 25, 5.4, 1.5), [rgb(0.62, 0.64, 0.66), rgb(0.3, 0.31, 0.33)], (0, 3), (0, -3))

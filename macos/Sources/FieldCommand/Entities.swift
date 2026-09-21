@@ -238,13 +238,34 @@ final class Unit: Entity {
 
     // Network-mirrored state (multiplayer clients only)
     var netStatus = 0
+    /// Siege mode, from the server. The outriggers fold out under the hull while it is anything but mobile.
+    private(set) var mode: SiegeMode = .mobile
+    private var outriggers: SKSpriteNode?
+    var sieged: Bool { mode == .sieged }
+    var canSiege: Bool { kind == .tank }
+
+    func setMode(_ m: SiegeMode) {
+        guard m != mode else { return }
+        mode = m
+        guard let legs = outriggers else { return }
+        legs.removeAllActions()
+        if m == .mobile {
+            legs.run(.sequence([.scale(to: 0.35, duration: 0.6), .hide()]))
+        } else {
+            legs.isHidden = false
+            legs.run(.scale(to: 1, duration: m == .sieged ? 0.1 : 0.6))
+        }
+    }
     var netQueued = 0
     var netPoints: [(Int, CGPoint)] = []
     var netFrom: (CGPoint, CGFloat, CGFloat)?
     var netTo: (CGPoint, CGFloat, CGFloat)?
 
     var statusText: String {
+        if mode == .sieging { return "Digging in" }
+        if mode == .unsieging { return "Packing up" }
         if game.isNet {
+            if sieged { return netStatus == 3 ? "Sieged — engaging target" : "Sieged" }
             switch netStatus {
             case 1: return "Moving"
             case 2: return "Attack-moving"
@@ -285,6 +306,13 @@ final class Unit: Entity {
         addChild(body)
         switch kind {
         case .tank:
+            let legs = SKSpriteNode(texture: Art.tankOutriggers(team))
+            legs.size = CGSize(width: 76, height: 56)
+            legs.zPosition = -0.5
+            legs.setScale(0.35)
+            legs.isHidden = true
+            body.addChild(legs)
+            outriggers = legs
             let t = SKSpriteNode(texture: Art.tankTurret(team))
             t.size = Art.turretSize
             t.zPosition = 1

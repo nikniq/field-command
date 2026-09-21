@@ -385,6 +385,88 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_SIEGETEST=1: siege mode on the server simulation — the transition, reach, blind spot, auto-unsiege on
+    /// a move, and heavier shells — matching linux/tests/test_siege.py.
+    static func runSiegeTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, SBuilding) {
+            let map = SMapGen.generate("twin_ridges")
+            let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: players, difficulty: .normal)
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            w.updateVisibility()     // placed after the first fog pass: let it see, as the next tick would
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if done() { return true } }
+            return done()
+        }
+
+        var (w, hq) = fresh()
+        let r = unit(w, .marine, 0, hq.x + 100, hq.y)
+        w.apply(0, ["siege", [r.id], true])
+        check(r.mode == .mobile, "only tanks can siege")
+
+        (w, hq) = fresh()
+        var t = unit(w, .tank, 0, hq.x + 200, hq.y)
+        w.apply(0, ["siege", [t.id], true])
+        let bait = unit(w, .marine, 1, t.x + 150, t.y)
+        let hp0 = bait.hp
+        _ = run(w, siegeTransition - 0.2)
+        check(t.mode == .sieging && bait.hp == hp0, "nothing fires while digging in")
+        _ = run(w, 0.4)
+        check(t.mode == .sieged && t.attackRange == siegeRange, "dug in after \(siegeTransition)s")
+
+        (w, hq) = fresh()
+        t = unit(w, .tank, 0, hq.x + 200, hq.y)
+        t.mode = .sieged
+        let far = unit(w, .marine, 1, t.x + 300, t.y)          // beyond mobile 230, inside sieged 340
+        let x0 = t.x
+        w.apply(0, ["attack", [t.id], far.id, false])
+        check(run(w, 15) { far.dead } && t.x == x0, "a sieged tank hits at 300 and holds its position")
+
+        (w, hq) = fresh()
+        t = unit(w, .tank, 0, hq.x + 200, hq.y)
+        t.mode = .sieged
+        let close = unit(w, .worker, 1, t.x + 40, t.y)          // inside the 90 minimum
+        w.apply(0, ["attack", [t.id], close.id, false])
+        _ = run(w, 8)
+        check(!close.dead && !t.inRange(close), "the blind spot is real")
+
+        (w, hq) = fresh()
+        t = unit(w, .tank, 0, hq.x + 200, hq.y)
+        t.mode = .sieged
+        w.apply(0, ["move", [t.id], hq.x + 700, hq.y, false, false])
+        _ = run(w, 1.0 / 30)
+        check(t.mode == .unsieging, "a move order packs the tank up first")
+        _ = run(w, siegeTransition + 0.2)
+        let x1 = t.x
+        _ = run(w, 2)
+        check(t.mode == .mobile && t.x > x1 + 30, "and then it goes")
+
+        func damage(sieged: Bool) -> Double {
+            let (w, _) = fresh()
+            let target = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            let t = unit(w, .tank, 0, target.x - 200, target.y)     // in range for both modes, outside the blind spot
+            t.mode = sieged ? .sieged : .mobile
+            w.apply(0, ["attack", [t.id], target.id, false])
+            let before = target.hp
+            _ = run(w, 6)
+            return before - target.hp
+        }
+        let ds = damage(sieged: true), dm = damage(sieged: false)
+        check(ds > dm && dm > 0, String(format: "sieged shells hit harder (%.0f vs %.0f in 6s)", ds, dm))
+
+        print(ok ? "SIEGE TEST PASSED" : "SIEGE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_TEAMSTEST=1: single-player teams — the deal, a 2v2 played to the finish, and the title-screen lineup
     /// text (printed so it can be compared with the Python edition's).
     static func runTeamsTest() -> Never {

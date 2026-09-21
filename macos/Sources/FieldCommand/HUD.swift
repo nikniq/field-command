@@ -704,6 +704,7 @@ final class HUD: SKNode {
             switch b.icon {
             case .unit(let k): fit = k == .tank ? 40 : 30
             case .building: fit = 38
+            case .siege: fit = 34
             default: fit = 30
             }
             let k = fit / max(ts.width, ts.height)

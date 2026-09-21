@@ -67,6 +67,7 @@ jobs:
           FC_WORLDTEST=1  "$BIN" | tee /dev/stderr | grep -q "WORLD TEST PASSED"
           FC_REPAIRTEST=1 "$BIN" | tee /dev/stderr | grep -q "REPAIR TEST PASSED"
           FC_TEAMSTEST=1  "$BIN" | tee /dev/stderr | grep -q "TEAMS TEST PASSED"
+          FC_SIEGETEST=1  "$BIN" | tee /dev/stderr | grep -q "SIEGE TEST PASSED"
           FC_BRIDGETEST=river_crossing "$BIN" | tee /dev/stderr | grep -q "BRIDGE TEST PASSED"
       - name: App bundle
         working-directory: macos

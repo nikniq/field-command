@@ -9,8 +9,10 @@ Orders are tuples:
 import math
 import random
 
-from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, REPAIR_COST_RATIO, REPAIR_TIME,
-                   UNITS, angle_lerp, rect_distance, square_rect)
+from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
+                   MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
+                   SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_lerp,
+                   rect_distance, square_rect)
 
 IDLE = ("idle",)
 
@@ -163,6 +165,9 @@ class Unit(Entity):
         self.slide_sign = 0
         self.angle = random.uniform(0, 2 * math.pi)
         self.gun_angle = self.angle
+        # Siege mode (tanks only): MODE_* and the time left in a transition.
+        self.mode = MODE_MOBILE
+        self.mode_timer = 0.0
         # Pathfinding state
         self.path = None
         self.path_goal = None
@@ -174,6 +179,46 @@ class Unit(Entity):
     def name(self):
         return self.stats.name
 
+    # ------------------------------------------------------------ siege mode
+
+    @property
+    def sieged(self):
+        return self.mode == MODE_SIEGED
+
+    @property
+    def can_siege(self):
+        return self.kind == "tank"
+
+    def set_siege(self, on):
+        """Starts digging in or packing up; a no-op if already there or on the way."""
+        if not self.can_siege:
+            return
+        if on and self.mode in (MODE_MOBILE, MODE_UNSIEGING):
+            self.mode, self.mode_timer = MODE_SIEGING, SIEGE_TRANSITION
+            self.path = self.path_goal = None
+        elif not on and self.mode in (MODE_SIEGED, MODE_SIEGING):
+            self.mode, self.mode_timer = MODE_UNSIEGING, SIEGE_TRANSITION
+
+    @property
+    def sight(self):
+        return SIEGE_SIGHT if self.sieged else self._sight
+
+    @sight.setter
+    def sight(self, v):
+        self._sight = v
+
+    @property
+    def attack_range(self):
+        return SIEGE_RANGE if self.sieged else self.stats.range
+
+    @property
+    def min_range(self):
+        return SIEGE_MIN_RANGE if self.sieged else 0.0
+
+    def in_range(self, t):
+        d = self.distance_to(t)
+        return self.min_range <= d <= self.attack_range
+
     @property
     def ghosting(self):
         return self.kind == "worker" and self.order[0] in ("gather", "return")
@@ -184,14 +229,18 @@ class Unit(Entity):
 
     def status_text(self):
         o = self.order[0]
+        if self.mode == MODE_SIEGING:
+            return "Digging in"
+        if self.mode == MODE_UNSIEGING:
+            return "Packing up"
         if o == "idle":
-            return "Idle"
+            return "Sieged" if self.sieged else "Idle"
         if o == "move":
             return "Moving"
         if o == "amove":
             return "Attack-moving"
         if o == "attack":
-            return f"Engaging {self.order[1].name}"
+            return ("Sieged — engaging " if self.sieged else "Engaging ") + self.order[1].name
         if o == "gather":
             return "Returning cargo" if self.carrying else "Mining crystal"
         if o == "return":
@@ -287,6 +336,14 @@ class Unit(Entity):
             self.stuck = max(0.0, self.stuck - dt * 2)
         self.last_x, self.last_y = self.x, self.y
         self.was_moving = False
+        if self.mode in (MODE_SIEGING, MODE_UNSIEGING):
+            self.mode_timer -= dt
+            if self.mode_timer <= 0:
+                self.mode = MODE_SIEGED if self.mode == MODE_SIEGING else MODE_MOBILE
+                self.mode_timer = 0.0
+                if self.mode == MODE_SIEGED:
+                    g.emit("sound", "siege", self.x, self.y)
+            return          # switching: no orders, no shots
         target = None
         o = self.order
         kind = o[0]
@@ -294,7 +351,7 @@ class Unit(Entity):
         if kind == "idle":
             if self.kind != "worker" and self.scan <= 0 and not self.queued:
                 self.scan = 0.3
-                t = g.find_target(self, self.stats.sight)
+                t = g.find_target(self, self.sight, min_range=self.min_range)
                 if t:
                     self.order = ("attack", t)
 
@@ -309,7 +366,7 @@ class Unit(Entity):
             engaged = False
             if self.scan <= 0:
                 self.scan = 0.25
-                t = g.find_target(self, self.stats.sight)
+                t = g.find_target(self, self.sight, min_range=self.min_range)
                 if t:
                     self.resume_point = (o[1], o[2])
                     self.order = ("attack", t)
@@ -331,17 +388,24 @@ class Unit(Entity):
                     self.scan = 0.4
                     armed = isinstance(t, Unit) and t.kind != "worker"
                     if not armed:
-                        better = g.find_target(self, self.stats.range + 20)
+                        better = g.find_target(self, self.attack_range + 20, min_range=self.min_range)
                         if isinstance(better, Unit) and better.kind != "worker":
                             self.order = ("attack", better)
                             switched = True
                 if not switched:
-                    if self.distance_to(t) > self.stats.range:
-                        target = (t.x, t.y)
-                    else:
+                    if self.in_range(t):
                         self._aim(t.x, t.y, dt)
                         if self.cooldown <= 0:
                             self._fire(t)
+                    elif self.sieged:
+                        # Dug in: hold and wait for it to come into the ring rather than chase it.
+                        if self.distance_to(t) < self.min_range and self.scan <= 0:
+                            self.scan = 0.4
+                            other = g.find_target(self, self.attack_range, min_range=self.min_range)
+                            if other is not None:
+                                self.order = ("attack", other)
+                    else:
+                        target = (t.x, t.y)
 
         elif kind == "gather":
             c = o[1]
@@ -479,7 +543,9 @@ class Unit(Entity):
             self.order = self.queued.pop(0)
             self.stuck = 0
             self.build_timer = 0.0
-        if target:
+        if target and self.sieged:
+            self.set_siege(False)       # an order to go somewhere packs the tank up first
+        elif target:
             self._navigate(target[0], target[1], dt)
         else:
             self.path = None
@@ -580,7 +646,7 @@ class Unit(Entity):
 
     def _fire(self, t):
         g = self.game
-        self.cooldown = self.stats.cooldown
+        self.cooldown = SIEGE_COOLDOWN if self.sieged else self.stats.cooldown
         d = max(1e-3, math.hypot(t.x - self.x, t.y - self.y))
         ux, uy = (t.x - self.x) / d, (t.y - self.y) / d
         ang = math.atan2(uy, ux)
@@ -588,9 +654,11 @@ class Unit(Entity):
         g.emit("recoil", self.id)
         if self.kind == "tank":
             mx, my = self.x + ux * 33, self.y + uy * 33
-            g.launch_shell(mx, my, t.x + jx, t.y + jy, self.stats.damage, self.stats.splash, self.team, self)
-            g.emit("muzzle", mx, my, ang, 26)
-            g.emit("smoke", mx, my, 8)
+            damage = SIEGE_DAMAGE if self.sieged else self.stats.damage
+            splash = SIEGE_SPLASH if self.sieged else self.stats.splash
+            g.launch_shell(mx, my, t.x + jx, t.y + jy, damage, splash, self.team, self)
+            g.emit("muzzle", mx, my, ang, 32 if self.sieged else 26)
+            g.emit("smoke", mx, my, 11 if self.sieged else 8)
             g.emit("sound", "cannon", self.x, self.y)
         elif self.kind == "sniper":
             mx, my = self.x + ux * 26 + uy * 3, self.y + uy * 26 - ux * 3

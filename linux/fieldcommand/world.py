@@ -331,6 +331,7 @@ class World:
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
             ["rebuild", worker_id, bridge_id, queue]  ["repair", worker_ids, building_id, queue]
+            ["siege", ids, on]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
         Invalid or foreign references are ignored."""
         if self.game_over or slot not in self.players or not self.players[slot].alive or not cmd:
@@ -369,6 +370,9 @@ class World:
                     u.command(IDLE)
             elif op == "build":
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
+            elif op == "siege":
+                for u in self._own_units(slot, cmd[1]):
+                    u.set_siege(bool(cmd[2]))
             elif op == "repair":
                 b = self.by_id.get(cmd[2])
                 if isinstance(b, Building) and not b.dead and b.built and self.allied(b.team, slot):
@@ -590,14 +594,15 @@ class World:
         hqs = [b for b in self.buildings if b.team == team and b.kind == "hq" and b.built and not b.dead]
         return min(hqs, key=lambda b: math.hypot(b.x - x, b.y - y)) if hqs else None
 
-    def find_target(self, e, radius):
+    def find_target(self, e, radius, min_range=0.0):
+        """The best enemy within `radius` of `e` — and, for a sieged tank, no closer than `min_range`."""
         best, best_score = None, 1e9
         lim = radius + 40
         for u in self.units:
             if u.dead or self.allied(u.team, e.team) or abs(u.x - e.x) > lim or abs(u.y - e.y) > lim:
                 continue
             d = e.distance_to(u)
-            if d > radius or not u.targetable_by(e.team):
+            if d > radius or d < min_range or not u.targetable_by(e.team):
                 continue
             score = d + (60 if u.kind == "worker" else 0)
             if score < best_score:
@@ -606,7 +611,7 @@ class World:
             if b.dead or self.allied(b.team, e.team):
                 continue
             d = e.distance_to(b)
-            if d > radius or not b.targetable_by(e.team):
+            if d > radius or d < min_range or not b.targetable_by(e.team):
                 continue
             score = d + (30 if b.kind == "turret" else 200)
             if score < best_score:

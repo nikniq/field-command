@@ -1609,6 +1609,20 @@ final class GameScene: SKScene {
                 CommandButton(icon: .stop, title: "Stop", hotkey: "S", cost: nil, enabled: true,
                               tip: "Halt all current and queued orders.") { [weak self] in self?.stopSelected() },
             ]
+            let tanks = us.filter { $0.canSiege }
+            if !tanks.isEmpty {
+                // One button for the whole selection: it digs in unless every tank is already dug in.
+                let on = !tanks.allSatisfy { $0.sieged }
+                let tip = on ? "Dig in: cannot move, but fires further (340) and harder, with a blind spot inside 90.\n"
+                               + "Takes 2.5 seconds either way. A move order packs the tank up again."
+                             : "Pack up and become mobile again. Takes 2.5 seconds."
+                list.append(CommandButton(icon: .siege(on), title: on ? "Siege" : "Unsiege", hotkey: "G", cost: nil,
+                                          enabled: true, tip: tip) { [weak self] in
+                    guard let self else { return }
+                    let ids = self.selectedOwnUnits.filter { $0.canSiege }.map { $0.netId }
+                    if !ids.isEmpty { self.sendNet(["siege", ids, on]) }
+                })
+            }
             if us.contains(where: { $0.kind == .worker }) {
                 for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar] {
                     let s = k.stats

@@ -917,6 +917,12 @@ class GameScene:
     def train(self, kind):
         self.s.send(["train", self._ids(self.selected_own_buildings()), kind])
 
+    def siege(self, on):
+        tanks = [u for u in self.selected_own_units() if u.can_siege]
+        if tanks:
+            self.s.send(["siege", self._ids(tanks), on])
+            audio.play("click")
+
     def cancel_queue(self, b, index):
         self.s.send(["cancel", b.id, index])
 
@@ -930,6 +936,15 @@ class GameScene:
             out = [CommandButton(("attack",), "Attack", "A", None, True,
                                  "Attack-move: units engage any enemy they meet on the way. Shift+click to queue.", attack),
                    CommandButton(("stop",), "Stop", "S", None, True, "Halt all current and queued orders.", self.stop_selected)]
+            tanks = [u for u in us if u.can_siege]
+            if tanks:
+                # One button for the whole selection: it digs in unless every tank is already dug in.
+                on = not all(u.sieged for u in tanks)
+                tip = ("Dig in: cannot move, but fires further (340) and harder, with a blind spot inside 90.\n"
+                       "Takes 2.5 seconds either way. A move order packs the tank up again." if on
+                       else "Pack up and become mobile again. Takes 2.5 seconds.")
+                out.append(CommandButton(("siege", on), "Siege" if on else "Unsiege", "G", None, True, tip,
+                                         lambda on=on: self.siege(on)))
             if any(u.kind == "worker" for u in us):
                 for k in BUILD_MENU:
                     s = BUILDINGS[k]
@@ -1109,6 +1124,14 @@ class GameScene:
         ca, sa = math.cos(u.angle), math.sin(u.angle)
         bob = -1.5 * u.recoil if u.kind == "marine" else (1.5 * u.pulse if u.kind == "worker" else 0.0)
         bx, by = sx + ca * bob / z, sy - sa * bob / z
+        mode = getattr(u, "mode", 0)
+        if u.kind == "tank" and mode != 0:
+            # Outriggers fold out over the transition and stay out while sieged.
+            timer = getattr(u, "mode_timer", 0.0)
+            k = 1.0 if mode == 2 else (1 - timer / 2.5 if mode == 1 else timer / 2.5)
+            legs = art.sprites.get(("outriggers", u.team), art.tank_outriggers(u.team), math.degrees(u.angle),
+                                   ts * max(0.35, k))
+            screen.blit(legs, (sx - legs.get_width() / 2, sy - legs.get_height() / 2))
         img = art.sprites.get(("unit", u.kind, u.team), art.unit(u.kind, u.team), math.degrees(u.angle), ts)
         screen.blit(img, (bx - img.get_width() / 2, by - img.get_height() / 2))
         if u.kind == "tank":

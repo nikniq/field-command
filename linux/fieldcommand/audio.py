@@ -71,6 +71,10 @@ def init():
     crack = _lowpass(_noise(n(0.35), rng), 0.55) * _env(n(0.35), attack=0.001, decay=0.05)
     tail = _lowpass(_noise(n(0.35), rng), 0.06) * _env(n(0.35), attack=0.02, decay=0.16) * 0.5
     _sounds["snipe"] = _make(crack * 1.6 + tail, 0.42)
+    # A siege tank locking down: hydraulics, then a clank.
+    hiss = _lowpass(_noise(n(0.5), rng), 0.25) * _env(n(0.5), attack=0.05, decay=0.2) * 0.8
+    clank = _tone(180, n(0.18), "square") * _env(n(0.18), attack=0.002, decay=0.05)
+    _sounds["siege"] = _make(np.concatenate([hiss, clank]), 0.3)
     _sounds["pop"] = _make(_tone(660, n(0.08)) * _env(n(0.08), decay=0.03), 0.25)
     _sounds["click"] = _make(_tone(1200, n(0.03)) * _env(n(0.03), decay=0.01), 0.15)
     win = np.concatenate([_tone(f, n(0.18)) * _env(n(0.18), decay=0.2) for f in (523, 659, 784, 1046)])

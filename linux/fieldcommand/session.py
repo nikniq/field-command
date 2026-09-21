@@ -10,8 +10,8 @@ import time
 
 from . import mapgen
 from . import defs
-from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DIFFICULTIES, UNITS, UNIT_KINDS, angle_lerp,
-                   rect_distance, rects_intersect, square_rect)
+from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DIFFICULTIES, MODE_SIEGED, MODE_SIEGING,
+                   MODE_UNSIEGING, UNITS, UNIT_KINDS, angle_lerp, rect_distance, rects_intersect, square_rect)
 from .fog import FogGrid
 from .net import STATUS, event_visible, order_points as world_order_points
 from .settings import settings
@@ -251,13 +251,28 @@ class _ProxyUnit:
         self.selected = self.hovered = False
         self.recoil = self.pulse = 0.0
         self.x = self.y = self.angle = self.gun_angle = 0.0
+        self.mode = 0
         self._from = self._to = None
 
     @property
     def idle_worker(self):
         return self.kind == "worker" and self.status == 0 and not self.queued
 
+    @property
+    def sieged(self):
+        return self.mode == MODE_SIEGED
+
+    @property
+    def can_siege(self):
+        return self.kind == "tank"
+
     def status_text(self):
+        if self.mode == MODE_SIEGING:
+            return "Digging in"
+        if self.mode == MODE_UNSIEGING:
+            return "Packing up"
+        if self.sieged:
+            return "Sieged — engaging target" if self.status == 3 else "Sieged"
         k = STATUS_NAMES.get(self.status, "idle")
         # .get with a default: a status this client does not know must never take the HUD down.
         return {"idle": "Idle", "move": "Moving", "amove": "Attack-moving", "attack": "Engaging target",
@@ -379,7 +394,7 @@ class NetSession(_Base):
         self.supply_used, self.supply_cap = m["sup"]
         seen = set()
         orders = m.get("o", {})
-        for (i, team, k, x, y, a, g, hp, carrying) in m["u"]:
+        for (i, team, k, x, y, a, g, hp, carrying, mode) in m["u"]:
             seen.add(i)
             u = self._units.get(i)
             ra, rg = math.radians(a), math.radians(g)
@@ -391,7 +406,7 @@ class NetSession(_Base):
             else:
                 u._from = (u.x, u.y, u.angle, u.gun_angle)
             u._to = (x, y, ra, rg)
-            u.hp, u.carrying = hp, carrying
+            u.hp, u.carrying, u.mode = hp, carrying, mode
             o = orders.get(str(i))
             if o:
                 u.status = o[0]

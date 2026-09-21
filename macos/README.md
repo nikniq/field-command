@@ -67,8 +67,14 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 4, so a 1.3.0 Mac and a 1.3.0 Linux client play together; neither accepts an
+Both editions speak protocol 5, so a 1.5.0 Mac and a 1.5.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
+
+## Siege mode
+
+Select Siege Tanks and press **G** to dig in: 2.5 seconds to set up, then 340 reach and 50-damage shells but no
+movement and a blind spot inside 90. **G** again, or any move order, packs them up. Numbers match the Linux
+edition (`FC_SIEGETEST` checks them).
 
 ## Repair
 
@@ -100,4 +106,5 @@ FC_MENUSHOT=/tmp/menu.png .build/release/FieldCommand         # render the title
 FC_BRIDGETEST=river_crossing .build/release/FieldCommand      # shell a bridge down and rebuild it, headless
 FC_REPAIRTEST=1 .build/release/FieldCommand                   # repair time, cost and limits, headless
 FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player teams: the deal and a 2v2
+FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: transition, reach, blind spot
 ```

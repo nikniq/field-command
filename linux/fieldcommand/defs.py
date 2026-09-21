@@ -148,6 +148,18 @@ BRIDGE_HP = 900.0
 BRIDGE_COST = 75
 BRIDGE_REBUILD_TIME = 25.0
 
+# Siege mode. A Siege Tank can dig in: it stops moving and takes SIEGE_TRANSITION seconds to switch either way,
+# and while sieged it fires further and harder but cannot hit anything closer than SIEGE_MIN_RANGE. Mobile,
+# a Sniper (330) outranges it; sieged, it outranges the Sniper — but has to be set up first.
+SIEGE_RANGE = 340.0
+SIEGE_MIN_RANGE = 90.0
+SIEGE_DAMAGE = 50.0
+SIEGE_SPLASH = 65.0
+SIEGE_COOLDOWN = 3.2
+SIEGE_TRANSITION = 2.5
+SIEGE_SIGHT = 360.0          # dug in, a tank sees as far as it shoots
+MODE_MOBILE, MODE_SIEGING, MODE_SIEGED, MODE_UNSIEGING = 0, 1, 2, 3
+
 # Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
 # full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
 REPAIR_TIME = 30.0

@@ -26,7 +26,7 @@ from .defs import BUILDING_KINDS, DIFFICULTIES, MAX_PLAYERS, UNIT_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 4
+PROTOCOL_VERSION = 5
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -121,7 +121,7 @@ def snapshot_for(world, slot, events):
         if u.dead or not world.sees(slot, u):
             continue
         units.append([u.id, u.team, UNIT_INDEX[u.kind], _r(u.x), _r(u.y), int(math.degrees(u.angle)) % 360,
-                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying])
+                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying, u.mode])
         if u.team == slot:
             pts = []
             for code, x, y in order_points(u):

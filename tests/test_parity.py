@@ -11,7 +11,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "linux"))
 
 from fieldcommand.defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS,   # noqa: E402
-                               BUILDING_KINDS, REPAIR_COST_RATIO, REPAIR_TIME, UNITS, UNIT_KINDS)
+                               BUILDING_KINDS, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
+                               SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION,
+                               UNITS, UNIT_KINDS)
 from fieldcommand import net  # noqa: E402
 from fieldcommand.session import lineup_text  # noqa: E402
 
@@ -84,6 +86,13 @@ def test_shared_constants_agree():
     assert const("bridgeRebuildTime") == BRIDGE_REBUILD_TIME
     assert const("repairTime") == REPAIR_TIME
     assert const("repairCostRatio") == REPAIR_COST_RATIO
+    assert const("siegeRange") == SIEGE_RANGE
+    assert const("siegeMinRange") == SIEGE_MIN_RANGE
+    assert const("siegeDamage") == SIEGE_DAMAGE
+    assert const("siegeSplash") == SIEGE_SPLASH
+    assert const("siegeCooldown") == SIEGE_COOLDOWN
+    assert const("siegeTransition") == SIEGE_TRANSITION
+    assert const("siegeSight") == SIEGE_SIGHT
 
 
 def test_app_versions_agree():
