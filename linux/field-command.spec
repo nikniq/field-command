@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.5.0
+Version:        1.6.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.6.0-1
+- Building upgrades: Reinforce, Armour plating, Assembly line, Expanded storage, Twin cannon
+- Network protocol 6
+
 * Mon Sep 21 2026 Field Command Developers <noreply@example.invalid> - 1.5.0-1
 - Siege Tanks can dig in: longer reach and heavier shells, immobile, with a blind spot
 - Network protocol 5

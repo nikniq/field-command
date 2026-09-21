@@ -160,6 +160,47 @@ SIEGE_TRANSITION = 2.5
 SIEGE_SIGHT = 360.0          # dug in, a tank sees as far as it shoots
 MODE_MOBILE, MODE_SIEGING, MODE_SIEGED, MODE_UNSIEGING = 0, 1, 2, 3
 
+# Building upgrades. Bought on one building at a time, researched by that building over `time` seconds,
+# and permanent for it. `cost` is a fraction of the building's own price unless `flat` is set.
+@dataclass(frozen=True)
+class Upgrade:
+    name: str
+    short: str
+    desc: str
+    cost: float             # fraction of the building's price, or crystal when flat
+    flat: bool
+    time: float
+    hotkey: str
+    applies_to: tuple       # building kinds, or () for every building
+
+
+UPGRADES = {
+    "hp": Upgrade("Reinforce", "Reinforced", "Doubles the building's hit points.", 0.6, False, 30, "V", ()),
+    "armor": Upgrade("Armour plating", "Armoured", "The building takes 30% less damage.", 0.6, False, 30, "X", ()),
+    "prod": Upgrade("Assembly line", "Assembly line", "Trains units twice as fast.", 0.8, False, 40, "U",
+                    ("hq", "barracks", "factory")),
+    "supply": Upgrade("Expanded storage", "Expanded", "+8 supply from this depot.", 75, True, 20, "U", ("depot",)),
+    "guns": Upgrade("Twin cannon", "Twin cannon", "Damage 11 to 20 and range 210 to 260.", 0.9, False, 35, "U",
+                    ("turret",)),
+}
+# Order matters: an installed set travels as a bitmask over this list, an upgrade in progress as its index.
+UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns"]
+ARMOR_FACTOR = 0.7
+TURRET_UPGRADED_DAMAGE = 20.0
+TURRET_UPGRADED_RANGE = 260.0
+DEPOT_UPGRADED_SUPPLY = 8
+
+
+def upgrade_cost(kind, building_kind):
+    u = UPGRADES[kind]
+    return int(u.cost) if u.flat else int(round(BUILDINGS[building_kind].cost * u.cost))
+
+
+def upgrade_applies(kind, building_kind):
+    a = UPGRADES[kind].applies_to
+    return not a or building_kind in a
+
+
 # Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
 # full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
 REPAIR_TIME = 30.0

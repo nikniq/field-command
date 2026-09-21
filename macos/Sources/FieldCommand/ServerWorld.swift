@@ -442,7 +442,7 @@ class SEntity {
     let id: Int
     let team: Int
     var hp: Double
-    let maxHp: Double
+    var maxHp: Double
     var sight: Double
     var x, y: Double
     var dead = false
@@ -998,7 +998,47 @@ final class SBuilding: SEntity {
     var cooldown = 0.0, scan = 0.0
     var turretTarget: SEntity?
     var gunAngle = Double.random(in: 0...(2 * .pi))
+    // Upgrades: the set installed, and the one being researched with its progress 0..1, if any.
+    var upgrades: Set<UpgradeKind> = []
+    var upgrading: UpgradeKind?
+    var upgradeProgress = 0.0
     override var isBuilding: Bool { true }
+
+    // MARK: Upgrades
+
+    func canUpgrade(_ k: UpgradeKind) -> Bool {
+        built && !dead && k.applies(to: kind) && !upgrades.contains(k) && upgrading == nil
+    }
+
+    func startUpgrade(_ k: UpgradeKind) { upgrading = k; upgradeProgress = 0 }
+
+    /// Stops the research and hands the crystal back.
+    func cancelUpgrade() {
+        guard let k = upgrading else { return }
+        world.refund(k.cost(for: kind), team)
+        upgrading = nil
+        upgradeProgress = 0
+    }
+
+    private func install(_ k: UpgradeKind) {
+        upgrades.insert(k)
+        if k == .hp {
+            let added = maxHp
+            maxHp *= 2
+            hp += added         // the new structure is sound
+        }
+        world.emit(["flash", x, y, half * 2.6, "team\(team)"])
+        world.emit(["upgraded", team, NetProtocol.name(kind), k.wireName, id])
+    }
+
+    var supply: Int { stats.supply + (upgrades.contains(.supply) ? depotUpgradedSupply : 0) }
+    var trainSpeed: Double { upgrades.contains(.prod) ? 2 : 1 }
+    var turretRange: Double { upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range) }
+    var turretDamage: Double { upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage) }
+
+    override func takeDamage(_ amount: Double, from attacker: SEntity?) {
+        super.takeDamage(upgrades.contains(.armor) ? amount * armorFactor : amount, from: attacker)
+    }
 
     init(world: SWorld, kind: BuildingKind, team: Int, x: Double, y: Double, built: Bool) {
         self.kind = kind
@@ -1027,11 +1067,19 @@ final class SBuilding: SEntity {
             return
         }
         if let k = queue.first {
-            queueProgress += dt / Double(k.stats.buildTime)
+            queueProgress += dt * trainSpeed / Double(k.stats.buildTime)
             if queueProgress >= 1 {
                 queueProgress = 0
                 queue.removeFirst()
                 g.spawnUnit(k, self)
+            }
+        }
+        if let k = upgrading {
+            upgradeProgress += dt / k.stats.time
+            if upgradeProgress >= 1 {
+                upgrading = nil
+                upgradeProgress = 0
+                install(k)
             }
         }
         if kind == .turret { updateTurret(dt) }
@@ -1042,10 +1090,10 @@ final class SBuilding: SEntity {
         let g = world
         cooldown = max(0, cooldown - dt)
         scan -= dt
-        if let t = turretTarget, t.dead || distanceTo(t) > Double(stats.range) || !t.targetable(by: team) { turretTarget = nil }
+        if let t = turretTarget, t.dead || distanceTo(t) > turretRange || !t.targetable(by: team) { turretTarget = nil }
         if turretTarget == nil && scan <= 0 {
             scan = 0.3
-            turretTarget = g.findTarget(self, Double(stats.range))
+            turretTarget = g.findTarget(self, turretRange)
         }
         guard let t = turretTarget else { return }
         let a = atan2(t.y - y, t.x - x)
@@ -1408,6 +1456,12 @@ final class SWorld {
                     }
                 }
             }
+        case "upgrade" where cmd.count >= 3:
+            if let k = UpgradeKind.allCases.first(where: { $0.wireName == jStr(cmd[2]) }) {
+                upgrade(slot, ownBuildings(slot, ids(cmd[1])), k)
+            }
+        case "cancelup" where cmd.count >= 2:
+            ownBuildings(slot, [jInt(cmd[1])]).first?.cancelUpgrade()
         case "siege" where cmd.count >= 3:
             for u in ownUnits(slot, ids(cmd[1])) { u.setSiege(flag(2)) }
         case "repair" where cmd.count >= 3:
@@ -1502,6 +1556,19 @@ final class SWorld {
 
     // MARK: Construction & production
 
+    /// Starts `k` on every selected building that can take it, one price each, stopping when the crystal runs out.
+    private func upgrade(_ slot: Int, _ bs: [SBuilding], _ k: UpgradeKind) {
+        for b in bs where b.canUpgrade(k) {
+            let cost = Double(k.cost(for: b.kind))
+            guard (resources[slot] ?? 0) >= cost else {
+                emit(["msg", slot, "Not enough crystal", "bad"])
+                return
+            }
+            resources[slot, default: 0] -= cost
+            b.startUpgrade(k)
+        }
+    }
+
     private func rebuildBridge(_ slot: Int, _ workerId: Int, _ bridgeId: Int, queue: Bool) {
         guard let b = byId[bridgeId] as? SBridge, !b.intact,
               let w = ownUnits(slot, [workerId]).first, w.kind == .worker else { return }
@@ -1546,7 +1613,7 @@ final class SWorld {
     }
 
     func supplyCap(_ team: Int) -> Int {
-        min(200, buildings.filter { $0.team == team && $0.built }.reduce(0) { $0 + $1.stats.supply })
+        min(200, buildings.filter { $0.team == team && $0.built }.reduce(0) { $0 + $1.supply })
     }
 
     func train(_ k: UnitKind, _ bs: [SBuilding], _ team: Int) -> Bool {
@@ -1744,6 +1811,7 @@ final class SAI {
         produce(hq, bases, workers, reserve)
         rebuildBridges(hq, workers)
         repair(bases, workers)
+        upgrade(hq, bases)
         defend(bases, home)
         attack(hq, home)
     }
@@ -1808,6 +1876,20 @@ final class SAI {
         guard let builder = free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) }) else { return }
         g.resources[team, default: 0] -= Double(bridgeCost)
         builder.command(.rebuild(b))
+    }
+
+    /// With crystal to spare: production first, then armour on the Command Center, then the guns.
+    private func upgrade(_ hq: SBuilding, _ bases: [SBuilding]) {
+        let g = world
+        guard (g.resources[team] ?? 0) >= 500, !bases.contains(where: { $0.upgrading != nil }) else { return }
+        var wants: [(SBuilding, UpgradeKind)] = bases.filter { $0.kind == .barracks || $0.kind == .factory }.map { ($0, .prod) }
+        wants += [(hq, .armor), (hq, .hp)]
+        wants += bases.filter { $0.kind == .turret }.map { ($0, .guns) }
+        wants += bases.filter { $0.kind == .depot }.map { ($0, .supply) }
+        for (b, k) in wants where b.canUpgrade(k) && (g.resources[team] ?? 0) >= Double(k.cost(for: b.kind)) + 300 {
+            g.apply(team, ["upgrade", [b.id], k.wireName])
+            return
+        }
     }
 
     /// Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,

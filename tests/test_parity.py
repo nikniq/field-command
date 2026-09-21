@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.join(ROOT, "linux"))
 from fieldcommand.defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS,   # noqa: E402
                                BUILDING_KINDS, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
                                SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION,
-                               UNITS, UNIT_KINDS)
+                               UNITS, UNIT_KINDS, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TURRET_UPGRADED_DAMAGE,
+                               TURRET_UPGRADED_RANGE, UPGRADES, UPGRADE_KINDS)
 from fieldcommand import net  # noqa: E402
 from fieldcommand.session import lineup_text  # noqa: E402
 
@@ -93,6 +94,32 @@ def test_shared_constants_agree():
     assert const("siegeCooldown") == SIEGE_COOLDOWN
     assert const("siegeTransition") == SIEGE_TRANSITION
     assert const("siegeSight") == SIEGE_SIGHT
+
+
+def test_upgrade_catalogue_agrees():
+    src = swift("Defs.swift")
+    # Wire order: the Swift enum's cases, in declaration order.
+    cases = re.search(r"enum UpgradeKind: Int, CaseIterable \{\s*case ([^\n]+)", src).group(1)
+    order = [c.strip().split(" ")[0] for c in cases.split(",")]
+    assert order == UPGRADE_KINDS
+    names = re.search(r'var wireName: String \{ \[([^\]]+)\]', src).group(1)
+    assert [n.strip().strip('"') for n in names.split(",")] == UPGRADE_KINDS
+    for k in UPGRADE_KINDS:
+        p = UPGRADES[k]
+        m = re.search(r'case \.%s: return UpgradeStats\((.*?)appliesTo: \[(.*?)\]\)' % k, src, re.S)
+        assert m, f"upgrade {k} missing from Defs.swift"
+        f = dict(re.findall(r'(\w+): ("[^"]*"|[\d.]+|true|false)', m.group(1)))
+        assert f["name"].strip('"') == p.name and f["short"].strip('"') == p.short and f["desc"].strip('"') == p.desc
+        assert float(f["cost"]) == p.cost and (f["flat"] == "true") == p.flat, k
+        assert float(f["time"]) == p.time and f["hotkey"].strip('"') == p.hotkey, k
+        applies = tuple(x.strip().lstrip(".") for x in m.group(2).split(",") if x.strip())
+        assert applies == p.applies_to, k
+    def const(name):
+        return float(re.search(r"let %s(?:: \w+)? = ([\d.]+)" % name, src).group(1))
+    assert const("armorFactor") == ARMOR_FACTOR
+    assert const("turretUpgradedDamage") == TURRET_UPGRADED_DAMAGE
+    assert const("turretUpgradedRange") == TURRET_UPGRADED_RANGE
+    assert const("depotUpgradedSupply") == DEPOT_UPGRADED_SUPPLY
 
 
 def test_app_versions_agree():

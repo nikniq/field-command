@@ -10,8 +10,9 @@ import time
 
 from . import mapgen
 from . import defs
-from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DIFFICULTIES, MODE_SIEGED, MODE_SIEGING,
-                   MODE_UNSIEGING, UNITS, UNIT_KINDS, angle_lerp, rect_distance, rects_intersect, square_rect)
+from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
+                   MODE_SIEGING, MODE_UNSIEGING, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS, angle_lerp,
+                   rect_distance, rects_intersect, square_rect, upgrade_applies)
 from .fog import FogGrid
 from .net import STATUS, event_visible, order_points as world_order_points
 from .settings import settings
@@ -303,12 +304,23 @@ class _ProxyBuilding:
         self.queue_progress = 0.0
         self.rally = None
         self.gun_angle = 0.0
+        self.upgrades = set()
+        self.upgrading = None
+        self.upgrade_progress = 0.0
         self.dish_angle = (id * 0.7) % 6.28
         self.dead = False
         self.selected = self.hovered = False
 
     def surface_distance(self, px, py):
         return rect_distance(self.rect, px, py)
+
+    def can_upgrade(self, kind):
+        return (self.built and not self.dead and upgrade_applies(kind, self.kind) and kind not in self.upgrades
+                and self.upgrading is None)
+
+    @property
+    def supply(self):
+        return self.stats.supply + (DEPOT_UPGRADED_SUPPLY if "supply" in self.upgrades else 0)
 
 
 class _Player:
@@ -416,7 +428,7 @@ class NetSession(_Base):
         for i in [i for i in self._units if i not in seen]:
             self._units.pop(i).dead = True
         seen = set()
-        for (i, team, k, x, y, hp, built, prog, qprog, gun, queue, rally) in m["b"]:
+        for (i, team, k, x, y, hp, built, prog, qprog, gun, queue, rally, ups, upg) in m["b"]:
             seen.add(i)
             b = self._buildings.get(i)
             if b is None:
@@ -427,6 +439,9 @@ class NetSession(_Base):
             b._gun_to = math.radians(gun)
             b.queue = [UNIT_KINDS[q] for q in queue]
             b.rally = tuple(rally) if rally else None
+            b.upgrades = {UPGRADE_KINDS[j] for j in range(len(UPGRADE_KINDS)) if ups & (1 << j)}
+            b.upgrading = UPGRADE_KINDS[upg[0]] if upg else None
+            b.upgrade_progress = upg[1] / 100 if upg else 0.0
         for i in [i for i in self._buildings if i not in seen]:
             self._buildings.pop(i).dead = True
         for (i, intact, hp, prog) in m.get("br", ()):

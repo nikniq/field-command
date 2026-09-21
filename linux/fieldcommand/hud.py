@@ -7,7 +7,8 @@ import math
 import pygame
 
 from . import art, audio, defs, ui
-from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, TEAM_COLOR, TEAM_LIGHT, TEXT, UNITS, fmt_time, to255)
+from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, TEAM_COLOR, TEAM_LIGHT, TEXT, UNITS,
+                   UPGRADES, UPGRADE_KINDS, fmt_time, to255)
 from .settings import settings
 
 PANEL_H = 192
@@ -25,6 +26,7 @@ class HUD:
         self.current_buttons = []
         self.button_rects = []
         self.queue_rects = []
+        self.upgrade_rect = None
         self.icon_rects = []
         self.top_buttons = []
         self.overlay = None  # callable that returns (title, color, subtitle, lines, rows)
@@ -155,6 +157,9 @@ class HUD:
                 if r.collidepoint(pos):
                     g.cancel_queue(g.selection[0], idx)
                     return True
+            if self.upgrade_rect and self.upgrade_rect[0].collidepoint(pos):
+                g.cancel_upgrade(self.upgrade_rect[1])
+                return True
         for r, e in self.icon_rects:
             if r.collidepoint(pos):
                 g.set_selection([e])
@@ -418,6 +423,18 @@ class HUD:
             line = e.stats.desc + ("  Right-click the map to set a rally point." if e.stats.produces else "")
             for i, l in enumerate(ui.wrap(line, 13, max(200, self.info_rect.right - tx))):
                 ui.blit_text(screen, l, 13, DIM, (tx, top + 74 + i * 18))
+        # Upgrades: what is installed, and what is being researched (click the bar to cancel).
+        y = top + ps + 8 + (50 if e.queue else 0)
+        if e.upgrades:
+            names = " · ".join(UPGRADES[k].short for k in UPGRADE_KINDS if k in e.upgrades)
+            ui.blit_text(screen, names, 12, GOOD, (x0, y + 40 if not e.queue else y + 4), bold=True)
+        if e.upgrading:
+            yy = y + 58 if not e.queue else y + 20
+            ui.blit_text(screen, f"Researching {UPGRADES[e.upgrading].name}  {int(e.upgrade_progress * 100)}%",
+                         12, AMBER, (x0, yy), bold=True)
+            w = min(260, self.info_rect.right - x0)
+            self._bar(screen, x0, yy + 14, w, e.upgrade_progress, AMBER, 5)
+            self.upgrade_rect = (pygame.Rect(x0, yy - 8, w, 28), e)
 
     def _draw_multi(self, screen, sel, x0, top):
         counts = {}
@@ -464,6 +481,8 @@ class HUD:
                 tex, fit, rot = art.icon_stop(), 30, 0
             elif kind == "siege":
                 tex, fit, rot = art.icon_siege(b.icon[1]), 34, 0
+            elif kind == "upgrade":
+                tex, fit, rot = art.icon_upgrade(b.icon[1]), 34, 0
             elif kind == "unit":
                 tex, fit, rot = art.unit(b.icon[1], g.s.slot), (40 if b.icon[1] == "tank" else 30), 90
             else:

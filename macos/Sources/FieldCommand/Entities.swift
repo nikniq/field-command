@@ -80,7 +80,7 @@ final class Crystal: SKNode {
 class Entity: SKNode {
     let team: Team
     var hp: CGFloat
-    let maxHp: CGFloat
+    var maxHp: CGFloat
     var dead = false
     var netId = 0
     var sight: CGFloat
@@ -671,6 +671,10 @@ final class Building: Entity {
     var cooldown: CGFloat = 0
     var scanTimer: CGFloat = 0
     var turretTarget: Entity?
+    /// Upgrades, from the server: installed set, and the one being researched with its progress.
+    private(set) var upgrades: Set<UpgradeKind> = []
+    private(set) var upgrading: UpgradeKind?
+    private(set) var upgradeProgress: CGFloat = 0
     let body: SKSpriteNode
     var gun: SKSpriteNode?
     private var scaffold: SKSpriteNode?
@@ -857,6 +861,21 @@ final class Building: Entity {
             }
         }
         if let g = gun { g.zRotation = angleLerp(g.zRotation, gunAngle, 0.5) }
+    }
+
+    func canUpgrade(_ k: UpgradeKind) -> Bool {
+        built && !dead && k.applies(to: kind) && !upgrades.contains(k) && upgrading == nil
+    }
+
+    func applyUpgrades(mask: Int, inProgress: (UpgradeKind, CGFloat)?) {
+        let set = Set(UpgradeKind.allCases.filter { mask & (1 << $0.rawValue) != 0 })
+        if set != upgrades {
+            upgrades = set
+            maxHp = stats.hp * (set.contains(.hp) ? 2 : 1)      // the bar must know the new ceiling
+            updateHPBar()
+        }
+        upgrading = inProgress?.0
+        upgradeProgress = inProgress?.1 ?? 0
     }
 
     func update(_ dt: CGFloat) {

@@ -11,7 +11,7 @@ import cairo
 import numpy as np
 import pygame
 
-from .defs import (AMBER, BAD, BLACK, BUTTON_EDGE, CRYSTAL, TEAM_COLOR, TEAM_DARK, TEAM_LIGHT, WHITE, alpha, mix, rgb,
+from .defs import (AMBER, BAD, BLACK, BUTTON_EDGE, CRYSTAL, GOOD, TEAM_COLOR, TEAM_DARK, TEAM_LIGHT, WHITE, alpha, mix, rgb,
                    BUILDINGS, to255a)
 
 SCALE = 2  # texture pixels per world unit
@@ -334,6 +334,48 @@ def tank_outriggers(team):
                 lit(c, foot, mix(TEAM_COLOR[team], BLACK, 0.4))
                 stroke(c, foot, rgb(0, 0, 0, 0.6), 0.9)
     return texture(("outriggers", team), (76, 56), d)
+
+
+def icon_upgrade(kind):
+    """Command-card icons for building upgrades: a plate, a shield, gears, a crate and a twin barrel."""
+    def d(c):
+        if kind == "hp":
+            plate = rr(-13, -13, 26, 26, 4)
+            lit(c, plate, rgb(0.5, 0.55, 0.6))
+            stroke(c, plate, rgb(0, 0, 0, 0.6), 1.2)
+            for x, y in ((-8, -8), (8, -8), (-8, 8), (8, 8)):
+                fill(c, circle(x, y, 2), rgb(0.2, 0.2, 0.22))
+            fill(c, rr(-4, -12, 8, 24, 1), alpha(GOOD, 0.8))
+            fill(c, rr(-12, -4, 24, 8, 1), alpha(GOOD, 0.8))
+        elif kind == "armor":
+            sh = poly([(0, 16), (13, 9), (13, -4), (0, -15), (-13, -4), (-13, 9)])
+            lit(c, sh, rgb(0.35, 0.5, 0.75))
+            stroke(c, sh, rgb(0, 0, 0, 0.6), 1.2)
+            lines(c, [((0, 12), (0, -10))], alpha(WHITE, 0.5), 2)
+        elif kind == "prod":
+            for cx, cy, r in ((-6, 3, 9), (8, -5, 6)):
+                for i in range(8):
+                    a = i * math.pi / 4
+                    fill(c, rr(cx + math.cos(a) * r - 2, cy + math.sin(a) * r - 2, 4, 4, 1), rgb(0.6, 0.62, 0.65))
+                g = circle(cx, cy, r - 1)
+                lit(c, g, rgb(0.55, 0.58, 0.62))
+                stroke(c, g, rgb(0, 0, 0, 0.6), 1)
+                fill(c, circle(cx, cy, r * 0.35), rgb(0.2, 0.2, 0.22))
+        elif kind == "supply":
+            box = rr(-13, -10, 26, 20, 2)
+            lit(c, box, rgb(0.6, 0.45, 0.25))
+            stroke(c, box, rgb(0, 0, 0, 0.6), 1.2)
+            lines(c, [((-13, 0), (13, 0)), ((0, -10), (0, 10))], rgb(0.25, 0.17, 0.09, 0.8), 1.5)
+            fill(c, rr(-5, -16, 10, 6, 1), AMBER)
+        else:   # guns
+            for y in (-5, 5):
+                linear(c, rr(-4, y - 2.2, 22, 4.4, 1.2), [rgb(0.7, 0.72, 0.74), rgb(0.3, 0.31, 0.33)], (0, y + 2), (0, y - 2))
+                fill(c, rr(17, y - 2.8, 4, 5.6, 1), rgb(0.12, 0.12, 0.13))
+            base = rr(-14, -10, 16, 20, 5)
+            lit(c, base, rgb(0.5, 0.55, 0.62))
+            stroke(c, base, rgb(0, 0, 0, 0.6), 1)
+            fill(c, circle(-6, 0, 2.2), rgb(1, 0.35, 0.3))
+    return texture(("icon_upgrade", kind), (40, 40), d)
 
 
 def icon_siege(on):

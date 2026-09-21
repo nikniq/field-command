@@ -5,7 +5,8 @@ import math
 import random
 
 from . import defs
-from .defs import BRIDGE_COST, BUILDINGS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect
+from .defs import (BRIDGE_COST, BUILDINGS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+                   upgrade_cost)
 
 
 class AI:
@@ -52,6 +53,7 @@ class AI:
         self._produce(hq, bases, workers, reserve)
         self._rebuild_bridges(hq, workers)
         self._repair(bases, workers)
+        self._upgrade(hq, bases)
         self._defend(bases, home)
         self._attack(hq, home)
 
@@ -135,6 +137,20 @@ class AI:
         builder = min(free, key=lambda w: math.hypot(w.x - b.x, w.y - b.y))
         g.resources[self.team] -= BRIDGE_COST
         builder.command(("rebuild", b))
+
+    def _upgrade(self, hq, bases):
+        """With crystal to spare: production first, then armour on the Command Center, then the guns."""
+        g = self.game
+        if g.resources[self.team] < 500 or any(b.upgrading for b in bases):
+            return
+        wants = [(b, "prod") for b in bases if b.kind in ("barracks", "factory")]
+        wants += [(hq, "armor"), (hq, "hp")]
+        wants += [(b, "guns") for b in bases if b.kind == "turret"]
+        wants += [(b, "supply") for b in bases if b.kind == "depot"]
+        for b, k in wants:
+            if b.can_upgrade(k) and g.resources[self.team] >= upgrade_cost(k, b.kind) + 300:
+                g.apply(self.team, ["upgrade", [b.id], k])
+                return
 
     def _repair(self, bases, workers):
         """Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,

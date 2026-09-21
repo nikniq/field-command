@@ -167,6 +167,11 @@ extension GameScene {
                        queueProgress: jNum(v[8]) / 100, gunAngle: jNum(v[9]) * .pi / 180,
                        queue: jArr(v[10]).map { NetProtocol.unitKinds[min(NetProtocol.unitKinds.count - 1, max(0, jInt($0)))] },
                        rally: rally.count == 2 ? CGPoint(x: jNum(rally[0]), y: jNum(rally[1])) : nil)
+            if v.count > 13 {
+                let up = jArr(v[13])
+                let inProgress = up.count == 2 ? UpgradeKind(rawValue: jInt(up[0])).map { ($0, jNum(up[1]) / 100) } : nil
+                b.applyUpgrades(mask: jInt(v[12]), inProgress: inProgress)
+            }
         }
         for (id, b) in net.buildings where !seen.contains(id) {
             b.dead = true
@@ -261,6 +266,12 @@ extension GameScene {
                 hud.flash("Ally's \(k.stats.name) destroyed", color: Palette.amber)
             } else {
                 hud.flash("Enemy \(k.stats.name) destroyed", color: Palette.good)
+            }
+        case "upgraded":
+            if let bk = NetProtocol.buildingKind(jStr(e[2])),
+               let uk = UpgradeKind.allCases.first(where: { $0.wireName == jStr(e[3]) }) {
+                hud.flash("\(bk.stats.name): \(uk.stats.name) installed", color: Palette.good)
+                playSound("Glass")
             }
         case "bridge":
             let down = jInt(e[2]) == 0

@@ -67,8 +67,15 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 5, so a 1.5.0 Mac and a 1.5.0 Linux client play together; neither accepts an
+Both editions speak protocol 6, so a 1.6.0 Mac and a 1.6.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
+
+## Building upgrades
+
+A finished building's command card offers its upgrades — Reinforce (V, double hit points), Armour plating (X,
+30% less damage), and on U: Assembly line for producers, Expanded storage for depots, Twin cannon for
+turrets. One at a time per building, permanent, cancellable from the selection panel. The catalogue matches
+the Linux edition exactly (`FC_UPGRADETEST`).
 
 ## Siege mode
 
@@ -107,4 +114,5 @@ FC_BRIDGETEST=river_crossing .build/release/FieldCommand      # shell a bridge d
 FC_REPAIRTEST=1 .build/release/FieldCommand                   # repair time, cost and limits, headless
 FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player teams: the deal and a 2v2
 FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: transition, reach, blind spot
+FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrades: each effect and the rules
 ```

@@ -385,6 +385,103 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_UPGRADETEST=1: building upgrades on the server simulation — each effect, price and research time,
+    /// and the rules around buying them — matching linux/tests/test_upgrades.py.
+    static func runUpgradeTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func setup(_ kind: BuildingKind = .hq) -> (SWorld, SBuilding) {
+            let map = SMapGen.generate("twin_ridges")
+            let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: players, difficulty: .normal)
+            for u in w.units where u.team == 0 { u.command(.idle) }
+            w.resources[0] = 5000
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            if kind == .hq { return (w, hq) }
+            w.startBuilding(kind, hq.x + 400, hq.y, 0)
+            let b = w.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+            return (w, b)
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if done() { return true } }
+            return done()
+        }
+        func buy(_ w: SWorld, _ b: SBuilding, _ k: UpgradeKind) -> Bool {
+            w.apply(0, ["upgrade", [b.id], k.wireName])
+            guard b.upgrading == k else { return false }
+            return run(w, k.stats.time + 1) { b.upgrades.contains(k) }
+        }
+
+        var (w, b) = setup()
+        b.hp = 1000
+        check(buy(w, b, .hp) && b.maxHp == 3000 && b.hp == 2500, "Reinforce doubles hit points and keeps the building sound")
+
+        (w, b) = setup()
+        _ = buy(w, b, .armor)
+        b.takeDamage(100, from: nil)
+        check(b.hp == b.maxHp - 100 * armorFactor, "Armour plating takes 30% less")
+
+        func trainTime(_ upgraded: Bool) -> Double {
+            let (w, hq) = setup()
+            if upgraded { _ = buy(w, hq, .prod) }
+            _ = w.train(.worker, [hq], 0)
+            let t0 = w.elapsed, n0 = w.units.filter { $0.team == 0 }.count
+            _ = run(w, 30) { w.units.filter { $0.team == 0 }.count > n0 }
+            return w.elapsed - t0
+        }
+        let fast = trainTime(true), slow = trainTime(false)
+        check(abs(fast * 2 - slow) < 0.2, String(format: "Assembly line trains twice as fast (%.1fs vs %.1fs)", fast, slow))
+
+        (w, b) = setup(.depot)
+        let before = w.supplyCap(0)
+        _ = buy(w, b, .supply)
+        check(w.supplyCap(0) == before + depotUpgradedSupply && b.supply == BuildingKind.depot.stats.supply * 2,
+              "Expanded storage doubles a depot")
+
+        (w, b) = setup(.turret)
+        _ = buy(w, b, .guns)
+        let victim = SUnit(world: w, kind: .marine, team: 1, x: b.x + 240, y: b.y)     // outside 210, inside 260
+        w.add(victim)
+        w.updateVisibility()
+        check(b.turretDamage == turretUpgradedDamage && b.turretRange == turretUpgradedRange && run(w, 10) { victim.dead },
+              "Twin cannon hits harder and further")
+
+        (w, b) = setup()
+        let bank = w.resources[0] ?? 0, t0 = w.elapsed
+        _ = buy(w, b, .hp)
+        check(bank - (w.resources[0] ?? 0) == Double(UpgradeKind.hp.cost(for: .hq)) && abs((w.elapsed - t0) - UpgradeKind.hp.stats.time) < 0.2,
+              "price and time are as advertised")
+
+        (w, b) = setup()
+        w.apply(0, ["upgrade", [b.id], "hp"])
+        w.apply(0, ["upgrade", [b.id], "armor"])
+        check(b.upgrading == .hp, "one at a time")
+        _ = run(w, UpgradeKind.hp.stats.time + 1)
+        let bank2 = w.resources[0] ?? 0
+        w.apply(0, ["upgrade", [b.id], "hp"])
+        check(b.upgrading == nil && (w.resources[0] ?? 0) == bank2, "never twice")
+        w.apply(0, ["upgrade", [b.id], "guns"])
+        w.apply(0, ["upgrade", [b.id], "supply"])
+        check(b.upgrading == nil, "only where it applies")
+
+        (w, b) = setup()
+        let bank3 = w.resources[0] ?? 0
+        w.apply(0, ["upgrade", [b.id], "armor"])
+        _ = run(w, 5)
+        w.apply(0, ["cancelup", b.id])
+        check(b.upgrading == nil && (w.resources[0] ?? 0) == bank3, "cancelling refunds")
+
+        (w, b) = setup()
+        w.resources[0] = 10
+        w.apply(0, ["upgrade", [b.id], "hp"])
+        check(b.upgrading == nil && (w.resources[0] ?? 0) == 10, "not enough crystal")
+
+        print(ok ? "UPGRADE TEST PASSED" : "UPGRADE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_SIEGETEST=1: siege mode on the server simulation — the transition, reach, blind spot, auto-unsiege on
     /// a move, and heavier shells — matching linux/tests/test_siege.py.
     static func runSiegeTest() -> Never {

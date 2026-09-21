@@ -22,11 +22,11 @@ import time
 import zlib
 
 from . import mapgen
-from .defs import BUILDING_KINDS, DIFFICULTIES, MAX_PLAYERS, UNIT_KINDS
+from .defs import BUILDING_KINDS, DIFFICULTIES, MAX_PLAYERS, UNIT_KINDS, UPGRADE_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 5
+PROTOCOL_VERSION = 6
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -35,6 +35,7 @@ COMPRESS_OVER = 512
 _FLAG = 0x80000000
 
 UNIT_INDEX = {k: i for i, k in enumerate(UNIT_KINDS)}
+UPGRADE_INDEX = {k: i for i, k in enumerate(UPGRADE_KINDS)}
 BUILDING_INDEX = {k: i for i, k in enumerate(BUILDING_KINDS)}
 STATUS = {"idle": 0, "move": 1, "amove": 2, "attack": 3, "gather": 4, "return": 5, "build": 6,
           "rebuild": 7, "repair": 8}
@@ -64,7 +65,7 @@ def _r(v, nd=1):
 # ---------------------------------------------------------------- snapshots & event filtering
 
 POSITIONAL = {"tracer", "muzzle", "sparks", "smoke", "explode", "flash", "shell", "wreck", "rubble", "shake", "sound"}
-PRIVATE = {"msg", "alert", "income", "built", "wave", "trained"}
+PRIVATE = {"msg", "alert", "income", "built", "wave", "trained", "upgraded"}
 PUBLIC = {"elim", "gameover", "chat", "bridge"}
 
 
@@ -135,7 +136,9 @@ def snapshot_for(world, slot, events):
                           int(b.progress * 100), int(b.queue_progress * 100) if own else 0,
                           int(math.degrees(b.gun_angle)) % 360,
                           [UNIT_INDEX[k] for k in b.queue] if own else [],
-                          [_r(b.rally[0]), _r(b.rally[1])] if (own and b.rally) else 0])
+                          [_r(b.rally[0]), _r(b.rally[1])] if (own and b.rally) else 0,
+                          sum(1 << UPGRADE_INDEX[k] for k in b.upgrades),
+                          [UPGRADE_INDEX[b.upgrading], int(b.upgrade_progress * 100)] if (own and b.upgrading) else 0])
     return {"t": "snap", "time": _r(world.elapsed, 2), "res": int(world.resources[slot]),
             "sup": [world.supply_used(slot), world.supply_cap(slot)],
             "u": units, "o": orders, "b": buildings,

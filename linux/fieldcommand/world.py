@@ -11,7 +11,7 @@ import random
 from .ai import AI
 from . import defs
 from .defs import (BRIDGE_COST, BUILDINGS, UNITS, clamp, rect_distance, rects_intersect,
-                   square_rect)
+                   square_rect, upgrade_cost)
 from .entities import IDLE, Bridge, Building, Crystal, Unit
 from .fog import FogGrid
 from .nav import NavGrid
@@ -331,7 +331,7 @@ class World:
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
             ["rebuild", worker_id, bridge_id, queue]  ["repair", worker_ids, building_id, queue]
-            ["siege", ids, on]
+            ["siege", ids, on]                      ["upgrade", building_ids, kind]  ["cancelup", building_id]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
         Invalid or foreign references are ignored."""
         if self.game_over or slot not in self.players or not self.players[slot].alive or not cmd:
@@ -370,6 +370,11 @@ class World:
                     u.command(IDLE)
             elif op == "build":
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
+            elif op == "upgrade":
+                self._upgrade(slot, self._own_buildings(slot, cmd[1]), cmd[2])
+            elif op == "cancelup":
+                for b in self._own_buildings(slot, [cmd[1]]):
+                    b.cancel_upgrade()
             elif op == "siege":
                 for u in self._own_units(slot, cmd[1]):
                     u.set_siege(bool(cmd[2]))
@@ -455,6 +460,19 @@ class World:
             self.resources[slot] -= s.cost
             workers[0].order_build(kind, x, y, queue=queue)
 
+    def _upgrade(self, slot, bs, kind):
+        """Starts `kind` on every selected building that can take it, one price each, stopping when the
+        crystal runs out."""
+        for b in bs:
+            if not b.can_upgrade(kind):
+                continue
+            cost = upgrade_cost(kind, b.kind)
+            if self.resources[slot] < cost:
+                self.emit("msg", slot, "Not enough crystal", "bad")
+                return
+            self.resources[slot] -= cost
+            b.start_upgrade(kind)
+
     def _rebuild_bridge(self, slot, worker_id, bridge_id, queue):
         b = self.by_id.get(bridge_id)
         workers = self._own_units(slot, [worker_id])
@@ -519,7 +537,7 @@ class World:
                 + sum(UNITS[k].supply for b in self.buildings if b.team == team for k in b.queue))
 
     def supply_cap(self, team):
-        return min(200, sum(b.stats.supply for b in self.buildings if b.team == team and b.built))
+        return min(200, sum(b.supply for b in self.buildings if b.team == team and b.built))
 
     def train(self, kind, bs, team):
         s = UNITS[kind]

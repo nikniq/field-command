@@ -9,6 +9,8 @@ Orders are tuples:
 import math
 import random
 
+from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES,
+                   upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
                    SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_lerp,
@@ -706,6 +708,10 @@ class Building(Entity):
         self.turret_target = None
         self.gun_angle = random.uniform(0, 2 * math.pi)
         self.dish_angle = random.uniform(0, 2 * math.pi)
+        # Upgrades: the set installed, and the one being researched (kind, progress 0..1) if any.
+        self.upgrades = set()
+        self.upgrading = None
+        self.upgrade_progress = 0.0
         if not built:
             self.hp = self.max_hp * 0.1
 
@@ -715,6 +721,52 @@ class Building(Entity):
 
     def surface_distance(self, px, py):
         return rect_distance(self.rect, px, py)
+
+    # ------------------------------------------------------------ upgrades
+
+    def can_upgrade(self, kind):
+        return (self.built and not self.dead and kind in UPGRADES and upgrade_applies(kind, self.kind)
+                and kind not in self.upgrades and self.upgrading is None)
+
+    def start_upgrade(self, kind):
+        self.upgrading, self.upgrade_progress = kind, 0.0
+
+    def cancel_upgrade(self):
+        """Stops the research and hands the crystal back."""
+        if self.upgrading is None:
+            return
+        self.game.refund(upgrade_cost(self.upgrading, self.kind), self.team)
+        self.upgrading, self.upgrade_progress = None, 0.0
+
+    def _install(self, kind):
+        self.upgrades.add(kind)
+        if kind == "hp":
+            added = self.max_hp
+            self.max_hp *= 2
+            self.hp += added         # the new structure is sound
+        self.game.emit("flash", self.x, self.y, self.half * 2.6, f"team{self.team}")
+        self.game.emit("upgraded", self.team, self.kind, kind, self.id)
+
+    @property
+    def supply(self):
+        return self.stats.supply + (DEPOT_UPGRADED_SUPPLY if "supply" in self.upgrades else 0)
+
+    @property
+    def train_speed(self):
+        return 2.0 if "prod" in self.upgrades else 1.0
+
+    @property
+    def turret_range(self):
+        return TURRET_UPGRADED_RANGE if "guns" in self.upgrades else self.stats.range
+
+    @property
+    def turret_damage(self):
+        return TURRET_UPGRADED_DAMAGE if "guns" in self.upgrades else self.stats.damage
+
+    def take_damage(self, amount, attacker):
+        if "armor" in self.upgrades:
+            amount *= ARMOR_FACTOR
+        super().take_damage(amount, attacker)
 
     def update(self, dt):
         g = self.game
@@ -730,11 +782,16 @@ class Building(Entity):
 
         if self.queue:
             k = self.queue[0]
-            self.queue_progress += dt / UNITS[k].build_time
+            self.queue_progress += dt * self.train_speed / UNITS[k].build_time
             if self.queue_progress >= 1:
                 self.queue_progress = 0.0
                 self.queue.pop(0)
                 g.spawn_unit(k, self)
+        if self.upgrading is not None:
+            self.upgrade_progress += dt / UPGRADES[self.upgrading].time
+            if self.upgrade_progress >= 1:
+                kind, self.upgrading, self.upgrade_progress = self.upgrading, None, 0.0
+                self._install(kind)
 
         if self.kind == "turret":
             self._update_turret(dt)
@@ -746,18 +803,18 @@ class Building(Entity):
         self.cooldown = max(0.0, self.cooldown - dt)
         self.scan -= dt
         t = self.turret_target
-        if t and (t.dead or self.distance_to(t) > self.stats.range or not t.targetable_by(self.team)):
+        if t and (t.dead or self.distance_to(t) > self.turret_range or not t.targetable_by(self.team)):
             self.turret_target = t = None
         if t is None and self.scan <= 0:
             self.scan = 0.3
-            self.turret_target = t = g.find_target(self, self.stats.range)
+            self.turret_target = t = g.find_target(self, self.turret_range)
         if t is None:
             return
         a = math.atan2(t.y - self.y, t.x - self.x)
         self.gun_angle = angle_lerp(self.gun_angle, a, dt * 10)
         if self.cooldown <= 0:
             self.cooldown = self.stats.cooldown
-            t.take_damage(self.stats.damage, self)
+            t.take_damage(self.turret_damage, self)
             ux, uy = math.cos(a), math.sin(a)
             side = 4.5 if random.random() < 0.5 else -4.5
             mx, my = self.x + ux * 36 + uy * side, self.y + uy * 36 - ux * side

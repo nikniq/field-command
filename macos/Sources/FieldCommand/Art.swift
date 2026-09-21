@@ -945,6 +945,53 @@ enum Art {
                 lines(ctx, t, c, 2.5)
                 fill(ctx, circle(.zero, 2.5), c)
             }
+        case .upgrade(let k):
+            // A plate, a shield, gears, a crate and a twin barrel — matching linux/fieldcommand/art.py:icon_upgrade.
+            return texture("icon-upgrade-\(k.rawValue)", size: CGSize(width: 40, height: 40)) { ctx in
+                switch k {
+                case .hp:
+                    let plate = rr(box(-13, -13, 26, 26), 4)
+                    lit(ctx, plate, .rgb(0.5, 0.55, 0.6))
+                    stroke(ctx, plate, NSColor(white: 0, alpha: 0.6), 1.2)
+                    for (x, y) in [(-8.0, -8.0), (8, -8), (-8, 8), (8, 8)] { fill(ctx, circle(CGPoint(x: x, y: y), 2), .rgb(0.2, 0.2, 0.22)) }
+                    fill(ctx, rr(box(-4, -12, 8, 24), 1), Palette.good.withAlphaComponent(0.8))
+                    fill(ctx, rr(box(-12, -4, 24, 8), 1), Palette.good.withAlphaComponent(0.8))
+                case .armor:
+                    let sh = poly([CGPoint(x: 0, y: 16), CGPoint(x: 13, y: 9), CGPoint(x: 13, y: -4), CGPoint(x: 0, y: -15),
+                                   CGPoint(x: -13, y: -4), CGPoint(x: -13, y: 9)])
+                    lit(ctx, sh, .rgb(0.35, 0.5, 0.75))
+                    stroke(ctx, sh, NSColor(white: 0, alpha: 0.6), 1.2)
+                    lines(ctx, [(CGPoint(x: 0, y: 12), CGPoint(x: 0, y: -10))], NSColor(white: 1, alpha: 0.5), 2)
+                case .prod:
+                    for (cx, cy, r) in [(-6.0, 3.0, 9.0), (8, -5, 6)] {
+                        for i in 0..<8 {
+                            let a = CGFloat(i) * .pi / 4
+                            fill(ctx, rr(box(cx + cos(a) * r - 2, cy + sin(a) * r - 2, 4, 4), 1), .rgb(0.6, 0.62, 0.65))
+                        }
+                        let g = circle(CGPoint(x: cx, y: cy), r - 1)
+                        lit(ctx, g, .rgb(0.55, 0.58, 0.62))
+                        stroke(ctx, g, NSColor(white: 0, alpha: 0.6), 1)
+                        fill(ctx, circle(CGPoint(x: cx, y: cy), r * 0.35), .rgb(0.2, 0.2, 0.22))
+                    }
+                case .supply:
+                    let bx = rr(box(-13, -10, 26, 20), 2)
+                    lit(ctx, bx, .rgb(0.6, 0.45, 0.25))
+                    stroke(ctx, bx, NSColor(white: 0, alpha: 0.6), 1.2)
+                    lines(ctx, [(CGPoint(x: -13, y: 0), CGPoint(x: 13, y: 0)), (CGPoint(x: 0, y: -10), CGPoint(x: 0, y: 10))],
+                          .rgb(0.25, 0.17, 0.09, 0.8), 1.5)
+                    fill(ctx, rr(box(-5, -16, 10, 6), 1), Palette.amber)
+                case .guns:
+                    for y: CGFloat in [-5, 5] {
+                        linear(ctx, rr(box(-4, y - 2.2, 22, 4.4), 1.2), [.rgb(0.7, 0.72, 0.74), .rgb(0.3, 0.31, 0.33)],
+                               CGPoint(x: 0, y: y + 2), CGPoint(x: 0, y: y - 2))
+                        fill(ctx, rr(box(17, y - 2.8, 4, 5.6), 1), .rgb(0.12, 0.12, 0.13))
+                    }
+                    let base = rr(box(-14, -10, 16, 20), 5)
+                    lit(ctx, base, .rgb(0.5, 0.55, 0.62))
+                    stroke(ctx, base, NSColor(white: 0, alpha: 0.6), 1)
+                    fill(ctx, circle(CGPoint(x: -6, y: 0), 2.2), .rgb(1, 0.35, 0.3))
+                }
+            }
         case .siege(let on):
             // A tank silhouette over splayed legs (dig in) or over wheels (pack up).
             return texture("icon-siege-\(on)", size: CGSize(width: 40, height: 40)) { ctx in

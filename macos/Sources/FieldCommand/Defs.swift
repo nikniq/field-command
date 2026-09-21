@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.5.0"
+let appVersion = "1.6.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -305,6 +305,51 @@ let siegeSight: Double = 360          // dug in, a tank sees as far as it shoots
 
 enum SiegeMode: Int { case mobile = 0, sieging, sieged, unsieging }
 
+// MARK: - Building upgrades
+//
+// Bought on one building at a time, researched by that building over `time` seconds, and permanent for it.
+// `cost` is a fraction of the building's own price unless `flat` is set. The order of `UpgradeKind.allCases`
+// is the wire order: an installed set travels as a bitmask, an upgrade in progress as its index.
+
+struct UpgradeStats {
+    let name: String
+    let short: String
+    let desc: String
+    let cost: Double
+    let flat: Bool
+    let time: Double
+    let hotkey: String
+    let appliesTo: [BuildingKind]      // empty means every building
+}
+
+enum UpgradeKind: Int, CaseIterable {
+    case hp = 0, armor, prod, supply, guns
+
+    var stats: UpgradeStats {
+        switch self {
+        case .hp: return UpgradeStats(name: "Reinforce", short: "Reinforced", desc: "Doubles the building's hit points.",
+                                      cost: 0.6, flat: false, time: 30, hotkey: "V", appliesTo: [])
+        case .armor: return UpgradeStats(name: "Armour plating", short: "Armoured", desc: "The building takes 30% less damage.",
+                                         cost: 0.6, flat: false, time: 30, hotkey: "X", appliesTo: [])
+        case .prod: return UpgradeStats(name: "Assembly line", short: "Assembly line", desc: "Trains units twice as fast.",
+                                        cost: 0.8, flat: false, time: 40, hotkey: "U", appliesTo: [.hq, .barracks, .factory])
+        case .supply: return UpgradeStats(name: "Expanded storage", short: "Expanded", desc: "+8 supply from this depot.",
+                                          cost: 75, flat: true, time: 20, hotkey: "U", appliesTo: [.depot])
+        case .guns: return UpgradeStats(name: "Twin cannon", short: "Twin cannon", desc: "Damage 11 to 20 and range 210 to 260.",
+                                        cost: 0.9, flat: false, time: 35, hotkey: "U", appliesTo: [.turret])
+        }
+    }
+
+    func applies(to b: BuildingKind) -> Bool { stats.appliesTo.isEmpty || stats.appliesTo.contains(b) }
+    func cost(for b: BuildingKind) -> Int { stats.flat ? Int(stats.cost) : Int((Double(b.stats.cost) * stats.cost).rounded()) }
+    var wireName: String { ["hp", "armor", "prod", "supply", "guns"][rawValue] }
+}
+
+let armorFactor: Double = 0.7
+let turretUpgradedDamage: Double = 20
+let turretUpgradedRange: Double = 260
+let depotUpgradedSupply = 8
+
 // MARK: - Single-player teams
 
 /// The alliance a slot plays for: its own in a free-for-all (teams 0), otherwise dealt round-robin into
@@ -330,7 +375,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, siege(Bool), unit(UnitKind), building(BuildingKind)
+    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind)
 }
 
 struct CommandButton {

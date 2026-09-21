@@ -479,7 +479,7 @@ final class GameServer {
         guard let kind = e.first as? String else { return false }
         func num(_ i: Int) -> Double { i < e.count ? Double(jNum(e[i])) : 0 }
         switch kind {
-        case "msg", "alert", "income", "built", "wave", "trained": return jInt(e[1]) == slot
+        case "msg", "alert", "income", "built", "wave", "trained", "upgraded": return jInt(e[1]) == slot
         case "elim", "gameover", "chat", "bridge": return true
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
@@ -522,7 +522,9 @@ final class GameServer {
             if own, let r = b.rally { rally = [r1(r.0), r1(r.1)] }
             buildings.append([b.id, b.team, NetProtocol.buildingKinds.firstIndex(of: b.kind) ?? 0, r1(b.x), r1(b.y), Int(b.hp.rounded(.up)),
                               b.built ? 1 : 0, Int(b.progress * 100), own ? Int(b.queueProgress * 100) : 0, deg(b.gunAngle),
-                              own ? b.queue.map { NetProtocol.unitKinds.firstIndex(of: $0) ?? 0 } : [], rally])
+                              own ? b.queue.map { NetProtocol.unitKinds.firstIndex(of: $0) ?? 0 } : [], rally,
+                              b.upgrades.reduce(0) { $0 | (1 << $1.rawValue) },
+                              (own && b.upgrading != nil) ? [b.upgrading!.rawValue, Int(b.upgradeProgress * 100)] as [Any] : 0])
         }
         var alive: [String: Any] = [:]
         for (s, p) in w.players { alive[String(s)] = p.alive ? 1 : 0 }

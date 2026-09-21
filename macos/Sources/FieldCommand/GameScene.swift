@@ -1481,6 +1481,8 @@ final class GameScene: SKScene {
         return true
     }
 
+    func cancelUpgrade(_ b: Building) { sendNet(["cancelup", b.netId]) }
+
     func cancelQueue(_ b: Building, index: Int) {
         guard index < b.queue.count else { return }
         if isNet {
@@ -1637,7 +1639,7 @@ final class GameScene: SKScene {
         }
         let bs = selectedOwnBuildings.filter { $0.built }
         if let first = bs.first, bs.allSatisfy({ $0.kind == first.kind }) {
-            return first.stats.produces.map { k in
+            var list: [CommandButton] = first.stats.produces.map { k in
                 let s = k.stats
                 let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                 var tip = "\(s.desc)\nSupply \(s.supply) · \(Int(s.buildTime))s build time.\nRight-click the map to set a rally point."
@@ -1648,6 +1650,21 @@ final class GameScene: SKScene {
                     self.train(k, from: self.selectedOwnBuildings)
                 }
             }
+            for k in UpgradeKind.allCases where k.applies(to: first.kind) {
+                let u = k.stats
+                let installed = bs.allSatisfy { $0.upgrades.contains(k) }
+                let busy = bs.contains { $0.upgrading != nil } && !installed
+                let ok = !installed && bs.contains { $0.canUpgrade(k) }
+                var tip = "\(u.desc)\n\(Int(u.time))s to research; this building only."
+                if installed { tip += "\nAlready installed." } else if busy { tip += "\nAlready researching something." }
+                list.append(CommandButton(icon: .upgrade(k), title: u.name, hotkey: u.hotkey,
+                                          cost: installed ? nil : k.cost(for: first.kind), enabled: ok, tip: tip) { [weak self] in
+                    guard let self else { return }
+                    let ids = self.selectedOwnBuildings.filter { $0.canUpgrade(k) }.map { $0.netId }
+                    if !ids.isEmpty { self.sendNet(["upgrade", ids, k.wireName]) }
+                })
+            }
+            return list
         }
         return []
     }

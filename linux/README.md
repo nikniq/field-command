@@ -61,6 +61,25 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## Building upgrades
+
+Select a finished building and the command card offers its upgrades. Each is researched by that building
+alone, one at a time, and is permanent for it; click the progress bar in the selection panel to cancel and
+get the crystal back.
+
+| Upgrade | Key | Buildings | Effect | Cost | Time |
+| --- | --- | --- | --- | --- | --- |
+| Reinforce | V | all | doubles hit points (the new structure is sound, so it heals by the amount added) | 60% of price | 30s |
+| Armour plating | X | all | takes 30% less damage | 60% of price | 30s |
+| Assembly line | U | Command Center, Barracks, Factory | trains units twice as fast | 80% of price | 40s |
+| Expanded storage | U | Supply Depot | +8 supply, doubling the depot | 75 | 20s |
+| Twin cannon | U | Gun Turret | damage 11 to 20, range 210 to 260 | 90 | 35s |
+
+Upgrades apply to the building they were bought on, so a Barracks with an Assembly line is worth more than a
+second Barracks, and a Twin-cannon Turret outranges a mobile Siege Tank (230) though not a Sniper (330).
+Computer players buy upgrades once they are sitting on crystal: production first, then armour on their
+Command Center, then guns.
+
 ## Repair
 
 Select Engineers and right-click a damaged building of yours or an ally's to repair it. One Engineer restores
@@ -141,9 +160,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same version: the protocol is at 5 (Field Command 1.5.0, siege mode; 4 repair; 3
-destructible bridges; 2 the Sniper and the Radar Station), and a server refuses older clients rather than
-letting them mis-read the game.
+All players must run the same version: the protocol is at 6 (Field Command 1.6.0, building upgrades; 5 siege
+mode; 4 repair; 3 destructible bridges; 2 the Sniper and the Radar Station), and a server refuses older
+clients rather than letting them mis-read the game.
 
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.
@@ -167,6 +186,7 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Attack-move / Stop | A then click / S |
 | Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
 | Siege / unsiege | G with Siege Tanks selected (a move order also packs them up) |
+| Building upgrades | V Reinforce · X Armour · U Assembly line / Expanded storage / Twin cannon |
 | Repair | Engineer + right-click a damaged building |
 | Bridges | A then click to demolish · Engineer + right-click to rebuild |
 | Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |

@@ -45,6 +45,7 @@ final class HUD: SKNode {
     private var cardSignature = ""
     private var hoverButton: Int?
     private var queueRects: [(CGRect, Int)] = []
+    private var upgradeRect: (CGRect, Building)?
     private var iconRects: [(CGRect, Entity)] = []
     private var infoRect = CGRect.zero
     private var cardOrigin = CGPoint.zero
@@ -441,6 +442,10 @@ final class HUD: SKNode {
             game.cancelQueue(b, index: hit.1)
             return true
         }
+        if let (r, b) = upgradeRect, r.contains(p) {
+            game.cancelUpgrade(b)
+            return true
+        }
         if let hit = iconRects.first(where: { $0.0.contains(p) }) {
             game.setSelection([hit.1])
             return true
@@ -565,6 +570,7 @@ final class HUD: SKNode {
     private func rebuildInfo() {
         infoLayer.removeAllChildren()
         queueRects = []
+        upgradeRect = nil
         iconRects = []
         let sel = game.selection
         let x0 = infoRect.minX, top = infoRect.maxY
@@ -640,6 +646,20 @@ final class HUD: SKNode {
             l.preferredMaxLayoutWidth = max(200, infoRect.maxX - tx)
             infoLayer.addChild(at(l, tx, top - 68))
         }
+        // Upgrades: what is installed, and what is being researched (click the bar to cancel).
+        let base = top - ps - (b.queue.isEmpty ? 48 : 90)
+        if !b.upgrades.isEmpty {
+            let names = UpgradeKind.allCases.filter { b.upgrades.contains($0) }.map { $0.stats.short }.joined(separator: " · ")
+            infoLayer.addChild(at(makeLabel(names, size: 12, color: Palette.good, font: Fonts.demi), x0, base))
+        }
+        if let k = b.upgrading {
+            let y = base - 18
+            infoLayer.addChild(at(makeLabel("Researching \(k.stats.name)  \(Int(b.upgradeProgress * 100))%", size: 12,
+                                            color: Palette.amber, font: Fonts.demi), x0, y))
+            let w = min(260, infoRect.maxX - x0)
+            infoLayer.addChild(bar(width: w, frac: b.upgradeProgress, color: Palette.amber, at: CGPoint(x: x0, y: y - 14), height: 5))
+            upgradeRect = (CGRect(x: x0, y: y - 22, width: w, height: 30), b)
+        }
     }
 
     private func multi(_ sel: [Entity], x0: CGFloat, top: CGFloat) {
@@ -704,7 +724,7 @@ final class HUD: SKNode {
             switch b.icon {
             case .unit(let k): fit = k == .tank ? 40 : 30
             case .building: fit = 38
-            case .siege: fit = 34
+            case .siege, .upgrade: fit = 34
             default: fit = 30
             }
             let k = fit / max(ts.width, ts.height)

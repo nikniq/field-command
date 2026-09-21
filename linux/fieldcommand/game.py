@@ -10,7 +10,8 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import (AMBER, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR,
-                   TEAM_LIGHT, TEXT, UNITS, clamp, rects_intersect, to255)
+                   TEAM_LIGHT, TEXT, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect, to255,
+                   upgrade_applies, upgrade_cost)
 from .effects import Effects
 from .fogview import FogView
 from .net import STATUS
@@ -312,6 +313,9 @@ class GameScene:
                 self.hud.flash(f"Ally's {name} destroyed", AMBER)
             else:
                 self.hud.flash(f"Enemy {name} destroyed", GOOD)
+        elif k == "upgraded":
+            self.hud.flash(f"{BUILDINGS[ev[2]].name}: {UPGRADES[ev[3]].name} installed", GOOD)
+            audio.play("complete")
         elif k == "bridge":
             down = not ev[2]
             self.hud.flash("Bridge destroyed" if down else "Bridge rebuilt", BAD if down else GOOD)
@@ -917,6 +921,15 @@ class GameScene:
     def train(self, kind):
         self.s.send(["train", self._ids(self.selected_own_buildings()), kind])
 
+    def upgrade(self, kind):
+        bs = [b for b in self.selected_own_buildings() if b.can_upgrade(kind)]
+        if bs:
+            self.s.send(["upgrade", self._ids(bs), kind])
+            audio.play("click")
+
+    def cancel_upgrade(self, b):
+        self.s.send(["cancelup", b.id])
+
     def siege(self, on):
         tanks = [u for u in self.selected_own_units() if u.can_siege]
         if tanks:
@@ -965,6 +978,21 @@ class GameScene:
                     tip += f"\nRequires {BUILDINGS[s.requires].name}."
                 out.append(CommandButton(("unit", k), s.name, s.hotkey, s.cost, ok, tip,
                                          lambda k=k: self.train(k)))
+            for k in UPGRADE_KINDS:
+                u = UPGRADES[k]
+                if not upgrade_applies(k, bs[0].kind):
+                    continue
+                cost = upgrade_cost(k, bs[0].kind)
+                installed = all(k in b.upgrades for b in bs)
+                busy = any(b.upgrading is not None for b in bs) and not installed
+                ok = not installed and any(b.can_upgrade(k) for b in bs)
+                tip = f"{u.desc}\n{int(u.time)}s to research; this building only."
+                if installed:
+                    tip += "\nAlready installed."
+                elif busy:
+                    tip += "\nAlready researching something."
+                out.append(CommandButton(("upgrade", k), u.name, u.hotkey, None if installed else cost, ok, tip,
+                                         lambda k=k: self.upgrade(k)))
             return out
         return []
 
