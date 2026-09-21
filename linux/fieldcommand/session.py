@@ -20,6 +20,36 @@ from .world import PlayerInfo, World
 STATUS_NAMES = {v: k for k, v in STATUS.items()}
 
 
+def team_of(slot, teams):
+    """The alliance a slot plays for: its own in a free-for-all (teams 0), otherwise dealt round-robin into
+    `teams` alliances — the same rule as the multiplayer lobby's presets."""
+    return slot % teams + 1 if teams >= 2 else slot + 1
+
+
+def lineup_names(opponents):
+    return ["You"] + [f"Computer {i}" if opponents > 1 else "Computer" for i in range(1, opponents + 1)]
+
+
+def lineup_text(opponents, teams):
+    """Who plays with whom, for the title screen: "You + Computer 2  vs  Computer 1 + Computer 3"."""
+    names = lineup_names(opponents)
+    if teams < 2:
+        return "Free-for-all: everyone for themselves"
+    sides = {}
+    for i, n in enumerate(names):
+        sides.setdefault(team_of(i, teams), []).append(n)
+    full = "  vs  ".join(" + ".join(members) for _t, members in sorted(sides.items()))
+    if len(full) <= 80:
+        return full
+    # Big games: say it in numbers rather than names so the line fits the screen.
+    mine = sides.pop(team_of(0, teams))
+    others = [len(m) for _t, m in sorted(sides.items())]
+    allies = len(mine) - 1
+    sizes = str(others[0]) if len(set(others)) == 1 else "/".join(map(str, others))
+    return (f"You + {allies} {'ally' if allies == 1 else 'allies'}  vs  "
+            f"{len(others)} {'team' if len(others) == 1 else 'teams'} of {sizes}")
+
+
 class _Base:
     can_pause = False
 
@@ -83,14 +113,16 @@ class _Base:
 class LocalSession(_Base):
     can_pause = True
 
-    def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0):
+    def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0):
         self.difficulty = difficulty
         self.slot = slot
         spec = mapgen.resolve(map_id or "auto", 1 + opponents)
         opponents = min(opponents, spec["players"] - 1)
+        # Remember the setup so "Play again" starts the same game, not a default one.
+        self.skirmish = (map_id, opponents, teams)
         if players is None:
-            players = [PlayerInfo(0, "You", 1, is_ai=autoplay)]
-            players += [PlayerInfo(i, f"Computer {i}" if opponents > 1 else "Computer", i + 1, is_ai=True) for i in range(1, opponents + 1)]
+            players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
+                       for i, name in enumerate(lineup_names(opponents))]
         self.world = World(spec, players, difficulty)
         self.map = self.world.map
         self.players = self.world.players

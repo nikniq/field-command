@@ -264,9 +264,10 @@ final class MenuScene: SKScene {
         let picks: [(CGFloat, String, () -> Void)] = [
             (360, "Map: \(meta.name)  (\(meta.players)p)", { Settings.cycleMap() }),
             (170, "Opponents: \(Settings.opponents)", { Settings.cycleOpponents() }),
+            (170, Settings.teamCount < 2 ? "Teams: Free-for-all" : "Teams: \(Settings.teamCount)", { Settings.cycleTeams() }),
         ]
         let py = ty - th - 12
-        var px = -(picks.reduce(0) { $0 + $1.0 } + tg) / 2
+        var px = -(picks.reduce(0) { $0 + $1.0 } + tg * CGFloat(picks.count - 1)) / 2
         for (pw, label, action) in picks {
             let r = CGRect(x: px, y: py - th / 2, width: pw, height: th)
             let bg = SKSpriteNode(texture: Art.button(r.size, .active, accent: Palette.amber))
@@ -283,6 +284,13 @@ final class MenuScene: SKScene {
         let desc = makeLabel(meta.desc, size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
         desc.position = CGPoint(x: 0, y: py - th / 2 - 14)
         content.addChild(desc)
+        // Who is with whom — the round-robin deal is otherwise invisible until the game starts.
+        let tc = Settings.teamCount
+        let lineup = makeLabel(lineupText(opponents: Settings.opponents, teams: tc), size: 13,
+                               color: tc >= 2 ? Palette.amber : Palette.dim, font: tc >= 2 ? Fonts.demi : Fonts.medium,
+                               align: .center, valign: .center)
+        lineup.position = CGPoint(x: 0, y: py - th / 2 - 34)
+        content.addChild(lineup)
 
         let lines = [
             "Mine crystal with Engineers, expand, and train an army of Rangers and Siege Tanks.",
@@ -331,6 +339,7 @@ final class MenuScene: SKScene {
 
     private func start(_ d: Difficulty) {
         Settings.lastDifficulty = d.rawValue
-        startSkirmish(view, size: size, difficulty: d, mapId: Settings.mapId, opponents: Settings.opponents)
+        startSkirmish(view, size: size, difficulty: d, mapId: Settings.mapId, opponents: Settings.opponents,
+                      teams: Settings.teamCount)
     }
 }

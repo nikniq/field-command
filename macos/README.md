@@ -18,7 +18,9 @@ LAN games), the icon and an ad-hoc signature. Requires Xcode command line tools;
 ## Maps
 
 Pick a map and the number of computer opponents (up to eleven on a mega map) on the title screen, or let the
-host choose one in the multiplayer lobby (*Map: Auto* picks one that fits the player count).
+host choose one in the multiplayer lobby (*Map: Auto* picks one that fits the player count). **Teams** deals a
+single-player game into alliances with computer allies, round-robin like the lobby's presets, and the line
+under the map shows who is with whom — see `../linux/README.md`.
 
 | Map | Players | Terrain |
 | --- | --- | --- |
@@ -97,4 +99,5 @@ FC_SNAPSHOT_DIR=/tmp/fc …                                     # write screensh
 FC_MENUSHOT=/tmp/menu.png .build/release/FieldCommand         # render the title screen and exit
 FC_BRIDGETEST=river_crossing .build/release/FieldCommand      # shell a bridge down and rebuild it, headless
 FC_REPAIRTEST=1 .build/release/FieldCommand                   # repair time, cost and limits, headless
+FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player teams: the deal and a 2v2
 ```

@@ -8,7 +8,7 @@ from . import __version__, art, audio, mapgen, ui
 from .defs import AMBER, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, PLAYER, TEXT, to255
 from .effects import Effects
 from .game import Camera, GameScene
-from .session import LocalSession
+from .session import LocalSession, lineup_text
 from .settings import settings
 
 
@@ -92,7 +92,7 @@ class MenuScene:
         settings.set("last_difficulty", d.index)
         audio.play("click")
         session = LocalSession(d, autoplay=self.app.autoplay, map_id=settings.map_id,
-                               opponents=min(settings.opponents, settings.max_opponents))
+                               opponents=min(settings.opponents, settings.max_opponents), teams=settings.team_count)
         self.app.set_scene(GameScene(self.app, session))
 
     def multiplayer(self):
@@ -200,9 +200,11 @@ class MenuScene:
         # Map and opponent pickers
         meta = mapgen.BY_ID.get(settings.map_id, mapgen.CATALOG[0])
         n = min(settings.opponents, settings.max_opponents)
+        tc = settings.team_count
         picks = [(360, f"Map: {meta['name']}  ({meta['players']}p)", settings.cycle_map),
-                 (170, f"Opponents: {n}", settings.cycle_opponents)]
-        pt = sum(p[0] for p in picks) + tg
+                 (170, f"Opponents: {n}", settings.cycle_opponents),
+                 (170, "Teams: Free-for-all" if tc < 2 else f"Teams: {tc}", settings.cycle_teams)]
+        pt = sum(p[0] for p in picks) + tg * (len(picks) - 1)
         x = w / 2 - pt / 2
         py = ty + th + 12
         for pw, label, action in picks:
@@ -213,6 +215,9 @@ class MenuScene:
             self.toggles.append((r, action))
             x += pw + tg
         ui.blit_text(screen, meta.get("desc", ""), 12, DIM, (w / 2, py + th + 14), align="center")
+        # Who is with whom — the round-robin deal is otherwise invisible until the game starts.
+        ui.blit_text(screen, lineup_text(n, tc), 13, AMBER if tc >= 2 else DIM, (w / 2, py + th + 34),
+                     align="center", bold=tc >= 2)
         ty += th + 38
         lines = ["Mine crystal with Engineers, expand, and train an army of Rangers and Siege Tanks.",
                  "Destroy every enemy building to win. Objectives on screen will guide your first minutes."]

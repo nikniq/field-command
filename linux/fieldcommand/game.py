@@ -354,7 +354,9 @@ class GameScene:
         if self.online:
             self.back_to_lobby()
             return
-        self.app.set_scene(GameScene(self.app, LocalSession(self.difficulty, autoplay=self.app.autoplay)))
+        map_id, opponents, teams = getattr(self.s, "skirmish", (None, 1, 0))
+        self.app.set_scene(GameScene(self.app, LocalSession(self.difficulty, autoplay=self.app.autoplay,
+                                                            map_id=map_id, opponents=opponents, teams=teams)))
 
     def back_to_lobby(self):
         from .lobby import LobbyScene

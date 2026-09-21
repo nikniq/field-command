@@ -420,10 +420,10 @@ struct NetShell {
 /// Starts a single-player skirmish. The game runs on a private loopback server with the same simulation as
 /// multiplayer (maps, pathfinding, AI), so single player and multiplayer always behave the same. Falls back to
 /// the built-in SpriteKit simulation if the local server cannot be started.
-func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int) {
+func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0) {
     func fallback() { showScene(view, GameScene(size: size, difficulty: difficulty), fade: 0.6) }
     stopHostedServer()
-    let server = GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId)
+    let server = GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
     server.log = { _ in }
     server.timeScale = Double(Settings.gameSpeed)
     do { try server.start() } catch { return fallback() }
@@ -443,7 +443,7 @@ func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId:
                 conn.send(["t": "start"])
             case "start":
                 let net = NetSession(conn: conn, start: m)
-                net.skirmish = (mapId, opponents)
+                net.skirmish = (mapId, opponents, teams)
                 showScene(view, GameScene(size: size, difficulty: difficulty, net: net), fade: 0.6)
                 return
             default: break

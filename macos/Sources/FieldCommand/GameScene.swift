@@ -698,7 +698,8 @@ final class GameScene: SKScene {
     func restart() {
         if let net, let sk = net.skirmish {
             leaveNetGame()
-            startSkirmish(view, size: size, difficulty: net.difficulty, mapId: sk.mapId, opponents: sk.opponents)
+            startSkirmish(view, size: size, difficulty: net.difficulty, mapId: sk.mapId, opponents: sk.opponents,
+                          teams: sk.teams)
             return
         }
         if isNet {

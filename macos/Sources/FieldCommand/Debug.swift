@@ -385,6 +385,36 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_TEAMSTEST=1: single-player teams — the deal, a 2v2 played to the finish, and the title-screen lineup
+    /// text (printed so it can be compared with the Python edition's).
+    static func runTeamsTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+
+        let server = GameServer.singlePlayer(opponents: 3, difficulty: 1, mapId: "four_corners", teams: 2)
+        let dealt = Array(server.slotTeams.prefix(4))
+        print("teams test: four_corners, 3 opponents, 2 teams -> \(dealt)")
+        check(dealt == [1, 2, 1, 2], "players are dealt round-robin, like the lobby presets")
+
+        let map = SMapGen.generate("four_corners")
+        let players = (0..<4).map { SPlayer(slot: $0, name: "P\($0)", team: teamOf(slot: $0, teams: 2), isAI: true, start: $0) }
+        let w = SWorld(map: map, players: players, difficulty: .normal)
+        check(w.allied(0, 2) && !w.allied(0, 1) && !w.allied(0, 3), "You and Computer 2 are allies; 1 and 3 are not")
+        while !w.gameOver && w.elapsed < 1500 { w.step(1.0 / 30); w.events.removeAll() }
+        let alive = w.players.values.filter { $0.alive }.map { $0.slot }.sorted()
+        let alliances = Set(alive.map { teamOf(slot: $0, teams: 2) })
+        print(String(format: "teams test: 2v2 over=%@ at t=%.0fs, winning alliance %@, survivors %@",
+                     "\(w.gameOver)", w.elapsed, "\(w.winnerTeam ?? -1)", "\(alive)"))
+        check(w.gameOver, "a 2v2 plays to a finish")
+        check(alliances.count == 1 && alliances.first == w.winnerTeam, "every survivor is on the winning alliance")
+
+        for (o, t) in [(1, 0), (3, 2), (3, 3), (5, 3), (5, 4), (11, 2), (11, 4)] {
+            print("LINEUP \(o) \(t) \(lineupText(opponents: o, teams: t))")
+        }
+        print(ok ? "TEAMS TEST PASSED" : "TEAMS TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_WORLDTEST=1: plays an AI-only game on every map with the server simulation and exits.
     static func runWorldTest() -> Never {
         var ok = true

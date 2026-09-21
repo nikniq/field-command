@@ -21,7 +21,8 @@ def _path():
 class _Settings:
     defaults = {"speed_index": 1, "edge_scroll": True, "sound": True, "objectives": True,
                 "last_difficulty": 1, "fullscreen": False,
-                "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1}
+                "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
+                "teams": 0}   # 0 = free-for-all, otherwise the number of teams the players are dealt into
 
     def __init__(self):
         self._data = dict(self.defaults)
@@ -57,6 +58,7 @@ class _Settings:
         i = ids.index(self.map_id) if self.map_id in ids else -1
         self.set("map_id", ids[(i + 1) % len(ids)])
         self.set("opponents", min(self.opponents, self.max_opponents))
+        self._clamp_teams()
 
     @property
     def max_opponents(self):
@@ -65,6 +67,30 @@ class _Settings:
 
     def cycle_opponents(self):
         self.set("opponents", self.opponents % self.max_opponents + 1)
+        self._clamp_teams()
+
+    # Teams for a single-player game. Players are dealt round-robin into `teams` alliances — the same rule
+    # as the multiplayer lobby's presets — so with three opponents, "2 teams" is you and Computer 2 against
+    # Computers 1 and 3.
+
+    @property
+    def team_options(self):
+        """0 (free-for-all) plus every team count that is not just free-for-all by another name."""
+        players = 1 + min(self.opponents, self.max_opponents)
+        return [0] + [c for c in (2, 3, 4) if c < players]
+
+    @property
+    def team_count(self):
+        return self.teams if self.teams in self.team_options else 0
+
+    def cycle_teams(self):
+        opts = self.team_options
+        i = opts.index(self.team_count)
+        self.set("teams", opts[(i + 1) % len(opts)])
+
+    def _clamp_teams(self):
+        if self.teams not in self.team_options:
+            self.set("teams", 0)
 
     @property
     def game_speed(self):

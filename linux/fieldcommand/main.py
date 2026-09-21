@@ -6,7 +6,8 @@ Developer environment variables (all optional):
     FC_HEADLESS=1         run without a window as fast as possible (implies dummy video/audio drivers)
     FC_SNAPSHOT_DIR=dir   save periodic screenshots and a stats log (headless or windowed)
     FC_MENUSHOT=path      render the title screen to a PNG and exit
-    FC_MAP=id             map for FC_AUTOSTART games (see mapgen.CATALOG); FC_OPPONENTS=1..3 computer opponents
+    FC_MAP=id             map for FC_AUTOSTART games (see mapgen.CATALOG); FC_OPPONENTS=1..11 computer opponents
+    FC_TEAMS=n            deal the players into n teams (default: free-for-all)
 
 Command line:
     field-command --server [--port 47777] [--name NAME]   run a dedicated multiplayer server
@@ -74,7 +75,8 @@ class App:
             from .session import LocalSession
             self.scene = GameScene(self, LocalSession(DIFFICULTIES[int(auto or 1) % 3], autoplay=self.autoplay,
                                                       map_id=env.get("FC_MAP") or self.settings.map_id,
-                                                      opponents=int(env.get("FC_OPPONENTS") or self.settings.opponents)))
+                                                      opponents=int(env.get("FC_OPPONENTS") or self.settings.opponents),
+                                                      teams=int(env.get("FC_TEAMS") or 0)))
         else:
             from .menu import MenuScene
             self.scene = MenuScene(self)

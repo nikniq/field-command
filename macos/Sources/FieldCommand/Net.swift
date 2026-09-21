@@ -302,7 +302,7 @@ final class NetSession {
     var shells: [NetShell] = []
     var cameraPending = true
     /// Set for a single-player skirmish against a private local server.
-    var skirmish: (mapId: String, opponents: Int)?
+    var skirmish: (mapId: String, opponents: Int, teams: Int)?
     var isLocal: Bool { skirmish != nil }
     var sentPause = false
 

@@ -48,6 +48,8 @@ final class GameServer {
     private var world: SWorld?
     /// The live simulation, for the automated tests in Debug.swift.
     var simulation: SWorld? { world }
+    /// Each slot's alliance, for the automated tests in Debug.swift.
+    var slotTeams: [Int] { slots.map { $0.team } }
     private var pending: [(Int, [Any])] = []
     private var tick = 0
     private var running = false
@@ -65,13 +67,13 @@ final class GameServer {
 
     /// A private server for a single-player skirmish: slot 0 is the local player, followed by `opponents`
     /// computer players on their own teams. Listens on an ephemeral loopback port (see `port` after `start`).
-    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String) -> GameServer {
+    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0) -> GameServer {
         let s = GameServer(name: "Skirmish", port: 0)
         s.localOnly = true
         s.difficulty = difficulty
         s.mapId = mapId
         for slot in s.slots {
-            slot.team = slot.index + 1
+            slot.team = teamOf(slot: slot.index, teams: teams)
             if slot.index == 0 { slot.kind = "open" } else if slot.index <= opponents {
                 slot.kind = "ai"
                 slot.name = opponents > 1 ? "Computer \(slot.index)" : "Computer"

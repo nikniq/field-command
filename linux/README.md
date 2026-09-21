@@ -90,6 +90,13 @@ time rather than winning outright.
 Seven maps ship with the game; pick one on the title screen (**Map:**) along with the number of computer
 opponents (up to eleven on a mega map), or let the lobby host choose one for a multiplayer game.
 
+**Teams** on the title screen turns a single-player game into a team game with computer allies. Players are
+dealt round-robin into that many alliances — the same rule as the multiplayer lobby's presets — and the line
+under the map says exactly who is with whom before you start: with three opponents, *Teams: 2* is you and
+Computer 2 against Computers 1 and 3. Allies share their vision, never fire on each other, and win together;
+the game is over when one alliance is left. Only team counts that differ from free-for-all are offered, so
+with a single opponent the setting stays on *Free-for-all*.
+
 | Map | Players | Terrain |
 | --- | --- | --- |
 | Twin Ridges | 2 | Open ground, bases in opposite corners |
@@ -171,4 +178,5 @@ make test                                   # headless AI-vs-AI match, prints th
 FC_AUTOSTART=1 ./field-command              # skip the menu (0 easy, 1 normal, 2 hard)
 FC_HEADLESS=1 FC_AUTOPLAY=1 FC_SNAPSHOT_DIR=/tmp/fc ./field-command   # screenshots + stats log
 FC_MAP=riverlands FC_OPPONENTS=11 FC_AUTOSTART=1 ./field-command      # a specific map and opponent count
+FC_MAP=four_corners FC_OPPONENTS=3 FC_TEAMS=2 FC_AUTOSTART=1 ./field-command   # a 2v2 with a computer ally
 ```

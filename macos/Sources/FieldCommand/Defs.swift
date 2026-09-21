@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.3.0"
+let appVersion = "1.4.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -291,6 +291,30 @@ let bridgeRebuildTime: Double = 25
 // full bar costs `repairCostRatio` of the building's price, charged as the health goes back on.
 let repairTime: Double = 30
 let repairCostRatio: Double = 0.35
+
+// MARK: - Single-player teams
+
+/// The alliance a slot plays for: its own in a free-for-all (teams 0), otherwise dealt round-robin into
+/// `teams` alliances — the same rule as the multiplayer lobby's presets.
+func teamOf(slot: Int, teams: Int) -> Int { teams >= 2 ? slot % teams + 1 : slot + 1 }
+
+/// Who plays with whom, for the title screen: "You + Computer 2  vs  Computer 1 + Computer 3".
+/// Matches the Python edition's `lineup_text` word for word.
+func lineupText(opponents: Int, teams: Int) -> String {
+    let names = ["You"] + (1...max(1, opponents)).map { opponents > 1 ? "Computer \($0)" : "Computer" }
+    guard teams >= 2 else { return "Free-for-all: everyone for themselves" }
+    var sides: [Int: [String]] = [:]
+    for (i, n) in names.enumerated() { sides[teamOf(slot: i, teams: teams), default: []].append(n) }
+    let ordered = sides.keys.sorted().map { sides[$0]! }
+    let full = ordered.map { $0.joined(separator: " + ") }.joined(separator: "  vs  ")
+    if full.count <= 80 { return full }
+    // Big games: say it in numbers rather than names so the line fits the screen.
+    let mine = sides[teamOf(slot: 0, teams: teams)]!
+    let others = sides.keys.sorted().filter { $0 != teamOf(slot: 0, teams: teams) }.map { sides[$0]!.count }
+    let allies = mine.count - 1
+    let sizes = Set(others).count == 1 ? "\(others[0])" : others.map(String.init).joined(separator: "/")
+    return "You + \(allies) \(allies == 1 ? "ally" : "allies")  vs  \(others.count) \(others.count == 1 ? "team" : "teams") of \(sizes)"
+}
 
 enum ButtonIcon {
     case attack, stop, unit(UnitKind), building(BuildingKind)

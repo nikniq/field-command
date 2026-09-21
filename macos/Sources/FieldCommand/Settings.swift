@@ -49,7 +49,35 @@ enum Settings {
     static func cycleMap() {
         let ids = SMapGen.catalog.map { $0.id }
         mapId = ids[((ids.firstIndex(of: mapId) ?? -1) + 1) % ids.count]
+        clampTeams()
     }
 
-    static func cycleOpponents() { opponents = opponents % maxOpponents + 1 }
+    static func cycleOpponents() {
+        opponents = opponents % maxOpponents + 1
+        clampTeams()
+    }
+
+    // Teams for a single-player game. Players are dealt round-robin into `teams` alliances — the same rule
+    // as the multiplayer lobby's presets — so with three opponents, "2 teams" is you and Computer 2 against
+    // Computers 1 and 3. 0 means free-for-all.
+
+    static var teams: Int {
+        get { d.object(forKey: "teams") as? Int ?? 0 }
+        set { d.set(newValue, forKey: "teams") }
+    }
+
+    /// 0 (free-for-all) plus every team count that is not just free-for-all by another name.
+    static var teamOptions: [Int] {
+        let players = 1 + opponents
+        return [0] + [2, 3, 4].filter { $0 < players }
+    }
+
+    static var teamCount: Int { teamOptions.contains(teams) ? teams : 0 }
+
+    static func cycleTeams() {
+        let opts = teamOptions
+        teams = opts[((opts.firstIndex(of: teamCount) ?? 0) + 1) % opts.count]
+    }
+
+    private static func clampTeams() { if !teamOptions.contains(teams) { teams = 0 } }
 }
