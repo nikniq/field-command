@@ -28,6 +28,8 @@ final class GameScene: SKScene {
     /// Crossings, in map order. The server numbers them the same way, so the nth snapshot entry is this
     /// nth node; their condition arrives with every snapshot.
     var bridgeNodes: [BridgeNode] = []
+    /// Watchtowers, created from the first snapshot that names them.
+    var towerNodes: [TowerNode] = []
     var mapKey = "twin_ridges"
 
     let world = SKNode()
@@ -984,12 +986,15 @@ final class GameScene: SKScene {
         var target: Entity?
         var crystal: Crystal?
         var hoveredBridge: BridgeNode?
+        var hoveredTower: TowerNode?
         let active = mouse != nil && !hud.overlayVisible && dragStart == nil && placing == nil
         if active, let m = mouse, !hud.isOverHUD(m.hud) {
             target = entity(at: m.world)
             if target == nil, fog.isExplored(m.world) { crystal = self.crystal(at: m.world) }
             if target == nil, crystal == nil { hoveredBridge = bridge(at: m.world) }
+            if target == nil, crystal == nil, hoveredBridge == nil { hoveredTower = tower(at: m.world) }
         }
+        for t in towerNodes where t.hovered != (t === hoveredTower) { t.hovered = (t === hoveredTower) }
         for b in bridgeNodes where b.hovered != (b === hoveredBridge) { b.hovered = (b === hoveredBridge) }
         if target !== hovered {
             hovered?.isHovered = false
@@ -1005,6 +1010,13 @@ final class GameScene: SKScene {
                 hud.setHover(label, color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
             } else if let c = crystal {
                 hud.setHover("Crystal  \(c.amount)", color: Palette.crystal, at: m.hud)
+            } else if let t = hoveredTower {
+                let who: String
+                if let o = t.owner { who = Team(rawValue: o).isLocal ? "yours" : "held by \(playerName(Team(rawValue: o)))" }
+                else { who = "unclaimed" }
+                let hint = t.capturing.map { "    \(playerName(Team(rawValue: $0))) taking it \(Int(t.progress * 100))%" } ?? ""
+                hud.setHover("Watchtower — \(who): stand troops inside its ring for 8s to take it\(hint)",
+                             color: t.owner.map { Team(rawValue: $0).lightColor } ?? Palette.dim, at: m.hud)
             } else if let br = hoveredBridge {
                 if br.intact {
                     hud.setHover("Bridge  \(Int(ceil(br.hp)))/\(Int(bridgeHP))    A then click to demolish",
@@ -1198,6 +1210,8 @@ final class GameScene: SKScene {
     func isRepairable(_ b: Building) -> Bool {
         !b.dead && b.built && b.hp < b.maxHp && b.team.isFriendly
     }
+
+    func tower(at p: CGPoint) -> TowerNode? { towerNodes.first { $0.contains(world: p) } }
 
     func bridge(at p: CGPoint) -> BridgeNode? {
         bridgeNodes.first { $0.contains(world: p) }

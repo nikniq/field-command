@@ -9,7 +9,8 @@ Orders are tuples:
 import math
 import random
 
-from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES,
+from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+                   TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
@@ -83,6 +84,10 @@ class Entity:
         if self.hp <= 0:
             self.hp = 0
             self.dead = True
+            if isinstance(attacker, Unit) and not attacker.dead and attacker.team != self.team:
+                attacker.credit_kill()
+        if attacker is not None:
+            self.game.reveal(attacker, self.team)
         self.game.alert_attack(self.team, self.x, self.y)
         self.on_damaged(attacker)
 
@@ -143,6 +148,59 @@ class Bridge(Entity):
         g.bridges_changed()
 
 
+class Watchtower:
+    """A neutral control point. Troops of one alliance alone inside its radius for TOWER_CAPTURE_TIME take
+    it; the owner then sees TOWER_SIGHT around it. It is never damaged, only taken."""
+    is_building = False
+    dead = False
+    team = None
+    name = "Watchtower"
+
+    def __init__(self, game, x, y):
+        self.game = game
+        self.id = game.next_id()
+        self.x, self.y = x, y
+        self.half = TOWER_HALF
+        self.rect = square_rect(x, y, TOWER_HALF)
+        self.owner = None          # slot of the player who holds it
+        self.capturing = None      # slot whose troops are taking it
+        self.progress = 0.0
+        self.selected = self.hovered = False
+
+    def surface_distance(self, px, py):
+        return rect_distance(self.rect, px, py)
+
+    def targetable_by(self, slot):
+        return False
+
+    def update(self, dt):
+        g = self.game
+        present = {}
+        for u in g.units:
+            if u.dead or math.hypot(u.x - self.x, u.y - self.y) > TOWER_RADIUS:
+                continue
+            present.setdefault(g.players[u.team].team, u.team)
+        owner_alliance = g.players[self.owner].team if self.owner is not None else None
+        if len(present) == 1:
+            alliance, slot = next(iter(present.items()))
+            if alliance == owner_alliance:
+                self.capturing, self.progress = None, 0.0
+            else:
+                if self.capturing is None or g.players[self.capturing].team != alliance:
+                    self.capturing, self.progress = slot, 0.0
+                self.progress += dt / TOWER_CAPTURE_TIME
+                if self.progress >= 1.0:
+                    self.owner, self.capturing, self.progress = slot, None, 0.0
+                    g.emit("flash", self.x, self.y, 80, f"team{slot}")
+                    g.emit("sound", "complete", self.x, self.y)
+                    g.emit("tower", slot, self.id, self.x, self.y)
+        else:
+            # Nobody, or a contested ring: the clock winds back.
+            self.progress = max(0.0, self.progress - dt / TOWER_CAPTURE_TIME)
+            if self.progress == 0.0:
+                self.capturing = None
+
+
 class Unit(Entity):
     def __init__(self, game, kind, team, x, y):
         s = UNITS[kind]
@@ -170,6 +228,9 @@ class Unit(Entity):
         # Siege mode (tanks only): MODE_* and the time left in a transition.
         self.mode = MODE_MOBILE
         self.mode_timer = 0.0
+        # Veterancy: kills so far and the rank they have earned.
+        self.kills = 0
+        self.rank = 0
         # Pathfinding state
         self.path = None
         self.path_goal = None
@@ -180,6 +241,23 @@ class Unit(Entity):
     @property
     def name(self):
         return self.stats.name
+
+    # ------------------------------------------------------------ veterancy
+
+    @property
+    def vet_mult(self):
+        return 1.0 + VET_BONUS * self.rank
+
+    def credit_kill(self):
+        self.kills += 1
+        rank = sum(1 for t in VET_THRESHOLDS if self.kills >= t)
+        if rank > self.rank:
+            added = self.stats.hp * VET_BONUS * (rank - self.rank)
+            self.rank = rank
+            self.max_hp += added
+            self.hp = min(self.max_hp, self.hp + added)
+            self.game.emit("flash", self.x, self.y, 40, f"team{self.team}")
+            self.game.emit("rank", self.team, self.id, rank, self.x, self.y)
 
     # ------------------------------------------------------------ siege mode
 
@@ -236,13 +314,13 @@ class Unit(Entity):
         if self.mode == MODE_UNSIEGING:
             return "Packing up"
         if o == "idle":
-            return "Sieged" if self.sieged else "Idle"
+            return ("Sieged" if self.sieged else "Idle") + self._rank_tag()
         if o == "move":
             return "Moving"
         if o == "amove":
             return "Attack-moving"
         if o == "attack":
-            return ("Sieged — engaging " if self.sieged else "Engaging ") + self.order[1].name
+            return ("Sieged — engaging " if self.sieged else "Engaging ") + self.order[1].name + self._rank_tag()
         if o == "gather":
             return "Returning cargo" if self.carrying else "Mining crystal"
         if o == "return":
@@ -254,6 +332,9 @@ class Unit(Entity):
         if o == "build":
             return f"Heading to build {BUILDINGS[self.order[1]].name}"
         return "Busy"
+
+    def _rank_tag(self):
+        return f"  ·  Rank {self.rank} ({self.kills} kills)" if self.rank else ""
 
     def surface_distance(self, px, py):
         return math.hypot(px - self.x, py - self.y) - self.radius
@@ -656,7 +737,7 @@ class Unit(Entity):
         g.emit("recoil", self.id)
         if self.kind == "tank":
             mx, my = self.x + ux * 33, self.y + uy * 33
-            damage = SIEGE_DAMAGE if self.sieged else self.stats.damage
+            damage = (SIEGE_DAMAGE if self.sieged else self.stats.damage) * self.vet_mult
             splash = SIEGE_SPLASH if self.sieged else self.stats.splash
             g.launch_shell(mx, my, t.x + jx, t.y + jy, damage, splash, self.team, self)
             g.emit("muzzle", mx, my, ang, 32 if self.sieged else 26)
@@ -664,21 +745,21 @@ class Unit(Entity):
             g.emit("sound", "cannon", self.x, self.y)
         elif self.kind == "sniper":
             mx, my = self.x + ux * 26 + uy * 3, self.y + uy * 26 - ux * 3
-            t.take_damage(self.stats.damage, self)
+            t.take_damage(self.stats.damage * self.vet_mult, self)
             g.emit("tracer", mx, my, t.x, t.y, 2)
             g.emit("muzzle", mx, my, ang, 18)
             g.emit("sparks", t.x, t.y, 6, 90, "hit")
             g.emit("sound", "snipe", self.x, self.y)
         elif self.kind == "marine":
             mx, my = self.x + ux * 20 + uy * 4.5, self.y + uy * 20 - ux * 4.5
-            t.take_damage(self.stats.damage, self)
+            t.take_damage(self.stats.damage * self.vet_mult, self)
             g.emit("tracer", mx, my, t.x + jx, t.y + jy, 0)
             g.emit("muzzle", mx, my, ang, 12)
             if random.random() < 0.5:
                 g.emit("sparks", t.x + jx, t.y + jy, 4, 60, "hit")
             g.emit("sound", "rifle", self.x, self.y)
         else:
-            t.take_damage(self.stats.damage, self)
+            t.take_damage(self.stats.damage * self.vet_mult, self)
             g.emit("sparks", self.x + ux * (self.radius + 5), self.y + uy * (self.radius + 5), 3, 35, "amber")
 
     def on_damaged(self, attacker):

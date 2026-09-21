@@ -309,6 +309,10 @@ class HUD:
             if s.fog.is_explored(c.x, c.y):
                 p = self._mm_point(c.x, c.y)
                 pygame.draw.rect(screen, to255(CRYSTAL), (p[0] - 1, p[1] - 1, 3, 3))
+        for t in getattr(s, "towers", ()):
+            p = self._mm_point(t.x, t.y)
+            col = to255(TEAM_LIGHT[t.owner]) if t.owner is not None else (190, 190, 190)
+            pygame.draw.circle(screen, col, p, 4, 0 if t.owner is not None else 1)
         for br in getattr(s, "bridges", ()):
             x0, y0 = self._mm_point(br.rect[0], br.rect[3])
             x1, y1 = self._mm_point(br.rect[2], br.rect[1])

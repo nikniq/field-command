@@ -479,8 +479,8 @@ final class GameServer {
         guard let kind = e.first as? String else { return false }
         func num(_ i: Int) -> Double { i < e.count ? Double(jNum(e[i])) : 0 }
         switch kind {
-        case "msg", "alert", "income", "built", "wave", "trained", "upgraded": return jInt(e[1]) == slot
-        case "elim", "gameover", "chat", "bridge": return true
+        case "msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank": return jInt(e[1]) == slot
+        case "elim", "gameover", "chat", "bridge", "tower": return true
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
             return w.sees(slot, ent)
@@ -498,7 +498,7 @@ final class GameServer {
         var units: [[Any]] = [], orders: [String: Any] = [:], buildings: [[Any]] = []
         for u in w.units where !u.dead && w.sees(slot, u) {
             units.append([u.id, u.team, NetProtocol.unitKinds.firstIndex(of: u.kind) ?? 0, r1(u.x), r1(u.y), deg(u.angle), deg(u.gunAngle),
-                          Int(u.hp.rounded(.up)), u.carrying, u.mode.rawValue])
+                          Int(u.hp.rounded(.up)), u.carrying, u.mode.rawValue, u.rank])
             if u.team == slot {
                 var pts: [Any] = []
                 for o in [u.order] + u.queued {
@@ -534,6 +534,7 @@ final class GameServer {
         return ["t": "snap", "time": (w.elapsed * 100).rounded() / 100, "res": Int(w.resources[slot] ?? 0),
                 "sup": [w.supplyUsed(slot), w.supplyCap(slot)], "u": units, "o": orders, "b": buildings,
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
+                "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]
     }
 }

@@ -10,8 +10,8 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import (AMBER, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR,
-                   TEAM_LIGHT, TEXT, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect, to255,
-                   upgrade_applies, upgrade_cost)
+                   TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
+                   to255, upgrade_applies, upgrade_cost)
 from .effects import Effects
 from .fogview import FogView
 from .net import STATUS
@@ -316,6 +316,19 @@ class GameScene:
         elif k == "upgraded":
             self.hud.flash(f"{BUILDINGS[ev[2]].name}: {UPGRADES[ev[3]].name} installed", GOOD)
             audio.play("complete")
+        elif k == "tower":
+            slot = ev[1]
+            if slot == me:
+                self.hud.flash("Watchtower captured — you now see far around it", GOOD)
+            elif self.s.allied(slot, me):
+                self.hud.flash(f"{self.s.players[slot].name} captured a Watchtower", AMBER)
+            else:
+                self.hud.flash(f"{self.s.players[slot].name} took a Watchtower", BAD)
+                self.hud.ping(ev[3], ev[4])
+        elif k == "rank":
+            if ev[1] == me:
+                u = self.s.by_id(ev[2])
+                self.hud.flash(f"{u.name if u else 'Unit'} promoted to rank {ev[3]}", GOOD)
         elif k == "bridge":
             down = not ev[2]
             self.hud.flash("Bridge destroyed" if down else "Bridge rebuilt", BAD if down else GOOD)
@@ -653,6 +666,8 @@ class GameScene:
                 crystal = self.s.crystal_at(wx, wy)
             if target is None and crystal is None:
                 bridge = self.bridge_at(wx, wy)
+            if target is None and crystal is None and bridge is None:
+                bridge = self.tower_at(wx, wy)
         hover = target or bridge
         if hover is not self.hovered:
             if self.hovered:
@@ -668,6 +683,17 @@ class GameScene:
             self.hud.set_hover(label, color, mouse)
         elif mouse and crystal:
             self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
+        elif mouse and bridge and getattr(bridge, "name", "") == "Watchtower":
+            t = bridge
+            if t.owner is None:
+                who = "unclaimed"
+            elif self.mine_slot(t.owner):
+                who = "yours"
+            else:
+                who = f"held by {self.s.players[t.owner].name}"
+            hint = f"    {self.s.players[t.capturing].name} taking it {int(t.progress * 100)}%" if t.capturing is not None else ""
+            self.hud.set_hover(f"Watchtower — {who}: stand troops inside its ring for 8s to take it{hint}",
+                               TEAM_LIGHT[t.owner] if t.owner is not None else DIM, mouse)
         elif mouse and bridge:
             if bridge.intact:
                 self.hud.set_hover(f"Bridge  {math.ceil(bridge.hp)}/{int(bridge.max_hp)}    A then click to demolish",
@@ -768,6 +794,16 @@ class GameScene:
 
     def _repairable(self, e):
         return e.is_building and not e.dead and e.built and e.hp < e.max_hp and self.friendly(e)
+
+    def tower_at(self, x, y):
+        for t in getattr(self.s, "towers", ()):
+            r = t.rect
+            if r[0] - 6 <= x <= r[2] + 6 and r[1] - 6 <= y <= r[3] + 6:
+                return t
+        return None
+
+    def mine_slot(self, slot):
+        return slot == self.s.slot
 
     def bridge_at(self, x, y, slack=0.0):
         for b in getattr(self.s, "bridges", ()):
@@ -1044,6 +1080,9 @@ class GameScene:
         for b in getattr(s, "bridges", ()):
             if visible(b.x, b.y):
                 self._draw_bridge(screen, b, z)
+        for t in getattr(s, "towers", ()):
+            if visible(t.x, t.y):
+                self._draw_tower(screen, t, z, ts)
         glow_px = int(90 / z)
         for c in s.crystals:
             if not visible(c.x, c.y) or not s.fog.is_explored(c.x, c.y):
@@ -1126,6 +1165,27 @@ class GameScene:
                                    (max(w, h) + 18) / (64 * art.SCALE) / z, tint=(*col, 255), fade=170)
             screen.blit(ring, (cx - ring.get_width() / 2, cy - ring.get_height() / 2))
 
+    def _draw_tower(self, screen, t, z, ts):
+        """The tower, its holder's banner, and the capture ring while someone is taking it."""
+        cam = self.cam
+        sx, sy = cam.to_screen(t.x, t.y)
+        sh = art.sprites.get("shadow", art.shadow(), 0, 70 / 64 / z)
+        screen.blit(sh, (sx + 6 / z - sh.get_width() / 2, sy + 8 / z - sh.get_height() / 2))
+        img = art.sprites.get(("watchtower", t.owner), art.watchtower(t.owner), 0, ts)
+        screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
+        if t.capturing is not None and t.progress > 0:
+            col = to255(TEAM_LIGHT[t.capturing])
+            r = int(TOWER_RADIUS / z)
+            pygame.draw.circle(screen, (*col[:3],), (int(sx), int(sy)), r, 1)
+            end = -math.pi / 2 + 2 * math.pi * t.progress
+            pygame.draw.arc(screen, col, (int(sx - r), int(sy - r), 2 * r, 2 * r), -end, math.pi / 2, 4)
+            self._draw_bar(screen, sx, sy + 40 / z, 60 / z, t.progress, TEAM_LIGHT[t.capturing])
+        if t.hovered:
+            col = to255(TEAM_LIGHT[t.owner]) if t.owner is not None else (200, 200, 200)
+            ring = art.sprites.get(("towerring", col), art.square_ring(), 0, (t.half * 2 + 22) / (64 * art.SCALE) / z,
+                                   tint=(*col, 255), fade=170)
+            screen.blit(ring, (sx - ring.get_width() / 2, sy - ring.get_height() / 2))
+
     def _draw_bar(self, screen, cx, cy, width, frac, color):
         w = max(12, int(width))
         x, y = int(cx - w / 2), int(cy)
@@ -1181,6 +1241,10 @@ class GameScene:
         elif u.kind == "worker" and u.carrying:
             c = art.sprites.get("cicon", art.crystal_icon(), 0, 10 / 20 / z)
             screen.blit(c, (bx - ca * 9 / z - c.get_width() / 2, by + sa * 9 / z - c.get_height() / 2))
+        rank = getattr(u, "rank", 0)
+        if rank:
+            ch = art.sprites.get(("chevrons", rank, u.team), art.chevrons(rank, u.team), 0, 1 / z)
+            screen.blit(ch, (sx - ch.get_width() / 2, sy - (u.radius + 16) / z - ch.get_height() / 2))
 
     def _draw_bars(self, screen, e):
         cam = self.cam

@@ -67,8 +67,19 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 6, so a 1.6.0 Mac and a 1.6.0 Linux client play together; neither accepts an
+Both editions speak protocol 7, so a 1.7.0 Mac and a 1.7.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
+
+## Attackers reveal themselves
+
+Anything that hits you shows itself to your side for 2.5 seconds, even from beyond your sight, and fades
+back into the fog when it stops firing.
+
+## Veterancy and watchtowers
+
+Units earn a rank at 2, 5 and 10 kills, each worth +10% damage and health, shown as chevrons. Three neutral
+watchtowers per map are taken by holding their ring for 8 seconds and grant 700 sight to the holder. Rules
+and placement match the Linux edition (`FC_TOWERTEST`).
 
 ## Building upgrades
 
@@ -115,4 +126,5 @@ FC_REPAIRTEST=1 .build/release/FieldCommand                   # repair time, cos
 FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player teams: the deal and a 2v2
 FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: transition, reach, blind spot
 FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrades: each effect and the rules
+FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks and watchtower capture
 ```

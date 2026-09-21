@@ -14,7 +14,8 @@ from fieldcommand.defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUIL
                                BUILDING_KINDS, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
                                SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION,
                                UNITS, UNIT_KINDS, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TURRET_UPGRADED_DAMAGE,
-                               TURRET_UPGRADED_RANGE, UPGRADES, UPGRADE_KINDS)
+                               TURRET_UPGRADED_RANGE, UPGRADES, UPGRADE_KINDS, TOWER_CAPTURE_TIME, TOWER_HALF,
+                               TOWER_RADIUS, TOWER_SIGHT, VET_BONUS, VET_THRESHOLDS, REVEAL_RADIUS, REVEAL_TIME)
 from fieldcommand import net  # noqa: E402
 from fieldcommand.session import lineup_text  # noqa: E402
 
@@ -120,6 +121,15 @@ def test_upgrade_catalogue_agrees():
     assert const("turretUpgradedDamage") == TURRET_UPGRADED_DAMAGE
     assert const("turretUpgradedRange") == TURRET_UPGRADED_RANGE
     assert const("depotUpgradedSupply") == DEPOT_UPGRADED_SUPPLY
+    assert const("vetBonus") == VET_BONUS
+    assert const("towerRadius") == TOWER_RADIUS
+    assert const("towerCaptureTime") == TOWER_CAPTURE_TIME
+    assert const("towerSight") == TOWER_SIGHT
+    assert const("towerHalf") == TOWER_HALF
+    assert const("revealTime") == REVEAL_TIME
+    assert const("revealRadius") == REVEAL_RADIUS
+    thresholds = re.search(r"let vetThresholds = \[([\d, ]+)\]", src).group(1)
+    assert tuple(int(x) for x in thresholds.split(",")) == VET_THRESHOLDS
 
 
 def test_app_versions_agree():

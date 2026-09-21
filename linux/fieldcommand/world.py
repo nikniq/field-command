@@ -10,9 +10,9 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (BRIDGE_COST, BUILDINGS, UNITS, clamp, rect_distance, rects_intersect,
-                   square_rect, upgrade_cost)
-from .entities import IDLE, Bridge, Building, Crystal, Unit
+from .defs import (BRIDGE_COST, BUILDINGS, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT, UNITS, clamp,
+                   rect_distance, rects_intersect, square_rect, upgrade_cost)
+from .entities import IDLE, Bridge, Building, Crystal, Unit, Watchtower
 from .fog import FogGrid
 from .nav import NavGrid
 
@@ -53,6 +53,7 @@ class World:
         teams = sorted({p.team for p in players})
         self.alliance_index = {t: i for i, t in enumerate(teams)}
         self.fog = {t: FogGrid() for t in teams}
+        self.reveals = {t: {} for t in teams}    # alliance -> {attacker id: revealed until (elapsed seconds)}
 
         self.map_walls = [tuple(w[:4]) for w in map_spec.get("walls", [])]
         self.bridges = []
@@ -68,10 +69,16 @@ class World:
             b = Bridge(self, tuple(rect))
             self.bridges.append(b)
             self.by_id[b.id] = b
+        self.towers = []          # filled once crystals and trees exist; then bridges_changed() adds them to walls
         for (x, y, amount, variant) in map_spec["crystals"]:
             c = Crystal(x, y, amount, variant, self.next_id())
             self.crystals.append(c)
             self.by_id[c.id] = c
+        for x, y in self._tower_sites():
+            t = Watchtower(self, x, y)
+            self.towers.append(t)
+            self.by_id[t.id] = t
+        self.bridges_changed()
         for p in players:
             sx, sy, base = map_spec["starts"][p.start]
             self._add(Building(self, "hq", p.slot, sx, sy, True))
@@ -98,10 +105,53 @@ class World:
         if e.is_building:
             self._nav_dirty = True
 
+    def reveal(self, attacker, victim_slot):
+        """Whoever just hit `victim_slot` shows itself to that player's alliance for a moment."""
+        team = getattr(attacker, "team", None)
+        if team is None or victim_slot not in self.players or self.allied(team, victim_slot):
+            return
+        self.reveals[self.players[victim_slot].team][attacker.id] = self.elapsed + REVEAL_TIME
+
+    def _tower_sites(self):
+        """Centre and the two flanks, each nudged to the nearest open ground. The Mac edition runs the same
+        search over the same map data, so both place the towers identically."""
+        w, h = defs.WORLD_W, defs.WORLD_H
+        sites = []
+        for cx, cy in ((w / 2, h / 2), (w / 4, h / 2), (3 * w / 4, h / 2)):
+            spot = self._open_ground_near(cx, cy)
+            if spot is not None:
+                sites.append(spot)
+        return sites
+
+    def _open_ground_near(self, cx, cy):
+        """Spirals outwards in 40-unit steps for a square of TOWER_HALF clear of water, cliffs, crystals,
+        trees, buildings and other towers."""
+        for ring in range(0, 12):
+            step = 40 * ring
+            candidates = [(cx, cy)] if ring == 0 else [
+                (cx + dx * step, cy + dy * step) for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
+            for x, y in candidates:
+                x, y = self.snapped(x, y)
+                r = square_rect(x, y, TOWER_HALF + 20)
+                if r[0] < 60 or r[1] < 60 or r[2] > defs.WORLD_W - 60 or r[3] > defs.WORLD_H - 60:
+                    continue
+                if any(rects_intersect(wl, r) for wl in self.map_walls):
+                    continue
+                if any(rect_distance(r, c.x, c.y) < c.radius + 30 for c in self.crystals):
+                    continue
+                if any(rect_distance(r, o[0], o[1]) < o[2] + 10 for o in self.nearby_obstacles(x, y)):
+                    continue
+                if any(rects_intersect(b.rect, r) for b in self.buildings):
+                    continue
+                if any(math.hypot(t.x - x, t.y - y) < 300 for t in self.towers):
+                    continue
+                return x, y
+        return None
+
     def bridges_changed(self):
         """A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
         Everything that consults `walls` — navigation, collision and building placement — follows from this."""
-        self.walls = self.map_walls + [b.rect for b in self.bridges if not b.intact]
+        self.walls = self.map_walls + [b.rect for b in self.bridges if not b.intact] + [t.rect for t in self.towers]
         self._nav_dirty = True
 
     def bridge_at(self, x, y, slack=0.0):
@@ -159,6 +209,8 @@ class World:
             if not b.dead:
                 b.update(dt)
         self._update_shells(dt)
+        for t in self.towers:
+            t.update(dt)
         for p in self.players.values():
             if p.ai and p.alive:
                 p.ai.update(dt)
@@ -172,6 +224,17 @@ class World:
     def update_visibility(self):
         for team, grid in self.fog.items():
             viewers = [(e.x, e.y, e.sight) for e in self.units + self.buildings if self.players[e.team].team == team]
+            viewers += [(t.x, t.y, TOWER_SIGHT) for t in self.towers
+                        if t.owner is not None and self.players[t.owner].team == team]
+            active = self.reveals[team]
+            for eid in [i for i, until in active.items() if until <= self.elapsed]:
+                del active[eid]
+            for eid in list(active):
+                e = self.by_id.get(eid)
+                if e is None or e.dead:
+                    del active[eid]
+                else:
+                    viewers.append((e.x, e.y, REVEAL_RADIUS))
             grid.recompute(viewers)
         for e in self.units + self.buildings:
             mask = 0
@@ -493,7 +556,9 @@ class World:
 
     @staticmethod
     def snapped(x, y):
-        return (round(x / 16) * 16, round(y / 16) * 16)
+        # floor(v + 0.5) rounds halves up, as Swift's .rounded() does; Python's round() would send 62.5 to 62
+        # and put a watchtower 16 units from where the Mac edition puts it.
+        return (math.floor(x / 16 + 0.5) * 16, math.floor(y / 16 + 0.5) * 16)
 
     def can_place(self, kind, x, y, margin=4, ignoring=None):
         r = square_rect(x, y, BUILDINGS[kind].half)

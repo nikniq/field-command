@@ -385,6 +385,118 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_TOWERTEST=1: veterancy and watchtowers on the server simulation — ranks from kills, the health and
+    /// damage they add, tower placement on every map, capture, contest and vision — matching the Python tests.
+    static func runTowerTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(_ mapId: String = "twin_ridges") -> SWorld {
+            let map = SMapGen.generate(mapId)
+            let n = SMapGen.info(mapId)?.players ?? 2
+            let players = (0..<n).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: players, difficulty: .normal)
+            for u in w.units { u.command(.idle) }
+            return w
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            w.updateVisibility()
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if done() { return true } }
+            return done()
+        }
+
+        // Veterancy
+        var w = fresh()
+        var hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        let r = unit(w, .marine, 0, hq.x + 100, hq.y)
+        r.hp = 30
+        for _ in 0..<vetThresholds[0] { r.creditKill() }
+        check(r.rank == 1 && r.maxHp == Double(UnitKind.marine.stats.hp) * (1 + vetBonus)
+              && r.hp == 30 + Double(UnitKind.marine.stats.hp) * vetBonus, "two kills: rank 1, more health, the difference granted")
+        for _ in 0..<(vetThresholds[2] - vetThresholds[0]) { r.creditKill() }
+        check(r.rank == 3 && r.vetMult == 1 + 3 * vetBonus, "ten kills: rank 3")
+
+        w = fresh()
+        hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        let sn = unit(w, .sniper, 0, hq.x + 100, hq.y)
+        let victims = (0..<2).map { unit(w, .worker, 1, sn.x + 200 + Double($0) * 20, sn.y) }
+        var killed = true
+        for v in victims {
+            w.apply(0, ["attack", [sn.id], v.id, false])
+            killed = run(w, 20) { v.dead } && killed
+        }
+        check(killed && sn.kills == 2 && sn.rank == 1, "kills in combat are credited to the shooter")
+
+        w = fresh()
+        let enemyHQ = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+        let vet = unit(w, .marine, 0, enemyHQ.x - 150, enemyHQ.y)
+        vet.kills = 10; vet.rank = 3
+        w.apply(0, ["attack", [vet.id], enemyHQ.id, false])
+        let hp0 = enemyHQ.hp
+        _ = run(w, 0.6)
+        check(abs((hp0 - enemyHQ.hp) - Double(UnitKind.marine.stats.damage) * 1.3) < 1e-6, "veterans hit harder (+30% at rank 3)")
+
+        // Watchtowers
+        for m in SMapGen.catalog {
+            let w = fresh(m.id)
+            let clear = w.towers.allSatisfy { t in !w.mapWallsForTests.contains { $0.distance(t.x, t.y) < 20 } }
+            check(w.towers.count == 3 && clear, "\(m.id): three towers on open ground")
+            print("TOWERS \(m.id) " + w.towers.map { "\(Int($0.x)),\(Int($0.y))" }.joined(separator: ";"))
+        }
+        w = fresh()
+        let t = w.towers[0]
+        _ = unit(w, .marine, 0, t.x + 60, t.y)
+        _ = run(w, towerCaptureTime - 0.5)
+        let pending = t.owner == nil && t.capturing == 0 && t.progress > 0.8
+        _ = run(w, 1.0)
+        check(pending && t.owner == 0 && t.progress == 0, "troops alone in the ring take it in eight seconds")
+
+        w = fresh()
+        let t2 = w.towers[0]
+        let a = unit(w, .marine, 0, t2.x + 60, t2.y), b = unit(w, .marine, 1, t2.x - 60, t2.y)
+        a.hp = 1e6; b.hp = 1e6
+        _ = run(w, 6)
+        check(t2.owner == nil && t2.progress == 0, "a contested ring does not flip")
+
+        w = fresh()
+        let t3 = w.towers[0]
+        let holder = unit(w, .marine, 0, t3.x + 60, t3.y)
+        _ = run(w, towerCaptureTime + 0.5)
+        w.updateVisibility()
+        let far = (t3.x + towerSight - 40, t3.y)
+        let sees = w.fogFor(0).isVisible(far.0, far.1) && !w.fogFor(1).isVisible(far.0, far.1)
+        holder.dead = true
+        _ = run(w, 0.1)
+        _ = unit(w, .marine, 1, t3.x - 60, t3.y)
+        _ = run(w, towerCaptureTime + 0.5)
+        w.updateVisibility()
+        check(t3.owner == 0 || t3.owner == 1, "someone holds it")
+        check(sees && t3.owner == 1 && w.fogFor(1).isVisible(far.0, far.1), "the owner sees around it, and can lose it")
+
+        // Attacker reveal
+        w = fresh()
+        hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        w.startBuilding(.depot, hq.x + 400, hq.y, 0)          // sees 200; cannot walk towards its attacker
+        let depot = w.buildings.last!
+        depot.built = true; depot.progress = 1; depot.hp = 1e6
+        let hidden = unit(w, .sniper, 1, depot.x + depot.half + Double(UnitKind.sniper.stats.range) - 10, depot.y)
+        let startsHidden = !w.sees(0, hidden)
+        w.apply(1, ["attack", [hidden.id], depot.id, false])
+        let shown = run(w, 5) { w.sees(0, hidden) }
+        hidden.command(.idle)
+        _ = run(w, revealTime + 0.5)
+        w.updateVisibility()
+        check(startsHidden && shown && !w.sees(0, hidden), "a hidden Sniper is revealed by its own shot, then fades again")
+
+        print(ok ? "TOWER TEST PASSED" : "TOWER TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_UPGRADETEST=1: building upgrades on the server simulation — each effect, price and research time,
     /// and the rules around buying them — matching linux/tests/test_upgrades.py.
     static func runUpgradeTest() -> Never {

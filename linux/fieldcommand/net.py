@@ -26,7 +26,7 @@ from .defs import BUILDING_KINDS, DIFFICULTIES, MAX_PLAYERS, UNIT_KINDS, UPGRADE
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 6
+PROTOCOL_VERSION = 7
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -65,8 +65,8 @@ def _r(v, nd=1):
 # ---------------------------------------------------------------- snapshots & event filtering
 
 POSITIONAL = {"tracer", "muzzle", "sparks", "smoke", "explode", "flash", "shell", "wreck", "rubble", "shake", "sound"}
-PRIVATE = {"msg", "alert", "income", "built", "wave", "trained", "upgraded"}
-PUBLIC = {"elim", "gameover", "chat", "bridge"}
+PRIVATE = {"msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank"}
+PUBLIC = {"elim", "gameover", "chat", "bridge", "tower"}
 
 
 def event_visible(world, slot, ev):
@@ -122,7 +122,7 @@ def snapshot_for(world, slot, events):
         if u.dead or not world.sees(slot, u):
             continue
         units.append([u.id, u.team, UNIT_INDEX[u.kind], _r(u.x), _r(u.y), int(math.degrees(u.angle)) % 360,
-                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying, u.mode])
+                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying, u.mode, u.rank])
         if u.team == slot:
             pts = []
             for code, x, y in order_points(u):
@@ -143,6 +143,8 @@ def snapshot_for(world, slot, events):
             "sup": [world.supply_used(slot), world.supply_cap(slot)],
             "u": units, "o": orders, "b": buildings,
             "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],
+            "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,
+                    -1 if t.capturing is None else t.capturing, int(t.progress * 100)] for t in world.towers],
             "c": [[c.id, c.amount] for c in world.crystals],
             "p": {str(s): int(p.alive) for s, p in world.players.items()},
             "e": [_pack_event(ev) for ev in events if event_visible(world, slot, ev)]}

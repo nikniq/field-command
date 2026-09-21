@@ -119,6 +119,7 @@ extension GameScene {
             }
             u.netTo = (pos, angle, gunAngle)
             if v.count > 9 { u.setMode(SiegeMode(rawValue: jInt(v[9])) ?? .mobile) }
+            if v.count > 10 { u.setRank(jInt(v[10])) }
             let hp = jNum(v[7])
             if hp != u.hp {
                 u.hp = hp
@@ -180,6 +181,21 @@ extension GameScene {
         }
         buildings.removeAll { $0.dead }
 
+        for t in jArr(m["tw"]) {
+            let v = jArr(t)
+            guard v.count >= 6 else { continue }
+            let id = jInt(v[0])
+            let node: TowerNode
+            if let existing = towerNodes.first(where: { $0.towerId == id }) {
+                node = existing
+            } else {
+                node = TowerNode(id: id, at: CGPoint(x: jNum(v[1]), y: jNum(v[2])))
+                world.addChild(node)
+                towerNodes.append(node)
+            }
+            let o = jInt(v[3]), c = jInt(v[4])
+            node.apply(owner: o < 0 ? nil : o, capturing: c < 0 ? nil : c, progress: jNum(v[5]) / 100)
+        }
         for (i, b) in jArr(m["br"]).enumerated() {
             let v = jArr(b)
             guard v.count >= 4, i < bridgeNodes.count else { continue }
@@ -266,6 +282,20 @@ extension GameScene {
                 hud.flash("Ally's \(k.stats.name) destroyed", color: Palette.amber)
             } else {
                 hud.flash("Enemy \(k.stats.name) destroyed", color: Palette.good)
+            }
+        case "tower":
+            let slot = jInt(e[1])
+            if slot == net.slot {
+                hud.flash("Watchtower captured — you now see far around it", color: Palette.good)
+            } else if Team(rawValue: slot).isFriendly {
+                hud.flash("\(playerName(Team(rawValue: slot))) captured a Watchtower", color: Palette.amber)
+            } else {
+                hud.flash("\(playerName(Team(rawValue: slot))) took a Watchtower", color: Palette.bad)
+                alertAttack(at: p(3))
+            }
+        case "rank":
+            if jInt(e[1]) == net.slot, let u = net.units[jInt(e[2])] {
+                hud.flash("\(u.displayName) promoted to rank \(jInt(e[3]))", color: Palette.good)
             }
         case "upgraded":
             if let bk = NetProtocol.buildingKind(jStr(e[2])),

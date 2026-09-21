@@ -61,6 +61,30 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## Attackers reveal themselves
+
+Anything that hits you shows itself to your side for 2.5 seconds, even from beyond your sight. A Sniper or a
+dug-in Siege Tank shelling you from the dark appears on the map and the minimap for as long as it keeps
+firing, so it can be seen and answered; stop firing and it fades back into the fog.
+
+## Veterancy
+
+Every unit counts its kills. At **2, 5 and 10** it earns a rank, and each rank adds **10%** to its base damage
+and hit points — the extra health is granted on promotion, so a veteran walks out of the fight stronger, not
+merely with a taller empty bar. Chevrons above the unit show its rank, and the selection panel says
+"Rank 2 (5 kills)". Buildings count too: a Sniper that finishes off a Turret gets the credit. Pulling a
+wounded rank-3 tank back to be repaired is now worth more than a fresh one.
+
+## Watchtowers
+
+Every map has three neutral **watchtowers** — one at the centre, one on each flank, nudged onto dry ground
+by the same rule in both editions, applied to the map the server generated, so every client in a game sees
+them in the same place. Park troops inside
+a tower's ring (140) for **8 seconds** with nothing hostile in it and it is yours: a pennant in your colour
+goes up, and you see **700** around it until someone takes it back the same way. A contested ring never
+flips, and the capture clock winds back when the ring empties. Towers are marked on the minimap, and
+computer players send a few idle troops to sit on the nearest one they do not hold.
+
 ## Building upgrades
 
 Select a finished building and the command card offers its upgrades. Each is researched by that building
@@ -160,9 +184,9 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same version: the protocol is at 6 (Field Command 1.6.0, building upgrades; 5 siege
-mode; 4 repair; 3 destructible bridges; 2 the Sniper and the Radar Station), and a server refuses older
-clients rather than letting them mis-read the game.
+All players must run the same version: the protocol is at 7 (Field Command 1.7.0, veterancy and watchtowers;
+6 building upgrades; 5 siege mode; 4 repair; 3 destructible bridges; 2 the Sniper and the Radar Station),
+and a server refuses older clients rather than letting them mis-read the game.
 
 The server is authoritative: clients send orders and receive state snapshots (about 10–15 KB/s per player), and
 fog of war is enforced on the server, so a modified client can't reveal the map.

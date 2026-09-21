@@ -103,6 +103,9 @@ setvbuf(stdout, nil, _IOLBF, 0)
 if let m = Debug.env["FC_SKIRMISHTEST"] {
     Debug.runSkirmishTest(m)
 }
+if Debug.env["FC_TOWERTEST"] != nil {
+    Debug.runTowerTest()
+}
 if Debug.env["FC_UPGRADETEST"] != nil {
     Debug.runUpgradeTest()
 }

@@ -336,6 +336,49 @@ def tank_outriggers(team):
     return texture(("outriggers", team), (76, 56), d)
 
 
+def watchtower(team):
+    """A stone tower on a square footing, flying the holder's banner — grey and bare when nobody holds it."""
+    col = TEAM_COLOR[team] if team is not None else rgb(0.45, 0.47, 0.5)
+
+    def d(c):
+        base = rr(-30, -30, 60, 60, 6)
+        lit(c, base, CONCRETE, 0.75)
+        stroke(c, base, rgb(0, 0, 0, 0.5), 1.2)
+        for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+            fill(c, circle(sx * 24, sy * 24, 2.2), rgb(0.2, 0.2, 0.22))
+        # The tower itself, drawn as a stack of shrinking rings so it reads as tall from above.
+        for i, r in enumerate((22, 18, 14)):
+            ring_ = circle(3 - i, -3 + i, r)
+            lit(c, ring_, mix(rgb(0.55, 0.53, 0.5), BLACK, 0.12 * i))
+            stroke(c, ring_, rgb(0, 0, 0, 0.55), 1)
+        top = circle(1, -1, 10)
+        lit(c, top, rgb(0.62, 0.6, 0.57))
+        stroke(c, top, rgb(0, 0, 0, 0.6), 1)
+        for i in range(8):
+            a = i * math.pi / 4
+            fill(c, rr(1 + math.cos(a) * 11 - 1.6, -1 + math.sin(a) * 11 - 1.6, 3.2, 3.2, 0.6), rgb(0.35, 0.34, 0.33))
+        # Banner: a pole with a pennant in the holder's colour.
+        lines(c, [((1, -1), (1, 24))], rgb(0.15, 0.15, 0.16), 2)
+        fill(c, poly([(1, 24), (17, 19), (1, 13)]), col)
+        stroke(c, poly([(1, 24), (17, 19), (1, 13)]), rgb(0, 0, 0, 0.5), 0.8)
+        if team is not None:
+            fill(c, circle(1, -1, 3.5), TEAM_LIGHT[team])
+    return texture(("watchtower", team), (84, 84), d)
+
+
+def chevrons(rank, team):
+    """Rank marks drawn above a veteran: one, two or three small chevrons in the owner's light colour."""
+    col = TEAM_LIGHT[team]
+
+    def d(c):
+        for i in range(rank):
+            y = -6 + i * 5
+            p = poly([(-6, y - 2.5), (0, y + 2.5), (6, y - 2.5), (6, y - 5), (0, y), (-6, y - 5)])
+            fill(c, p, col)
+            stroke(c, p, rgb(0, 0, 0, 0.7), 0.7)
+    return texture(("chevrons", rank, team), (16, 20), d)
+
+
 def icon_plate(w, h):
     """The dark rounded plate drawn behind command-card icons."""
     key = ("icon_plate", w, h)

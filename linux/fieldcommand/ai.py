@@ -264,6 +264,21 @@ class AI:
                 if t:
                     u.command(("amove", t.x, t.y))
         self._siege(home)
+        self._towers(hq, home)
+
+    def _towers(self, hq, home):
+        """Between waves, a few idle troops go and sit on the nearest watchtower nobody on this side holds."""
+        g = self.game
+        if not g.towers or len(home) < 4 or g.elapsed < 120:
+            return
+        mine = g.players[self.team].team
+        unheld = [t for t in g.towers if t.owner is None or g.players[t.owner].team != mine]
+        if not unheld:
+            return
+        t = min(unheld, key=lambda t: math.hypot(t.x - hq.x, t.y - hq.y))
+        idle = [u for u in home if u.order[0] == "idle" and u.kind != "worker"][:3]
+        for u in idle:
+            u.command(("amove", t.x + random.uniform(-40, 40), t.y + random.uniform(-40, 40)))
 
     def _siege(self, home):
         """Tanks dig in when an enemy building is within sieged range and pack up when nothing is."""

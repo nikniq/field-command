@@ -498,6 +498,9 @@ final class HUD: SKNode {
         }
         for c in game.crystals where !c.dead && game.fog.isExplored(c.position) { put(c.position, Palette.crystal, 3) }
         // Crossings are strategic, so they are marked: amber while they stand, red once they are down.
+        for t in game.towerNodes {
+            put(t.position, t.owner.map { Team(rawValue: $0).lightColor } ?? NSColor(white: 0.75, alpha: 1), 5)
+        }
         for br in game.bridgeNodes {
             put(br.position, br.intact ? Palette.amber : Palette.bad,
                 max(4, min(br.rect.width, br.rect.height) * mmScale))

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.6.1"
+let appVersion = "1.7.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -344,6 +344,22 @@ enum UpgradeKind: Int, CaseIterable {
     func cost(for b: BuildingKind) -> Int { stats.flat ? Int(stats.cost) : Int((Double(b.stats.cost) * stats.cost).rounded()) }
     var wireName: String { ["hp", "armor", "prod", "supply", "guns"][rawValue] }
 }
+
+// Attacker reveal: anything that hits you shows itself to your alliance for `revealTime` seconds, even from
+// beyond your sight — so a Sniper or a dug-in tank shelling you from the dark can be seen and answered.
+let revealTime: Double = 2.5
+let revealRadius: Double = 60
+
+// Veterancy: a rank at each kill count, every rank adding `vetBonus` of base damage and hit points.
+let vetThresholds = [2, 5, 10]
+let vetBonus: Double = 0.10
+
+// Watchtowers: neutral control points at the centre and flanks of every map. Troops of one alliance alone
+// inside `towerRadius` for `towerCaptureTime` seconds take one; the owner sees `towerSight` around it.
+let towerRadius: Double = 140
+let towerCaptureTime: Double = 8
+let towerSight: Double = 700
+let towerHalf: Double = 26
 
 let armorFactor: Double = 0.7
 let turretUpgradedDamage: Double = 20

@@ -201,6 +201,25 @@ def upgrade_applies(kind, building_kind):
     return not a or building_kind in a
 
 
+# Attacker reveal. Anything that hits you shows itself to your alliance for REVEAL_TIME seconds, even from
+# beyond your sight — so a Sniper or a dug-in tank shelling you from the dark can be seen and answered.
+REVEAL_TIME = 2.5
+REVEAL_RADIUS = 60.0
+
+# Veterancy. A unit earns a rank at each kill count in VET_THRESHOLDS; every rank adds VET_BONUS of its base
+# damage and hit points (the extra health is granted on promotion, so a veteran comes out of the fight
+# stronger, not merely with a taller empty bar).
+VET_THRESHOLDS = (2, 5, 10)
+VET_BONUS = 0.10
+
+# Watchtowers. Neutral control points at the centre and the two flanks of every map, nudged onto dry ground.
+# Stand troops within TOWER_RADIUS for TOWER_CAPTURE_TIME seconds with nothing hostile inside it to take one;
+# the owner sees TOWER_SIGHT around it. Anyone can take it back the same way.
+TOWER_RADIUS = 140.0
+TOWER_CAPTURE_TIME = 8.0
+TOWER_SIGHT = 700.0
+TOWER_HALF = 26.0
+
 # Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
 # full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
 REPAIR_TIME = 30.0

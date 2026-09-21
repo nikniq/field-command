@@ -930,6 +930,47 @@ enum Art {
         return t
     }
 
+    /// A stone tower on a square footing, flying the holder's banner — grey and bare when nobody holds it.
+    static func watchtower(_ team: Team?) -> SKTexture {
+        let col = team?.color ?? NSColor.rgb(0.45, 0.47, 0.5)
+        return texture("watchtower-\(team?.rawValue ?? -1)", size: CGSize(width: 84, height: 84)) { ctx in
+            let base = rr(box(-30, -30, 60, 60), 6)
+            lit(ctx, base, concrete, 0.75)
+            stroke(ctx, base, NSColor(white: 0, alpha: 0.5), 1.2)
+            for sx: CGFloat in [-1, 1] { for sy: CGFloat in [-1, 1] { fill(ctx, circle(CGPoint(x: sx * 24, y: sy * 24), 2.2), .rgb(0.2, 0.2, 0.22)) } }
+            for (i, r) in [22.0, 18, 14].enumerated() {
+                let ring = circle(CGPoint(x: 3 - CGFloat(i), y: -3 + CGFloat(i)), CGFloat(r))
+                lit(ctx, ring, NSColor.rgb(0.55, 0.53, 0.5).mix(.black, 0.12 * CGFloat(i)))
+                stroke(ctx, ring, NSColor(white: 0, alpha: 0.55), 1)
+            }
+            let top = circle(CGPoint(x: 1, y: -1), 10)
+            lit(ctx, top, .rgb(0.62, 0.6, 0.57))
+            stroke(ctx, top, NSColor(white: 0, alpha: 0.6), 1)
+            for i in 0..<8 {
+                let a = CGFloat(i) * .pi / 4
+                fill(ctx, rr(box(1 + cos(a) * 11 - 1.6, -1 + sin(a) * 11 - 1.6, 3.2, 3.2), 0.6), .rgb(0.35, 0.34, 0.33))
+            }
+            lines(ctx, [(CGPoint(x: 1, y: -1), CGPoint(x: 1, y: 24))], .rgb(0.15, 0.15, 0.16), 2)
+            let pennant = poly([CGPoint(x: 1, y: 24), CGPoint(x: 17, y: 19), CGPoint(x: 1, y: 13)])
+            fill(ctx, pennant, col)
+            stroke(ctx, pennant, NSColor(white: 0, alpha: 0.5), 0.8)
+            if let team { fill(ctx, circle(CGPoint(x: 1, y: -1), 3.5), team.lightColor) }
+        }
+    }
+
+    /// Rank marks drawn above a veteran: one, two or three small chevrons in the owner's light colour.
+    static func chevrons(_ rank: Int, _ team: Team) -> SKTexture {
+        texture("chevrons-\(rank)-\(team.rawValue)", size: CGSize(width: 16, height: 20)) { ctx in
+            for i in 0..<rank {
+                let y = CGFloat(-6 + i * 5)
+                let p = poly([CGPoint(x: -6, y: y - 2.5), CGPoint(x: 0, y: y + 2.5), CGPoint(x: 6, y: y - 2.5),
+                              CGPoint(x: 6, y: y - 5), CGPoint(x: 0, y: y), CGPoint(x: -6, y: y - 5)])
+                fill(ctx, p, team.lightColor)
+                stroke(ctx, p, NSColor(white: 0, alpha: 0.7), 0.7)
+            }
+        }
+    }
+
     static func icon(_ icon: ButtonIcon) -> SKTexture {
         switch icon {
         case .unit(let k): return unit(k, Team.local)

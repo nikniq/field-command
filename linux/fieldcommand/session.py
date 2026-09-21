@@ -11,8 +11,8 @@ import time
 from . import mapgen
 from . import defs
 from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
-                   MODE_SIEGING, MODE_UNSIEGING, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS, angle_lerp,
-                   rect_distance, rects_intersect, square_rect, upgrade_applies)
+                   MODE_SIEGING, MODE_UNSIEGING, TOWER_HALF, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS,
+                   VET_BONUS, angle_lerp, rect_distance, rects_intersect, square_rect, upgrade_applies)
 from .fog import FogGrid
 from .net import STATUS, event_visible, order_points as world_order_points
 from .settings import settings
@@ -136,6 +136,7 @@ class LocalSession(_Base):
     buildings = property(lambda self: self.world.buildings)
     crystals = property(lambda self: self.world.crystals)
     bridges = property(lambda self: self.world.bridges)
+    towers = property(lambda self: self.world.towers)
     elapsed = property(lambda self: self.world.elapsed)
     game_over = property(lambda self: self.world.game_over)
     winner_team = property(lambda self: self.world.winner_team)
@@ -233,6 +234,27 @@ class _ProxyBridge:
         return self.intact
 
 
+class _ProxyTower:
+    is_building = False
+    dead = False
+    team = None
+    name = "Watchtower"
+
+    def __init__(self, id, x, y):
+        self.id, self.x, self.y = id, x, y
+        self.half = TOWER_HALF
+        self.rect = square_rect(x, y, TOWER_HALF)
+        self.owner = self.capturing = None
+        self.progress = 0.0
+        self.selected = self.hovered = False
+
+    def surface_distance(self, px, py):
+        return rect_distance(self.rect, px, py)
+
+    def targetable_by(self, slot):
+        return False
+
+
 class _ProxyUnit:
     is_building = False
 
@@ -253,6 +275,8 @@ class _ProxyUnit:
         self.recoil = self.pulse = 0.0
         self.x = self.y = self.angle = self.gun_angle = 0.0
         self.mode = 0
+        self.rank = 0
+        self.kills = 0
         self._from = self._to = None
 
     @property
@@ -272,8 +296,9 @@ class _ProxyUnit:
             return "Digging in"
         if self.mode == MODE_UNSIEGING:
             return "Packing up"
+        tag = f"  ·  Rank {self.rank}" if self.rank else ""
         if self.sieged:
-            return "Sieged — engaging target" if self.status == 3 else "Sieged"
+            return ("Sieged — engaging target" if self.status == 3 else "Sieged") + tag
         k = STATUS_NAMES.get(self.status, "idle")
         # .get with a default: a status this client does not know must never take the HUD down.
         return {"idle": "Idle", "move": "Moving", "amove": "Attack-moving", "attack": "Engaging target",
@@ -343,6 +368,8 @@ class NetSession(_Base):
         self.crystals = [_ProxyCrystal(*c) for c in start_msg["crystals"]]
         self.bridges = []
         self._bridges_by_id = {}
+        self.towers = []
+        self._towers_by_id = {}
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
         self.units, self.buildings = [], []
@@ -406,7 +433,7 @@ class NetSession(_Base):
         self.supply_used, self.supply_cap = m["sup"]
         seen = set()
         orders = m.get("o", {})
-        for (i, team, k, x, y, a, g, hp, carrying, mode) in m["u"]:
+        for (i, team, k, x, y, a, g, hp, carrying, mode, rank) in m["u"]:
             seen.add(i)
             u = self._units.get(i)
             ra, rg = math.radians(a), math.radians(g)
@@ -418,7 +445,8 @@ class NetSession(_Base):
             else:
                 u._from = (u.x, u.y, u.angle, u.gun_angle)
             u._to = (x, y, ra, rg)
-            u.hp, u.carrying, u.mode = hp, carrying, mode
+            u.hp, u.carrying, u.mode, u.rank = hp, carrying, mode, rank
+            u.max_hp = UNITS[u.kind].hp * (1 + VET_BONUS * rank)
             o = orders.get(str(i))
             if o:
                 u.status = o[0]
@@ -455,6 +483,15 @@ class NetSession(_Base):
                 self.bridges.append(b)
                 self._bridges_by_id[i] = b
             b.intact, b.hp, b.progress = bool(intact), hp, prog / 100
+        for (i, x, y, owner, capturing, prog) in m.get("tw", ()):
+            t = self._towers_by_id.get(i)
+            if t is None:
+                t = _ProxyTower(i, x, y)
+                self.towers.append(t)
+                self._towers_by_id[i] = t
+            t.owner = None if owner < 0 else owner
+            t.capturing = None if capturing < 0 else capturing
+            t.progress = prog / 100
         amounts = {i: a for i, a in m["c"]}
         for c in self.crystals:
             if c.id in amounts:

@@ -241,6 +241,25 @@ final class Unit: Entity {
     /// Siege mode, from the server. The outriggers fold out under the hull while it is anything but mobile.
     private(set) var mode: SiegeMode = .mobile
     private var outriggers: SKSpriteNode?
+    /// Veterancy rank, from the server; chevrons above the unit show it.
+    private(set) var rank = 0
+    private var chevrons: SKSpriteNode?
+
+    func setRank(_ r: Int) {
+        guard r != rank else { return }
+        rank = r
+        maxHp = stats.hp * (1 + CGFloat(vetBonus) * CGFloat(r))
+        updateHPBar()
+        chevrons?.removeFromParent()
+        chevrons = nil
+        guard r > 0 else { return }
+        let c = SKSpriteNode(texture: Art.chevrons(r, team))
+        c.size = CGSize(width: 16, height: 20)
+        c.position = CGPoint(x: 0, y: radius + 16)
+        c.zPosition = 6
+        addChild(c)
+        chevrons = c
+    }
     var sieged: Bool { mode == .sieged }
     var canSiege: Bool { kind == .tank }
 
@@ -278,6 +297,7 @@ final class Unit: Entity {
             default: return "Idle"
             }
         }
+        if rank > 0 { return "Rank \(rank) veteran" }
         switch order {
         case .idle: return "Idle"
         case .move: return "Moving"
@@ -936,6 +956,89 @@ final class Building: Entity {
                 game.muzzleFlash(at: muzzle, angle: a, size: 16)
                 game.impact(at: t.position)
             }
+        }
+    }
+}
+
+// MARK: - Watchtowers
+
+/// A control point on the client: the tower art in the holder's colour, and the capture ring while someone
+/// is taking it. Position comes with the first snapshot; condition with every one.
+final class TowerNode: SKNode {
+    var towerId = -1
+    private(set) var owner: Int?
+    private(set) var capturing: Int?
+    private(set) var progress: CGFloat = 0
+    let half: CGFloat = CGFloat(towerHalf)
+    private let art = SKSpriteNode()
+    private let ring = SKShapeNode(circleOfRadius: CGFloat(towerRadius))
+    private let arc = SKShapeNode()
+    private let barBack = SKSpriteNode(color: NSColor(white: 0, alpha: 0.75), size: CGSize(width: 64, height: 6))
+    private let barFill = SKSpriteNode(color: Palette.amber, size: CGSize(width: 60, height: 4))
+    var hovered = false { didSet { marker.isHidden = !hovered } }
+    private let marker: SKSpriteNode
+
+    init(id: Int, at p: CGPoint) {
+        towerId = id
+        marker = SKSpriteNode(texture: Art.squareRing)
+        super.init()
+        position = p
+        zPosition = 1.5
+        let shadow = SKSpriteNode(texture: Art.shadow)
+        shadow.size = CGSize(width: 70, height: 70)
+        shadow.position = CGPoint(x: 6, y: -8)
+        shadow.zPosition = -0.5
+        addChild(shadow)
+        art.texture = Art.watchtower(nil)
+        art.size = CGSize(width: 84, height: 84)
+        addChild(art)
+        ring.strokeColor = NSColor(white: 1, alpha: 0.25)
+        ring.lineWidth = 1
+        ring.isHidden = true
+        addChild(ring)
+        arc.lineWidth = 4
+        arc.isHidden = true
+        addChild(arc)
+        barBack.position = CGPoint(x: 0, y: -40)
+        barFill.position = CGPoint(x: -30, y: -40)
+        barFill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        barBack.isHidden = true
+        barFill.isHidden = true
+        addChild(barBack)
+        addChild(barFill)
+        marker.size = CGSize(width: half * 2 + 22, height: half * 2 + 22)
+        marker.color = Palette.dim
+        marker.colorBlendFactor = 1
+        marker.alpha = 0.7
+        marker.isHidden = true
+        addChild(marker)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func contains(world p: CGPoint) -> Bool { abs(p.x - position.x) <= half + 6 && abs(p.y - position.y) <= half + 6 }
+
+    func apply(owner o: Int?, capturing c: Int?, progress p: CGFloat) {
+        if o != owner {
+            owner = o
+            art.texture = Art.watchtower(o.map { Team(rawValue: $0) })
+            marker.color = o.map { Team(rawValue: $0).lightColor } ?? Palette.dim
+        }
+        capturing = c
+        progress = p
+        let taking = c != nil && p > 0
+        ring.isHidden = !taking
+        arc.isHidden = !taking
+        barBack.isHidden = !taking
+        barFill.isHidden = !taking
+        if taking, let c {
+            let color = Team(rawValue: c).lightColor
+            let path = CGMutablePath()
+            path.addArc(center: .zero, radius: CGFloat(towerRadius), startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi * p, clockwise: true)
+            arc.path = path
+            arc.strokeColor = color
+            barFill.color = color
+            barFill.size = CGSize(width: 60 * max(0, min(1, p)), height: 4)
         }
     }
 }

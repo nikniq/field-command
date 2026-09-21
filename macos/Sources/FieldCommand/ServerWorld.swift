@@ -437,6 +437,59 @@ final class SBridge: SEntity {
     }
 }
 
+/// A neutral control point. Troops of one alliance alone inside its radius for `towerCaptureTime` take it; the
+/// owner then sees `towerSight` around it. It is never damaged, only taken.
+final class SWatchtower {
+    unowned let world: SWorld
+    let id: Int
+    let x, y: Double
+    let rect: SRect
+    var owner: Int?          // slot of the player who holds it
+    var capturing: Int?      // slot whose troops are taking it
+    var progress = 0.0
+
+    init(world: SWorld, x: Double, y: Double) {
+        self.world = world
+        id = world.nextId()
+        self.x = x
+        self.y = y
+        rect = SRect(cx: x, cy: y, half: towerHalf)
+    }
+
+    func update(_ dt: Double) {
+        let g = world
+        var present: [Int: Int] = [:]      // alliance -> a slot in it
+        for u in g.units where !u.dead && hyp(u.x - x, u.y - y) <= towerRadius {
+            if let a = g.players[u.team]?.team, present[a] == nil { present[a] = u.team }
+        }
+        let ownerAlliance = owner.flatMap { g.players[$0]?.team }
+        if present.count == 1, let (alliance, slot) = present.first {
+            if alliance == ownerAlliance {
+                capturing = nil
+                progress = 0
+            } else {
+                if capturing == nil || g.players[capturing!]?.team != alliance {
+                    capturing = slot
+                    progress = 0
+                }
+                progress += dt / towerCaptureTime
+                if progress >= 1 {
+                    owner = slot
+                    capturing = nil
+                    progress = 0
+                    g.emit(["flash", x, y, 80, "team\(slot)"])
+                    g.emit(["sound", "complete", x, y])
+                    g.emit(["tower", slot, id, x, y])
+                }
+            }
+        } else {
+            // Nobody, or a contested ring: the clock winds back.
+            progress = max(0, progress - dt / towerCaptureTime)
+            if progress == 0 { capturing = nil }
+        }
+    }
+}
+
 class SEntity {
     unowned let world: SWorld
     let id: Int
@@ -477,7 +530,9 @@ class SEntity {
         if hp <= 0 {
             hp = 0
             dead = true
+            if let a = attacker as? SUnit, !a.dead, a.team != team { a.creditKill() }
         }
+        if let a = attacker { world.reveal(a, victim: team) }
         world.alertAttack(team, x, y)
         onDamaged(attacker)
     }
@@ -499,6 +554,9 @@ final class SUnit: SEntity {
     // Siege mode (tanks only) and the time left in a transition.
     var mode: SiegeMode = .mobile
     var modeTimer = 0.0
+    // Veterancy: kills so far and the rank they have earned.
+    var kills = 0
+    var rank = 0
     var lastX: Double, lastY: Double
     var wasMoving = false
     var scan = Double.random(in: 0...0.3)
@@ -605,6 +663,23 @@ final class SUnit: SEntity {
     private func closeEnough(_ px: Double, _ py: Double, _ slack: Double) -> Bool {
         let d = hyp(px - x, py - y)
         return d < slack || (stuck > 0.5 && d < radius * 4 + 30) || stuck > 3
+    }
+
+    // MARK: Veterancy
+
+    var vetMult: Double { 1 + vetBonus * Double(rank) }
+
+    func creditKill() {
+        kills += 1
+        let newRank = vetThresholds.filter { kills >= $0 }.count
+        if newRank > rank {
+            let added = Double(stats.hp) * vetBonus * Double(newRank - rank)
+            rank = newRank
+            maxHp += added
+            hp = min(maxHp, hp + added)
+            world.emit(["flash", x, y, 40, "team\(team)"])
+            world.emit(["rank", team, id, rank, x, y])
+        }
     }
 
     // MARK: Siege mode
@@ -954,27 +1029,27 @@ final class SUnit: SEntity {
         switch kind {
         case .tank:
             let mx = x + ux * 33, my = y + uy * 33
-            g.launchShell(mx, my, t.x + jx, t.y + jy, sieged ? siegeDamage : Double(stats.damage),
+            g.launchShell(mx, my, t.x + jx, t.y + jy, (sieged ? siegeDamage : Double(stats.damage)) * vetMult,
                           sieged ? siegeSplash : Double(stats.splash), team, self)
             g.emit(["muzzle", mx, my, ang, sieged ? 32 : 26])
             g.emit(["smoke", mx, my, sieged ? 11 : 8])
             g.emit(["sound", "cannon", x, y])
         case .sniper:
             let mx = x + ux * 26 + uy * 3, my = y + uy * 26 - ux * 3
-            t.takeDamage(Double(stats.damage), from: self)
+            t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["tracer", mx, my, t.x, t.y, 2])
             g.emit(["muzzle", mx, my, ang, 18])
             g.emit(["sparks", t.x, t.y, 6, 90, "hit"])
             g.emit(["sound", "snipe", x, y])
         case .marine:
             let mx = x + ux * 20 + uy * 4.5, my = y + uy * 20 - ux * 4.5
-            t.takeDamage(Double(stats.damage), from: self)
+            t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["tracer", mx, my, t.x + jx, t.y + jy, 0])
             g.emit(["muzzle", mx, my, ang, 12])
             if Bool.random() { g.emit(["sparks", t.x + jx, t.y + jy, 4, 60, "hit"]) }
             g.emit(["sound", "rifle", x, y])
         case .worker:
-            t.takeDamage(Double(stats.damage), from: self)
+            t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["sparks", x + ux * (radius + 5), y + uy * (radius + 5), 3, 35, "amber"])
         }
     }
@@ -1146,12 +1221,17 @@ final class SWorld {
     private var fogTimer = 0.0
     var allianceIndex: [Int: Int] = [:]
     var fog: [Int: SFogGrid] = [:]
+    /// alliance -> attacker id -> revealed until (elapsed seconds)
+    private var reveals: [Int: [Int: Double]] = [:]
     var obstacles: [(Double, Double, Double)] = []
     private var obstacleGrid: [Int: [Int]] = [:]
     /// `walls` is derived: the map's own water and cliffs plus the span of every fallen bridge.
     private(set) var walls: [SRect]
     private var mapWalls: [SRect] = []
+    /// The map's own water and cliffs, for the automated tests in Debug.swift.
+    var mapWallsForTests: [SRect] { mapWalls }
     var bridges: [SBridge] = []
+    var towers: [SWatchtower] = []
     let nav: SNavGrid
     var navDirty = true
     var pathBudget = 0
@@ -1197,6 +1277,11 @@ final class SWorld {
             crystals.append(cr)
             byId[cr.id] = cr
         }
+        for (tx, ty) in towerSites() {
+            let t = SWatchtower(world: self, x: tx, y: ty)
+            towers.append(t)
+        }
+        bridgesChanged()
         let starts = jArr(map["starts"]).map { jArr($0) }
         for p in list {
             let s = starts[p.start]
@@ -1255,6 +1340,7 @@ final class SWorld {
         resolveCollisions()
         for b in buildings where !b.dead { b.update(dt) }
         updateShells(dt)
+        for t in towers { t.update(dt) }
         for p in players.values where p.alive { p.ai?.update(dt) }
         cleanupDead()
         fogTimer -= dt
@@ -1267,9 +1353,52 @@ final class SWorld {
 
     /// A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
     /// Everything that consults `walls` — navigation, collision and building placement — follows from this.
+    /// Whoever just hit `victim` shows itself to that player's alliance for a moment.
+    func reveal(_ attacker: SEntity, victim: Int) {
+        guard attacker.team >= 0, players[victim] != nil, !allied(attacker.team, victim),
+              let alliance = players[victim]?.team else { return }
+        reveals[alliance, default: [:]][attacker.id] = elapsed + revealTime
+    }
+
     func bridgesChanged() {
-        walls = mapWalls + bridges.filter { !$0.intact }.map { $0.rect }
+        walls = mapWalls + bridges.filter { !$0.intact }.map { $0.rect } + towers.map { $0.rect }
         navDirty = true
+    }
+
+    /// Centre and the two flanks, each nudged to the nearest open ground. The Python edition runs the same
+    /// search over the same map data, so both place the towers identically.
+    private func towerSites() -> [(Double, Double)] {
+        var sites: [(Double, Double)] = []
+        for (cx, cy) in [(worldW / 2, worldH / 2), (worldW / 4, worldH / 2), (3 * worldW / 4, worldH / 2)] {
+            if let spot = openGroundNear(cx, cy, placed: sites) { sites.append(spot) }
+        }
+        return sites
+    }
+
+    /// Spirals outwards in 40-unit steps for a square of `towerHalf` clear of water, cliffs, crystals, trees,
+    /// buildings and other towers.
+    private func openGroundNear(_ cx: Double, _ cy: Double, placed: [(Double, Double)]) -> (Double, Double)? {
+        for ring in 0..<12 {
+            let step = 40.0 * Double(ring)
+            var candidates: [(Double, Double)] = []
+            if ring == 0 {
+                candidates = [(cx, cy)]
+            } else {
+                for dx in [-1.0, 0, 1] { for dy in [-1.0, 0, 1] where dx != 0 || dy != 0 { candidates.append((cx + dx * step, cy + dy * step)) } }
+            }
+            for (rawX, rawY) in candidates {
+                let (x, y) = snapped(rawX, rawY)
+                let r = SRect(cx: x, cy: y, half: towerHalf + 20)
+                if r.x0 < 60 || r.y0 < 60 || r.x1 > worldW - 60 || r.y1 > worldH - 60 { continue }
+                if mapWalls.contains(where: { $0.intersects(r) }) { continue }
+                if crystals.contains(where: { r.distance($0.x, $0.y) < $0.radius + 30 }) { continue }
+                if nearbyObstacles(x, y).contains(where: { r.distance($0.0, $0.1) < $0.2 + 10 }) { continue }
+                if buildings.contains(where: { $0.rect.intersects(r) }) { continue }
+                if placed.contains(where: { hyp($0.0 - x, $0.1 - y) < 300 }) { continue }
+                return (x, y)
+            }
+        }
+        return nil
     }
 
     func bridge(at x: Double, _ y: Double, slack: Double = 0) -> SBridge? {
@@ -1287,6 +1416,14 @@ final class SWorld {
             var viewers: [(Double, Double, Double)] = []
             for u in units where players[u.team]?.team == team { viewers.append((u.x, u.y, u.sight)) }
             for b in buildings where players[b.team]?.team == team { viewers.append((b.x, b.y, b.sight)) }
+            for t in towers { if let o = t.owner, players[o]?.team == team { viewers.append((t.x, t.y, towerSight)) } }
+            if var active = reveals[team] {
+                for (id, until) in active where until <= elapsed { active[id] = nil }
+                for id in active.keys {
+                    if let e = byId[id] as? SEntity, !e.dead { viewers.append((e.x, e.y, revealRadius)) } else { active[id] = nil }
+                }
+                reveals[team] = active
+            }
             grid.recompute(viewers)
         }
         func mark(_ e: SEntity) {
@@ -1999,6 +2136,18 @@ final class SAI {
             if let t = g.primaryTarget(team, u.x, u.y) { u.command(.amove(t.x, t.y)) }
         }
         siege(home)
+        towersRun(hq, home)
+    }
+
+    /// Between waves, a few idle troops go and sit on the nearest watchtower nobody on this side holds.
+    private func towersRun(_ hq: SBuilding, _ home: [SUnit]) {
+        let g = world
+        guard !g.towers.isEmpty, home.count >= 4, g.elapsed >= 120, let mine = g.players[team]?.team else { return }
+        let unheld = g.towers.filter { $0.owner.flatMap { g.players[$0]?.team } != mine }
+        guard let t = unheld.min(by: { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }) else { return }
+        for u in home.filter({ $0.order.isIdle && $0.kind != .worker }).prefix(3) {
+            u.command(.amove(t.x + Double.random(in: -40...40), t.y + Double.random(in: -40...40)))
+        }
     }
 
     /// Tanks dig in when an enemy building is within sieged range and pack up when nothing is.
