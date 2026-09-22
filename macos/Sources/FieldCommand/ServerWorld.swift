@@ -1962,12 +1962,60 @@ final class SAI {
     private var waveSize: Int
     private var nextWave: Double
     private var attackers: [SUnit] = []
+    /// A decaying tally of enemy units this side has seen, by kind — what the army is built to answer.
+    var seen: [UnitKind: Double] = [.marine: 0, .sniper: 0, .tank: 0]
+    private var nextRaid = 240.0
 
     init(world: SWorld, team: Int) {
         self.world = world
         self.team = team
         waveSize = world.difficulty.initialWave
         nextWave = Double(world.difficulty.firstAttack)
+    }
+
+    // MARK: Intelligence
+
+    func observe() {
+        let g = world
+        for k in seen.keys { seen[k]! *= 0.85 }
+        for u in g.units where !u.dead && seen[u.kind] != nil && g.enemies(u.team, team) && g.sees(team, u) {
+            seen[u.kind]! += 1
+        }
+    }
+
+    /// Target shares by unit kind, from a base mix bent by what has been seen: tanks answer massed Rangers,
+    /// Snipers answer tanks, tanks and Rangers together answer Snipers.
+    func composition() -> [UnitKind: Double] {
+        var w: [UnitKind: Double] = [.marine: 3, .sniper: 1, .tank: 2]
+        let total = seen.values.reduce(0, +)
+        if total >= 3 {
+            let share = seen.mapValues { $0 / total }
+            w[.sniper]! += 3 * share[.tank]!
+            w[.tank]! += 2 * share[.marine]! + 1 * share[.sniper]!
+            w[.marine]! += 1.5 * share[.sniper]!
+        }
+        let s = w.values.reduce(0, +)
+        return w.mapValues { $0 / s }
+    }
+
+    /// The unit kind furthest below its target share.
+    func wanted(_ army: [SUnit]) -> UnitKind {
+        var counts: [UnitKind: Int] = [.marine: 0, .sniper: 0, .tank: 0]
+        for u in army where counts[u.kind] != nil { counts[u.kind]! += 1 }
+        let n = Double(max(1, counts.values.reduce(0, +)))
+        let comp = composition()
+        let deficit = counts.map { ($0.key, comp[$0.key]! * (n + 1) - Double($0.value)) }
+        return deficit.max { $0.1 < $1.1 }!.0
+    }
+
+    /// Where a unit should go for a target: Snipers stop 200 short so they fight at their range and never
+    /// walk into the line; everyone else goes to the target.
+    func standoff(_ u: SUnit, _ tx: Double, _ ty: Double) -> (Double, Double) {
+        guard u.kind == .sniper else { return (tx, ty) }
+        let dx = u.x - tx, dy = u.y - ty
+        let d = max(1, hyp(dx, dy))
+        let back = min(200, max(0, d - 60))
+        return (tx + dx / d * back, ty + dy / d * back)
     }
 
     private var diff: Difficulty { world.difficulty }
@@ -1992,6 +2040,7 @@ final class SAI {
                 w.command(.gather(c))
             }
         }
+        observe()
         let reserve = construct(hq, bases, workers)
         produce(hq, bases, workers, reserve)
         rebuildBridges(hq, workers)
@@ -2157,12 +2206,12 @@ final class SAI {
         let tl = max(1, hyp(tx, ty))
         for b in bases where b.built && b.queue.isEmpty {
             if b.rally == nil && (b.kind == .barracks || b.kind == .factory) { b.rally = (hq.x + tx / tl * 260, hq.y + ty / tl * 260) }
+            let army = g.units.filter { $0.team == team && $0.kind != .worker && !$0.dead }
+            let want = wanted(army)
             if b.kind == .barracks {
-                let snipers = g.units.filter { $0.team == team && $0.kind == .sniper }.count
-                let rangers = g.units.filter { $0.team == team && $0.kind == .marine }.count
-                if money() >= 125 && g.hasBuilt(.factory, team) && snipers * 3 < rangers {
+                if want == .sniper && money() >= 125 && g.hasBuilt(.factory, team) {
                     _ = g.train(.sniper, [b], team)
-                } else if money() >= 50 {
+                } else if money() >= 50 && (want != .tank || !g.hasBuilt(.factory, team) || money() >= 200) {
                     _ = g.train(.marine, [b], team)
                 }
             } else if b.kind == .factory && money() >= 150 {
@@ -2177,7 +2226,9 @@ final class SAI {
         else { return }
         for u in home {
             switch u.order {
-            case .idle, .move: u.command(.amove(threat.x, threat.y))
+            case .idle, .move:
+                let (x, y) = standoff(u, threat.x, threat.y)
+                u.command(.amove(x, y))
             default: break
             }
         }
@@ -2187,17 +2238,33 @@ final class SAI {
         let g = world
         let overdue = g.elapsed > nextWave + 120 && home.count >= 4
         if g.elapsed >= nextWave && (home.count >= waveSize || overdue), let target = g.primaryTarget(team, hq.x, hq.y) {
-            for u in home { u.command(.amove(target.x, target.y)) }
+            for u in home { let (x, y) = standoff(u, target.x, target.y); u.command(.amove(x, y)) }
             attackers += home
             waveSize = min(40, waveSize + 2 + diff.rawValue * 2)
             nextWave = g.elapsed + 50
             g.waveLaunched(team)
         }
         for u in attackers where u.order.isIdle {
-            if let t = g.primaryTarget(team, u.x, u.y) { u.command(.amove(t.x, t.y)) }
+            if let t = g.primaryTarget(team, u.x, u.y) { let (x, y) = standoff(u, t.x, t.y); u.command(.amove(x, y)) }
         }
+        raid(hq, home)
         siege(home)
         towersRun(hq, home)
+    }
+
+    /// Between waves, two or three troops go for the enemy building nearest this base — usually an expansion
+    /// or a forward depot — so the enemy has to watch its edges as well as its front.
+    func raid(_ hq: SBuilding, _ home: [SUnit]) {
+        let g = world
+        guard g.elapsed >= nextRaid, home.count >= waveSize / 2 + 3, diff != .easy else { return }
+        let idle = home.filter { $0.order.isIdle && ($0.kind == .marine || $0.kind == .sniper) }
+        guard idle.count >= 2 else { return }
+        let targets = g.buildings.filter { !$0.dead && g.enemies($0.team, team) && $0.targetable(by: team) }
+        guard let t = targets.min(by: { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }) else { return }
+        let party = Array(idle.prefix(3))
+        for u in party { let (x, y) = standoff(u, t.x, t.y); u.command(.amove(x, y)) }
+        attackers += party
+        nextRaid = g.elapsed + 90
     }
 
     /// Between waves, a few idle troops go and sit on the nearest watchtower nobody on this side holds.

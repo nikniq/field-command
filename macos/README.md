@@ -70,6 +70,11 @@ Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/REA
 Both editions speak protocol 8, so a 1.8.0 Mac and a 1.8.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
+## The computer opponent
+
+Watches what it can see of your army and builds to counter it, keeps its Snipers at range, and raids between
+waves on Normal and Hard. Same reasoning as the Linux edition (`FC_AITEST`).
+
 ## The Armory
 
 **Y** opens the store: twelve pieces of kit, three per unit type, bought once with crystal and worn by every
@@ -138,5 +143,6 @@ FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: tran
 FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrades: each effect and the rules
 FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks and watchtower capture
 FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: every kit effect and the rules
+FC_AITEST=1 .build/release/FieldCommand                       # the opponent: observation, counters, standoff
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

@@ -398,6 +398,48 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_AITEST=1: the computer opponent notices what it faces and answers it — matching linux/tests/test_ai.py.
+    static func runAITest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        let map = SMapGen.generate("twin_ridges")
+        let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+        let w = SWorld(map: map, players: players, difficulty: .normal)
+        let ai = SAI(world: w, team: 1)
+        let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+        for i in 0..<5 { w.add(SUnit(world: w, kind: .tank, team: 0, x: hq.x + 250 + Double(i) * 30, y: hq.y)) }
+        w.updateVisibility()
+        ai.observe()
+        check((ai.seen[.tank] ?? 0) >= 4, "it notices enemy tanks in its sight")
+        for u in w.units where u.team == 0 { u.dead = true }
+        for _ in 0..<40 { ai.observe() }
+        check((ai.seen[.tank] ?? 0) < 0.5, "and forgets them once they are gone")
+
+        let ai2 = SAI(world: w, team: 1)
+        ai2.seen = [.marine: 0, .sniper: 0, .tank: 12]
+        check(ai2.wanted([]) == .sniper, "massed tanks are answered with Snipers")
+        ai2.seen = [.marine: 12, .sniper: 0, .tank: 0]
+        check(ai2.wanted([]) == .tank, "massed Rangers are answered with tanks")
+        ai2.seen = [.marine: 0, .sniper: 0, .tank: 0]
+        check(ai2.wanted([]) == .marine, "the base mix opens with Rangers")
+
+        let sn = SUnit(world: w, kind: .sniper, team: 1, x: hq.x, y: hq.y)
+        let r = SUnit(world: w, kind: .marine, team: 1, x: hq.x, y: hq.y)
+        let (sx, sy) = ai.standoff(sn, hq.x - 1000, hq.y)
+        let (rx, ry) = ai.standoff(r, hq.x - 1000, hq.y)
+        check(abs(sx - (hq.x - 1000)) == 200 && sy == hq.y && rx == hq.x - 1000 && ry == hq.y, "Snipers stop 200 short; Rangers go all the way")
+
+        // A game between two reacting opponents still finishes.
+        let map2 = SMapGen.generate("twin_ridges")
+        let bots = (0..<2).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }
+        let w2 = SWorld(map: map2, players: bots, difficulty: .normal)
+        while !w2.gameOver && w2.elapsed < 1500 { w2.step(1.0 / 30); w2.events.removeAll() }
+        check(w2.gameOver, String(format: "two reacting opponents finish a game (%.0fs)", w2.elapsed))
+
+        print(ok ? "AI TEST PASSED" : "AI TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_STORETEST=1: the Armory on the server simulation — every kit effect, the price rules and the wire mask —
     /// matching linux/tests/test_store.py.
     static func runStoreTest() -> Never {

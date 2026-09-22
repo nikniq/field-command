@@ -76,6 +76,7 @@ jobs:
           FC_UPGRADETEST=1 "$BIN" | tee /dev/stderr | grep -q "UPGRADE TEST PASSED"
           FC_TOWERTEST=1 "$BIN" | tee /dev/stderr | grep -q "TOWER TEST PASSED"
           FC_STORETEST=1 "$BIN" | tee /dev/stderr | grep -q "STORE TEST PASSED"
+          FC_AITEST=1 "$BIN" | tee /dev/stderr | grep -q "AI TEST PASSED"
           FC_BRIDGETEST=river_crossing "$BIN" | tee /dev/stderr | grep -q "BRIDGE TEST PASSED"
       - name: App bundle
         working-directory: macos

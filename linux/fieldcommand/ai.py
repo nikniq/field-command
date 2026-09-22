@@ -1,4 +1,10 @@
-"""Computer player: economy, timed build plan, expansion, defence and escalating attack waves.
+"""Computer player: economy, timed build plan, expansion, defence and escalating attack waves — and, from
+1.9, an opponent that watches what it is up against and answers it.
+
+It keeps a decaying tally of every enemy unit its side can see (`seen`) and turns that into a composition
+to build towards: tanks answer massed Rangers, Snipers answer tanks, tanks and Rangers together answer
+Snipers. Snipers in a wave hang back behind the main body so they fight at their range, and between waves
+a couple of troops raid the enemy's nearest outlying building.
 
 Works for any slot; enemies are every player outside its alliance."""
 import math
@@ -18,6 +24,8 @@ class AI:
         self.wave_size = d.initial_wave
         self.next_wave = d.first_attack
         self.attackers = []
+        self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0}     # decaying count of enemy units seen
+        self.next_raid = 240.0
 
     @property
     def diff(self):
@@ -49,6 +57,7 @@ class AI:
             if c:
                 w.command(("gather", c))
 
+        self._observe()
         reserve = self._construct(hq, bases, workers)
         self._produce(hq, bases, workers, reserve)
         self._rebuild_bridges(hq, workers)
@@ -222,6 +231,43 @@ class AI:
                 return p
         return None
 
+    # ------------------------------------------------------------ intelligence
+
+    def _observe(self):
+        """A decaying tally of the enemy army this side can currently see."""
+        g = self.game
+        for k in self.seen:
+            self.seen[k] *= 0.85
+        for u in g.units:
+            if u.dead or u.kind not in self.seen or not g.enemies(u.team, self.team):
+                continue
+            if g.sees(self.team, u):
+                self.seen[u.kind] += 1.0
+
+    def _composition(self):
+        """Target shares by unit kind, from a base mix bent by what has been seen: tanks answer massed
+        Rangers, Snipers answer tanks, tanks and Rangers together answer Snipers."""
+        w = {"marine": 3.0, "sniper": 1.0, "tank": 2.0}
+        total = sum(self.seen.values())
+        if total >= 3:
+            share = {k: v / total for k, v in self.seen.items()}
+            w["sniper"] += 3.0 * share["tank"]
+            w["tank"] += 2.0 * share["marine"] + 1.0 * share["sniper"]
+            w["marine"] += 1.5 * share["sniper"]
+        s = sum(w.values())
+        return {k: v / s for k, v in w.items()}
+
+    def _wanted(self, army):
+        """The unit kind furthest below its target share; None when the army already matches."""
+        counts = {"marine": 0, "sniper": 0, "tank": 0}
+        for u in army:
+            if u.kind in counts:
+                counts[u.kind] += 1
+        n = max(1, sum(counts.values()))
+        comp = self._composition()
+        deficit = {k: comp[k] * (n + 1) - counts[k] for k in counts}
+        return max(deficit, key=deficit.get)
+
     def _produce(self, hq, bases, workers, reserve):
         g = self.game
         money = lambda: g.resources[self.team] - reserve
@@ -236,12 +282,12 @@ class AI:
                 continue
             if b.rally is None and b.kind in ("barracks", "factory"):
                 b.rally = (hq.x + tx / tl * 260, hq.y + ty / tl * 260)
+            army = [u for u in g.units if u.team == self.team and u.kind != "worker" and not u.dead]
+            want = self._wanted(army)
             if b.kind == "barracks":
-                snipers = sum(1 for u in g.units if u.team == self.team and u.kind == "sniper")
-                rangers = sum(1 for u in g.units if u.team == self.team and u.kind == "marine")
-                if money() >= 125 and g.has_built("factory", self.team) and snipers * 3 < rangers:
+                if want == "sniper" and money() >= 125 and g.has_built("factory", self.team):
                     g.train("sniper", [b], self.team)
-                elif money() >= 50:
+                elif money() >= 50 and (want != "tank" or not g.has_built("factory", self.team) or money() >= 200):
                     g.train("marine", [b], self.team)
             elif b.kind == "factory" and money() >= 150:
                 g.train("tank", [b], self.team)
@@ -259,7 +305,17 @@ class AI:
             return
         for u in home:
             if u.order[0] in ("idle", "move"):
-                u.command(("amove", threat.x, threat.y))
+                u.command(("amove", *self._standoff(u, threat.x, threat.y)))
+
+    def _standoff(self, u, tx, ty):
+        """Where a unit should go for a target: Snipers stop 200 short so they fight at their range, and never
+        walk into the line; everyone else goes to the target."""
+        if u.kind != "sniper":
+            return tx, ty
+        dx, dy = u.x - tx, u.y - ty
+        d = math.hypot(dx, dy) or 1.0
+        back = min(200.0, max(0.0, d - 60.0))
+        return tx + dx / d * back, ty + dy / d * back
 
     def _attack(self, hq, home):
         g = self.game
@@ -268,7 +324,7 @@ class AI:
             target = g.primary_target(self.team, hq.x, hq.y)
             if target:
                 for u in home:
-                    u.command(("amove", target.x, target.y))
+                    u.command(("amove", *self._standoff(u, target.x, target.y)))
                 self.attackers += home
                 self.wave_size = min(40, self.wave_size + 2 + self.diff.index * 2)
                 self.next_wave = g.elapsed + 50
@@ -277,9 +333,29 @@ class AI:
             if u.order[0] == "idle":
                 t = g.primary_target(self.team, u.x, u.y)
                 if t:
-                    u.command(("amove", t.x, t.y))
+                    u.command(("amove", *self._standoff(u, t.x, t.y)))
+        self._raid(hq, home)
         self._siege(home)
         self._towers(hq, home)
+
+    def _raid(self, hq, home):
+        """Between waves, two or three troops go for the enemy building nearest this base — usually an
+        expansion or a forward depot — so the enemy has to watch its edges as well as its front."""
+        g = self.game
+        if g.elapsed < self.next_raid or len(home) < self.wave_size // 2 + 3 or self.diff.index == 0:
+            return
+        idle = [u for u in home if u.order[0] == "idle" and u.kind in ("marine", "sniper")]
+        if len(idle) < 2:
+            return
+        targets = [b for b in g.buildings if not b.dead and g.enemies(b.team, self.team) and b.targetable_by(self.team)]
+        if not targets:
+            return
+        t = min(targets, key=lambda b: math.hypot(b.x - hq.x, b.y - hq.y))
+        party = idle[:3]
+        for u in party:
+            u.command(("amove", *self._standoff(u, t.x, t.y)))
+        self.attackers += party
+        self.next_raid = g.elapsed + 90
 
     def _towers(self, hq, home):
         """Between waves, a few idle troops go and sit on the nearest watchtower nobody on this side holds."""

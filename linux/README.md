@@ -61,6 +61,14 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## The computer opponent
+
+The computer keeps a tally of every enemy unit its side can see and builds to answer it: massed Rangers
+bring tanks, tanks bring Snipers, Snipers bring tanks and Rangers together. Its Snipers stop 200 short of
+whatever the army is attacking so they fight at their range instead of walking into the line, and from the
+fourth minute on Normal and Hard a couple of troops raid your outlying buildings between waves. Scouting it
+matters more than it did: what it sees of you is what it builds against.
+
 ## The Armory
 
 Press **Y** (or the *Armory* button in the top bar) to open the store. Kit is bought once with crystal and worn

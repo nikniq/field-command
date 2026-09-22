@@ -219,7 +219,7 @@ target_test() {
         local bin
         bin="$(cd "$MAC_DIR" && swift build -c "$CONFIGURATION" --show-bin-path 2>/dev/null)/FieldCommand"
         if [ -x "$bin" ]; then
-            for t in FC_WORLDTEST FC_REPAIRTEST FC_TEAMSTEST FC_SIEGETEST FC_UPGRADETEST FC_TOWERTEST FC_STORETEST; do
+            for t in FC_WORLDTEST FC_REPAIRTEST FC_TEAMSTEST FC_SIEGETEST FC_UPGRADETEST FC_TOWERTEST FC_STORETEST FC_AITEST; do
                 step "macOS: $t"
                 run env "$t=1" "$bin" 2>&1 | grep -E "PASSED|FAILED|ok  |FAIL" || failed=1
             done
