@@ -70,6 +70,10 @@ final class HUD: SKNode {
     private var overlayButtons: [(CGRect, SKSpriteNode, () -> Void)] = []
     private var overlayBuilder: (() -> Void)?
     var overlayVisible: Bool { overlayBuilder != nil }
+    private(set) var storeOpen = false
+
+    /// Re-runs the current overlay's builder, so it reflects new state (the Armory after a purchase).
+    func refreshOverlay() { overlayBuilder?() }
 
     private var refreshTimer: CGFloat = 0
     private var mmTimer: CGFloat = 0
@@ -312,6 +316,10 @@ final class HUD: SKNode {
         }
         _ = topButton("Help", icon: nil, x: right - 72 - 8 - 64, width: 64, highlight: false, hover: hoverIdx == 3) { [unowned self] in
             self.game.toggleHelp()
+        }
+        let canShop = game.myKits.count < kits.count && game.myResources >= 100
+        _ = topButton("Armory (Y)", icon: nil, x: right - 72 - 8 - 64 - 8 - 92, width: 92, highlight: canShop, hover: hoverIdx == 4) { [unowned self] in
+            self.game.toggleStore()
         }
     }
 
@@ -820,6 +828,7 @@ final class HUD: SKNode {
     // MARK: - Overlays
 
     func clearOverlay() {
+        storeOpen = false
         overlay.removeAllChildren()
         overlayButtons = []
         overlayBuilder = nil
@@ -873,10 +882,84 @@ final class HUD: SKNode {
                                 "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
                                 "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
+                                "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
                                 "P or Esc — pause & settings · O — toggle objectives",
                              ],
                              rows: [[("Close", { [unowned self] in self.game.toggleHelp() })]])
         }
+    }
+
+    // MARK: The Armory
+
+    func showStore() {
+        storeOpen = true
+        present { [unowned self] in self.drawStore() }
+    }
+
+    private func drawStore() {
+        let g = game
+        overlay.removeAllChildren()
+        overlayButtons = []
+        let dim = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: size)
+        overlay.addChild(dim)
+        let rowH: CGFloat = 106, cardW: CGFloat = 196, cardH: CGFloat = 88, gap: CGFloat = 10
+        let boxW = min(size.width - 40, 150 + 3 * (cardW + gap) + 40)
+        let boxH = 132 + CGFloat(NetProtocol.unitKinds.count) * rowH + 70
+        let box = SKSpriteNode(texture: Art.panel(CGSize(width: boxW, height: boxH), radius: 16, accent: Palette.amber))
+        box.size = CGSize(width: boxW, height: boxH)
+        overlay.addChild(box)
+        let glow = SKSpriteNode(texture: Art.glow)
+        glow.size = CGSize(width: boxW * 1.3, height: boxH * 1.5)
+        glow.color = Palette.amber
+        glow.colorBlendFactor = 1
+        glow.alpha = 0.12
+        glow.zPosition = -1
+        overlay.addChild(glow)
+        let top = boxH / 2
+        overlay.addChild(at(makeLabel("ARMORY", size: 42, color: Palette.amber, font: Fonts.heavy, align: .center, valign: .center), 0, top - 48))
+        overlay.addChild(at(makeLabel("Kit is bought once and worn by every unit of that type for the rest of the match.", size: 14,
+                                      color: Palette.text, font: Fonts.demi, align: .center, valign: .center), 0, top - 86))
+        overlay.addChild(at(makeLabel("◆ \(Int(g.myResources))", size: 16, color: Palette.crystal, font: Fonts.mono, align: .right, valign: .center),
+                            boxW / 2 - 24, top - 48))
+        let owned = g.myKits
+        var y = top - 118
+        for kind in NetProtocol.unitKinds {
+            let px = -boxW / 2 + 48
+            overlay.addChild(at(portrait(Art.unit(kind, Team.local), team: Team.local, size: 56, fit: 40), px, y - rowH / 2 + 6))
+            overlay.addChild(at(makeLabel(kind.stats.name, size: 13, font: Fonts.demi, align: .center, valign: .center), px, y - rowH + 14))
+            var x = -boxW / 2 + 110
+            for kit in kits where kit.unit == kind {
+                let r = CGRect(x: x, y: y - 4 - cardH, width: cardW, height: cardH)
+                let have = owned.contains(kit.id)
+                let afford = g.myResources >= CGFloat(kit.cost)
+                let s = SKSpriteNode(texture: Art.button(r.size, have ? .active : (afford ? .normal : .disabled),
+                                                         accent: have ? Palette.good : Palette.amber))
+                s.size = r.size
+                overlay.addChild(at(s, r.midX, r.midY))
+                overlay.addChild(at(makeLabel(kit.name, size: 14, font: Fonts.bold, align: .left, valign: .center), r.minX + 12, r.maxY - 18))
+                if have {
+                    overlay.addChild(at(makeLabel("ISSUED", size: 11, color: Palette.good, font: Fonts.bold, align: .right, valign: .center), r.maxX - 12, r.maxY - 18))
+                } else {
+                    overlay.addChild(at(makeLabel("◆ \(kit.cost)", size: 13, color: afford ? Palette.crystal : Palette.bad, font: Fonts.mono,
+                                                  align: .right, valign: .center), r.maxX - 12, r.maxY - 18))
+                }
+                let d = makeLabel(kit.desc, size: 11, color: have ? Palette.text : Palette.dim, font: Fonts.medium, align: .left, valign: .top)
+                d.numberOfLines = 0
+                d.preferredMaxLayoutWidth = cardW - 24
+                overlay.addChild(at(d, r.minX + 12, r.maxY - 32))
+                if !have && afford {
+                    overlayButtons.append((r, s, { [unowned self] in self.game.buyKit(kit.id) }))
+                }
+                x += cardW + gap
+            }
+            y -= rowH
+        }
+        let cr = CGRect(x: -110, y: -boxH / 2 + 16, width: 220, height: 42)
+        let cs = SKSpriteNode(texture: Art.button(cr.size, .normal))
+        cs.size = cr.size
+        overlay.addChild(at(cs, cr.midX, cr.midY))
+        overlay.addChild(at(makeLabel("Close  (Y)", size: 15, font: Fonts.bold, align: .center, valign: .center), cr.midX, cr.midY))
+        overlayButtons.append((cr, cs, { [unowned self] in self.game.toggleStore() }))
     }
 
     func showEnd(won: Bool) {

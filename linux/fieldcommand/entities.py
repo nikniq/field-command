@@ -9,6 +9,7 @@ Orders are tuples:
 import math
 import random
 
+from .defs import CARRY_CAP
 from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
@@ -231,6 +232,10 @@ class Unit(Entity):
         # Veterancy: kills so far and the rank they have earned.
         self.kills = 0
         self.rank = 0
+        # Kit bought from the Armory is worn from the moment the unit exists.
+        hp_bonus = s.hp * self._kit("hp")
+        self.max_hp += hp_bonus
+        self.hp = self.max_hp
         # Pathfinding state
         self.path = None
         self.path_goal = None
@@ -242,11 +247,29 @@ class Unit(Entity):
     def name(self):
         return self.stats.name
 
+    # ------------------------------------------------------------ the Armory
+
+    def _kit(self, key):
+        return self.game.kit_bonus(self.team, self.kind, key)
+
+    @property
+    def speed(self):
+        return self.stats.speed * (1 + self._kit("speed"))
+
+    @property
+    def carry_cap(self):
+        return CARRY_CAP + int(self._kit("carry"))
+
+    @property
+    def work_mult(self):
+        return 1 + self._kit("work")
+
     # ------------------------------------------------------------ veterancy
 
     @property
     def vet_mult(self):
-        return 1.0 + VET_BONUS * self.rank
+        """Damage multiplier: veterancy and kit together."""
+        return (1.0 + VET_BONUS * self.rank) * (1 + self._kit("damage"))
 
     def credit_kill(self):
         self.kills += 1
@@ -289,7 +312,7 @@ class Unit(Entity):
 
     @property
     def attack_range(self):
-        return SIEGE_RANGE if self.sieged else self.stats.range
+        return (SIEGE_RANGE if self.sieged else self.stats.range) + self._kit("range")
 
     @property
     def min_range(self):
@@ -413,7 +436,7 @@ class Unit(Entity):
         self.cooldown = max(0.0, self.cooldown - dt)
         self.scan -= dt
         moved = math.hypot(self.x - self.last_x, self.y - self.last_y)
-        if self.was_moving and moved < self.stats.speed * dt * 0.3:
+        if self.was_moving and moved < self.speed * dt * 0.3:
             self.stuck += dt
         else:
             self.stuck = max(0.0, self.stuck - dt * 2)
@@ -492,7 +515,7 @@ class Unit(Entity):
 
         elif kind == "gather":
             c = o[1]
-            if self.carrying >= 8:
+            if self.carrying >= self.carry_cap:
                 self.order = ("return",)
             elif c.dead:
                 n = g.nearest_crystal(c.x, c.y, 500)
@@ -583,7 +606,7 @@ class Unit(Entity):
             elif b.surface_distance(self.x, self.y) - self.radius > 12:
                 target = (b.x, b.y)
             else:
-                b.progress = min(1.0, b.progress + dt / BRIDGE_REBUILD_TIME)
+                b.progress = min(1.0, b.progress + dt * self.work_mult / BRIDGE_REBUILD_TIME)
                 self.mine_timer += dt
                 if self.mine_timer > 0.45:      # reuse the mining bob so the work reads at a glance
                     self.mine_timer = 0.0
@@ -604,7 +627,7 @@ class Unit(Entity):
             elif b.surface_distance(self.x, self.y) - self.radius > 12:
                 target = (b.x, b.y)
             else:
-                heal = min(b.max_hp - b.hp, b.max_hp * dt / REPAIR_TIME)
+                heal = min(b.max_hp - b.hp, b.max_hp * dt * self.work_mult / REPAIR_TIME)
                 price = heal / b.max_hp * b.stats.cost * REPAIR_COST_RATIO
                 if g.resources[self.team] < price:
                     # Out of crystal: stop rather than repair on credit.
@@ -712,7 +735,7 @@ class Unit(Entity):
                     ux, uy = tx / tl, ty / tl
         else:
             self.slide_sign = 0
-        step = min(d, self.stats.speed * dt)
+        step = min(d, self.speed * dt)
         self.x += ux * step
         self.y += uy * step
         self.angle = angle_lerp(self.angle, math.atan2(uy, ux), dt * 10)
@@ -729,7 +752,7 @@ class Unit(Entity):
 
     def _fire(self, t):
         g = self.game
-        self.cooldown = SIEGE_COOLDOWN if self.sieged else self.stats.cooldown
+        self.cooldown = (SIEGE_COOLDOWN if self.sieged else self.stats.cooldown) * (1 - self._kit("cooldown"))
         d = max(1e-3, math.hypot(t.x - self.x, t.y - self.y))
         ux, uy = (t.x - self.x) / d, (t.y - self.y) / d
         ang = math.atan2(uy, ux)

@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 7      // 2 Sniper/Radar; 3 bridges; 4 repair; 5 siege; 6 upgrades; 7 veterancy and towers
+    static let version = 8      // 2 Sniper/Radar; 3 bridges; 4 repair; 5 siege; 6 upgrades; 7 veterancy/towers; 8 Armory
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
@@ -286,6 +286,8 @@ final class NetSession {
     let difficulty: Difficulty
     var players: [Int: NetPlayer] = [:]
     var resources = 250
+    /// Kit bought from the Armory this match.
+    var kits: Set<String> = []
     var supplyUsed = 0
     var supplyCap = 10
     var serverTime: CGFloat = 0

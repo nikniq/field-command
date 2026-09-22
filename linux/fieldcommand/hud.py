@@ -7,8 +7,8 @@ import math
 import pygame
 
 from . import art, audio, defs, ui
-from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, TEAM_COLOR, TEAM_LIGHT, TEXT, UNITS,
-                   UPGRADES, UPGRADE_KINDS, fmt_time, to255)
+from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, KITS, TEAM_COLOR, TEAM_LIGHT, TEXT,
+                   UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS, fmt_time, to255)
 from .settings import settings
 
 PANEL_H = 192
@@ -30,6 +30,8 @@ class HUD:
         self.icon_rects = []
         self.top_buttons = []
         self.overlay = None  # callable that returns (title, color, subtitle, lines, rows)
+        self.store_open = False
+        self.store_buttons = []      # (rect, kit id or None for Close), rebuilt each frame the store is drawn
         self.overlay_buttons = []
         self._hover_text = None
         self._pings = []
@@ -42,7 +44,7 @@ class HUD:
 
     @property
     def overlay_visible(self):
-        return self.overlay is not None
+        return self.overlay is not None or self.store_open
 
     # ------------------------------------------------------------ layout
 
@@ -122,6 +124,16 @@ class HUD:
     # ------------------------------------------------------------ clicks
 
     def handle_click(self, pos, right, queue=False):
+        if self.store_open:
+            for r, kit_id in self.store_buttons:
+                if r.collidepoint(pos):
+                    if kit_id is None:
+                        self.close_store()
+                    elif not right:
+                        self.game.buy_kit(kit_id)
+                        audio.play("click")
+                    return True
+            return True
         if self.overlay_visible:
             if not right:
                 for r, action in self.overlay_buttons:
@@ -253,7 +265,10 @@ class HUD:
                 screen.blit(art.panel(bw, 22, 6), (x, y))
                 screen.blit(img, (x + 8, y + 11 - img.get_height() / 2))
         if self.overlay_visible:
-            self._draw_overlay(screen, mouse)
+            if self.store_open:
+                self._draw_store(screen, mouse)
+            else:
+                self._draw_overlay(screen, mouse)
 
     # top bar
 
@@ -294,6 +309,8 @@ class HUD:
         ui.blit_text(screen, clock, 16, TEXT, (w / 2, cy), align="center", bold=True, mono=True)
         self._top_button(screen, mouse, w - 14 - 72, 72, "Menu", None, False, g.toggle_pause)
         self._top_button(screen, mouse, w - 14 - 72 - 8 - 64, 64, "Help", None, False, g.toggle_help)
+        self._top_button(screen, mouse, w - 14 - 72 - 8 - 64 - 8 - 92, 92, "Armory (Y)", None,
+                         len(g.s.kits) < len(KITS) and g.s.resources >= 100, g.toggle_store)
 
     # minimap
 
@@ -621,6 +638,69 @@ class HUD:
 
     def clear_overlay(self):
         self.overlay = None
+        self.store_open = False
+
+    # the Armory
+
+    def open_store(self):
+        self.store_open = True
+        audio.play("click")
+
+    def close_store(self):
+        self.store_open = False
+
+    def _draw_store(self, screen, mouse):
+        g = self.game
+        owned = g.s.kits
+        dim = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 150))
+        screen.blit(dim, (0, 0))
+        kinds = UNIT_KINDS
+        row_h, card_w, card_h, gap = 106, 196, 88, 10
+        box_w = min(self.w - 40, 150 + 3 * (card_w + gap) + 40)
+        box_h = 132 + len(kinds) * row_h + 70
+        bx, by = (self.w - box_w) // 2, max(10, (self.h - box_h) // 2)
+        glow = art.tinted_glow((int(box_w * 1.3), int(box_h * 1.5)), to255(AMBER), 1)
+        screen.blit(glow, (self.w / 2 - box_w * 0.65, by + box_h / 2 - box_h * 0.75), special_flags=pygame.BLEND_ADD)
+        screen.blit(art.panel(box_w, box_h, 16, AMBER), (bx, by))
+        ui.blit_text(screen, "ARMORY", 42, AMBER, (self.w / 2, by + 48), align="center", bold=True)
+        ui.blit_text(screen, "Kit is bought once and worn by every unit of that type for the rest of the match.",
+                     14, TEXT, (self.w / 2, by + 86), align="center", bold=True)
+        ci = art.sprites.get("cicon14", art.crystal_icon(), 0, 14 / 40)
+        bal = ui.blit_text(screen, str(int(g.s.resources)), 16, CRYSTAL, (bx + box_w - 24, by + 48), align="right", bold=True, mono=True)
+        screen.blit(ci, (bal.x - 6 - ci.get_width(), by + 48 - ci.get_height() / 2))
+        self.store_buttons = []
+        y = by + 118
+        for kind in kinds:
+            tex = art.unit(kind, g.s.slot)
+            self._portrait(screen, tex, g.s.slot, 56, 40, (bx + 48, y + row_h / 2 - 6))
+            ui.blit_text(screen, UNITS[kind].name, 13, TEXT, (bx + 48, y + row_h - 14), align="center", bold=True)
+            x = bx + 110
+            for kit in [k for k in KITS if k.unit == kind]:
+                r = pygame.Rect(int(x), int(y + 4), card_w, card_h)
+                have = kit.id in owned
+                afford = g.s.resources >= kit.cost
+                hover = mouse is not None and r.collidepoint(mouse)
+                state = "active" if have else ("hover" if hover and afford else ("normal" if afford else "disabled"))
+                screen.blit(art.button(card_w, card_h, state, GOOD if have else AMBER), r.topleft)
+                ui.blit_text(screen, kit.name, 14, TEXT, (r.x + 12, r.y + 18), bold=True)
+                if have:
+                    ui.blit_text(screen, "ISSUED", 11, GOOD, (r.right - 12, r.y + 18), align="right", bold=True)
+                else:
+                    cr = ui.blit_text(screen, str(kit.cost), 13, CRYSTAL if afford else BAD, (r.right - 12, r.y + 18),
+                                      align="right", mono=True)
+                    screen.blit(ci, (cr.x - 4 - ci.get_width(), r.y + 18 - ci.get_height() / 2))
+                for i, line in enumerate(ui.wrap(kit.desc, 11, card_w - 24)[:3]):
+                    ui.blit_text(screen, line, 11, DIM if not have else TEXT, (r.x + 12, r.y + 40 + i * 15))
+                if not have:
+                    self.store_buttons.append((r, kit.id))
+                x += card_w + gap
+            y += row_h
+        cr = pygame.Rect(int(self.w / 2 - 110), int(by + box_h - 58), 220, 42)
+        hover = mouse is not None and cr.collidepoint(mouse)
+        screen.blit(art.button(cr.w, cr.h, "hover" if hover else "normal"), cr.topleft)
+        ui.blit_text(screen, "Close  (Y)", 15, TEXT, cr.center, align="center", bold=True)
+        self.store_buttons.append((cr, None))
         self.overlay_buttons = []
 
     def _settings_rows(self):
@@ -656,6 +736,7 @@ class HUD:
             "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
             "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
             "Arrows / screen edge / middle-drag — pan · Wheel or +/− — zoom",
+            "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
             "P or Esc — menu & settings · O — objectives · F11 — fullscreen"
             + ("" if g.s.can_pause else " · Enter — chat"),
         ]

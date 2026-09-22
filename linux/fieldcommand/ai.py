@@ -5,7 +5,7 @@ import math
 import random
 
 from . import defs
-from .defs import (BRIDGE_COST, BUILDINGS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+from .defs import (BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
 
@@ -54,6 +54,7 @@ class AI:
         self._rebuild_bridges(hq, workers)
         self._repair(bases, workers)
         self._upgrade(hq, bases)
+        self._shop(army)
         self._defend(bases, home)
         self._attack(hq, home)
 
@@ -151,6 +152,20 @@ class AI:
             if b.can_upgrade(k) and g.resources[self.team] >= upgrade_cost(k, b.kind) + 300:
                 g.apply(self.team, ["upgrade", [b.id], k])
                 return
+
+    def _shop(self, army):
+        """Sitting on crystal after the opening, buy the cheapest kit for whatever it fields most of."""
+        g = self.game
+        if g.elapsed < 240 or g.resources[self.team] < 800 or not army:
+            return
+        counts = {}
+        for u in army:
+            counts[u.kind] = counts.get(u.kind, 0) + 1
+        kind = max(counts, key=counts.get)
+        owned = g.kits[self.team]
+        options = sorted((k for k in KITS if k.unit == kind and k.id not in owned), key=lambda k: k.cost)
+        if options:
+            g.buy_kit(self.team, options[0].id)
 
     def _repair(self, bases, workers):
         """Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.7.1"
+let appVersion = "1.8.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -345,6 +345,40 @@ enum UpgradeKind: Int, CaseIterable {
     func cost(for b: BuildingKind) -> Int { stats.flat ? Int(stats.cost) : Int((Double(b.stats.cost) * stats.cost).rounded()) }
     var wireName: String { ["hp", "armor", "prod", "supply", "guns"][rawValue] }
 }
+
+// MARK: - The Armory
+//
+// Kit is bought once per match with crystal and worn by every unit of that type, present and future. Effects:
+// hp/damage/speed/cooldown are fractions of the unit's base value (cooldown is a reduction), range is added in
+// world units, work speeds up an Engineer's repairing and rebuilding, carry adds crystal to each mining trip.
+// The order of `kits` is the wire order: what a player owns travels as a bitmask.
+
+struct Kit {
+    let id: String
+    let unit: UnitKind
+    let name: String
+    let cost: Int
+    let desc: String
+    let effect: [(String, Double)]
+    func bonus(_ key: String) -> Double { effect.first { $0.0 == key }?.1 ?? 0 }
+}
+
+let kits: [Kit] = [
+    Kit(id: "hardhat", unit: .worker, name: "Hard hat", cost: 100, desc: "+50% hit points. Engineers survive a stray shell.", effect: [("hp", 0.5)]),
+    Kit(id: "powertools", unit: .worker, name: "Power tools", cost: 150, desc: "Repairs and rebuilds 30% faster.", effect: [("work", 0.3)]),
+    Kit(id: "cargorig", unit: .worker, name: "Cargo rig", cost: 150, desc: "Carries 12 crystal per trip instead of 8.", effect: [("carry", 4)]),
+    Kit(id: "flak", unit: .marine, name: "Flak jacket", cost: 200, desc: "+25% hit points for every Ranger.", effect: [("hp", 0.25)]),
+    Kit(id: "hollowpoint", unit: .marine, name: "Hollow points", cost: 250, desc: "+20% Ranger damage.", effect: [("damage", 0.2)]),
+    Kit(id: "boots", unit: .marine, name: "Sprint boots", cost: 150, desc: "Rangers move 15% faster.", effect: [("speed", 0.15)]),
+    Kit(id: "scope", unit: .sniper, name: "Long scope", cost: 300, desc: "+30 range: 360, further than a dug-in tank.", effect: [("range", 30)]),
+    Kit(id: "ghillie", unit: .sniper, name: "Ghillie suit", cost: 200, desc: "+25% hit points for every Sniper.", effect: [("hp", 0.25)]),
+    Kit(id: "matchammo", unit: .sniper, name: "Match ammo", cost: 250, desc: "Snipers reload 20% faster.", effect: [("cooldown", 0.2)]),
+    Kit(id: "reactive", unit: .tank, name: "Reactive armour", cost: 300, desc: "+25% hit points for every Siege Tank.", effect: [("hp", 0.25)]),
+    Kit(id: "barrel", unit: .tank, name: "Extended barrel", cost: 300, desc: "+20 range, mobile and dug in.", effect: [("range", 20)]),
+    Kit(id: "autoloader", unit: .tank, name: "Autoloader", cost: 350, desc: "Tanks reload 20% faster.", effect: [("cooldown", 0.2)]),
+]
+let kitIds = kits.map { $0.id }
+let carryCap = 8            // crystal an Engineer carries per trip without a Cargo rig
 
 // Attacker reveal: anything that hits you shows itself to your alliance for `revealTime` seconds, even from
 // beyond your sight — so a Sniper or a dug-in tank shelling you from the dark can be seen and answered.

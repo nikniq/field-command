@@ -580,7 +580,18 @@ final class SUnit: SEntity {
         gunAngle = 0
         super.init(world: world, team: team, maxHp: Double(kind.stats.hp), sight: Double(kind.stats.sight), x: x, y: y)
         gunAngle = angle
+        // Kit bought from the Armory is worn from the moment the unit exists.
+        let bonus = Double(kind.stats.hp) * kit("hp")
+        maxHp += bonus
+        hp = maxHp
     }
+
+    // MARK: The Armory
+
+    func kit(_ key: String) -> Double { world.kitBonus(team, kind, key) }
+    var speed: Double { Double(stats.speed) * (1 + kit("speed")) }
+    var carryCapacity: Int { carryCap + Int(kit("carry")) }
+    var workMult: Double { 1 + kit("work") }
 
     var ghosting: Bool {
         guard kind == .worker else { return false }
@@ -667,7 +678,8 @@ final class SUnit: SEntity {
 
     // MARK: Veterancy
 
-    var vetMult: Double { 1 + vetBonus * Double(rank) }
+    /// Damage multiplier: veterancy and kit together.
+    var vetMult: Double { (1 + vetBonus * Double(rank)) * (1 + kit("damage")) }
 
     func creditKill() {
         kills += 1
@@ -686,7 +698,7 @@ final class SUnit: SEntity {
 
     var sieged: Bool { mode == .sieged }
     var canSiege: Bool { kind == .tank }
-    var attackRange: Double { sieged ? siegeRange : Double(stats.range) }
+    var attackRange: Double { (sieged ? siegeRange : Double(stats.range)) + kit("range") }
     var minRange: Double { sieged ? siegeMinRange : 0 }
     override var sight: Double {
         get { sieged ? siegeSight : super.sight }
@@ -716,7 +728,7 @@ final class SUnit: SEntity {
         cooldown = max(0, cooldown - dt)
         scan -= dt
         let moved = hyp(x - lastX, y - lastY)
-        if wasMoving && moved < Double(stats.speed) * dt * 0.3 { stuck += dt } else { stuck = max(0, stuck - dt * 2) }
+        if wasMoving && moved < speed * dt * 0.3 { stuck += dt } else { stuck = max(0, stuck - dt * 2) }
         lastX = x
         lastY = y
         wasMoving = false
@@ -788,7 +800,7 @@ final class SUnit: SEntity {
                 target = (t.x, t.y)
             }
         case .gather(let c):
-            if carrying >= 8 {
+            if carrying >= carryCapacity {
                 order = .ret
             } else if c.dead {
                 if let n = g.nearestCrystal(c.x, c.y, 500) { order = .gather(n) } else { order = carrying > 0 ? .ret : .idle }
@@ -878,7 +890,7 @@ final class SUnit: SEntity {
             } else if b.surfaceDistance(x, y) - radius > 12 {
                 target = (b.x, b.y)
             } else {
-                b.progress = min(1, b.progress + dt / bridgeRebuildTime)
+                b.progress = min(1, b.progress + dt * workMult / bridgeRebuildTime)
                 mineTimer += dt
                 if mineTimer > 0.45 {       // reuse the mining bob so the work reads at a glance
                     mineTimer = 0
@@ -900,7 +912,7 @@ final class SUnit: SEntity {
             } else if b.surfaceDistance(x, y) - radius > 12 {
                 target = (b.x, b.y)
             } else {
-                let heal = min(b.maxHp - b.hp, b.maxHp * dt / repairTime)
+                let heal = min(b.maxHp - b.hp, b.maxHp * dt * workMult / repairTime)
                 let price = heal / b.maxHp * Double(b.stats.cost) * repairCostRatio
                 if (g.resources[team] ?? 0) < price {
                     // Out of crystal: stop rather than repair on credit.
@@ -1005,7 +1017,7 @@ final class SUnit: SEntity {
         } else {
             slideSign = 0
         }
-        let step = min(d, Double(stats.speed) * dt)
+        let step = min(d, speed * dt)
         x += ux * step
         y += uy * step
         angle = angLerp(angle, atan2(uy, ux), dt * 10)
@@ -1020,7 +1032,7 @@ final class SUnit: SEntity {
 
     private func fire(_ t: SEntity) {
         let g = world
-        cooldown = sieged ? siegeCooldown : Double(stats.cooldown)
+        cooldown = (sieged ? siegeCooldown : Double(stats.cooldown)) * (1 - kit("cooldown"))
         let d = max(1e-3, hyp(t.x - x, t.y - y))
         let ux = (t.x - x) / d, uy = (t.y - y) / d
         let ang = atan2(uy, ux)
@@ -1223,6 +1235,8 @@ final class SWorld {
     var fog: [Int: SFogGrid] = [:]
     /// alliance -> attacker id -> revealed until (elapsed seconds)
     private var reveals: [Int: [Int: Double]] = [:]
+    /// slot -> kit ids bought from the Armory
+    var playerKits: [Int: Set<String>] = [:]
     var obstacles: [(Double, Double, Double)] = []
     private var obstacleGrid: [Int: [Int]] = [:]
     /// `walls` is derived: the map's own water and cliffs plus the span of every fallen bridge.
@@ -1250,6 +1264,7 @@ final class SWorld {
         for p in list {
             players[p.slot] = p
             resources[p.slot] = 250
+            playerKits[p.slot] = []
             unitsTrained[p.slot] = 0
             unitsLost[p.slot] = 0
             crystalsMined[p.slot] = 0
@@ -1353,6 +1368,37 @@ final class SWorld {
 
     /// A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
     /// Everything that consults `walls` — navigation, collision and building placement — follows from this.
+    // MARK: The Armory
+
+    /// The summed effect `key` of every kit `slot` has bought for `kind`.
+    func kitBonus(_ slot: Int, _ kind: UnitKind, _ key: String) -> Double {
+        guard let owned = playerKits[slot], !owned.isEmpty else { return 0 }
+        return kits.filter { $0.unit == kind && owned.contains($0.id) }.reduce(0) { $0 + $1.bonus(key) }
+    }
+
+    @discardableResult
+    func buyKit(_ slot: Int, _ id: String) -> Bool {
+        guard let kit = kits.first(where: { $0.id == id }), var owned = playerKits[slot], !owned.contains(id) else { return false }
+        guard (resources[slot] ?? 0) >= Double(kit.cost) else {
+            emit(["msg", slot, "Not enough crystal", "bad"])
+            return false
+        }
+        resources[slot, default: 0] -= Double(kit.cost)
+        owned.insert(id)
+        playerKits[slot] = owned
+        // Kit is worn at once: units already in the field get the extra health, not just a taller bar.
+        let hp = kit.bonus("hp")
+        if hp > 0 {
+            for u in units where !u.dead && u.team == slot && u.kind == kit.unit {
+                let added = Double(u.stats.hp) * hp
+                u.maxHp += added
+                u.hp += added
+            }
+        }
+        emit(["kit", slot, id])
+        return true
+    }
+
     /// Whoever just hit `victim` shows itself to that player's alliance for a moment.
     func reveal(_ attacker: SEntity, victim: Int) {
         guard attacker.team >= 0, players[victim] != nil, !allied(attacker.team, victim),
@@ -1599,6 +1645,8 @@ final class SWorld {
             }
         case "cancelup" where cmd.count >= 2:
             ownBuildings(slot, [jInt(cmd[1])]).first?.cancelUpgrade()
+        case "buy" where cmd.count >= 2:
+            buyKit(slot, jStr(cmd[1]))
         case "siege" where cmd.count >= 3:
             for u in ownUnits(slot, ids(cmd[1])) { u.setSiege(flag(2)) }
         case "repair" where cmd.count >= 3:
@@ -1949,6 +1997,7 @@ final class SAI {
         rebuildBridges(hq, workers)
         repair(bases, workers)
         upgrade(hq, bases)
+        shop(army)
         defend(bases, home)
         attack(hq, home)
     }
@@ -2013,6 +2062,18 @@ final class SAI {
         guard let builder = free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) }) else { return }
         g.resources[team, default: 0] -= Double(bridgeCost)
         builder.command(.rebuild(b))
+    }
+
+    /// Sitting on crystal after the opening, buy the cheapest kit for whatever it fields most of.
+    private func shop(_ army: [SUnit]) {
+        let g = world
+        guard g.elapsed >= 240, (g.resources[team] ?? 0) >= 800, !army.isEmpty else { return }
+        var counts: [UnitKind: Int] = [:]
+        for u in army { counts[u.kind, default: 0] += 1 }
+        guard let kind = counts.max(by: { $0.value < $1.value })?.key, let owned = g.playerKits[team] else { return }
+        if let cheapest = kits.filter({ $0.unit == kind && !owned.contains($0.id) }).min(by: { $0.cost < $1.cost }) {
+            g.buyKit(team, cheapest.id)
+        }
     }
 
     /// With crystal to spare: production first, then armour on the Command Center, then the guns.

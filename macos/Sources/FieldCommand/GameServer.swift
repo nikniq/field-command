@@ -479,7 +479,7 @@ final class GameServer {
         guard let kind = e.first as? String else { return false }
         func num(_ i: Int) -> Double { i < e.count ? Double(jNum(e[i])) : 0 }
         switch kind {
-        case "msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank": return jInt(e[1]) == slot
+        case "msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank", "kit": return jInt(e[1]) == slot
         case "elim", "gameover", "chat", "bridge", "tower": return true
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
@@ -534,6 +534,7 @@ final class GameServer {
         return ["t": "snap", "time": (w.elapsed * 100).rounded() / 100, "res": Int(w.resources[slot] ?? 0),
                 "sup": [w.supplyUsed(slot), w.supplyCap(slot)], "u": units, "o": orders, "b": buildings,
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
+                "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]
     }

@@ -61,6 +61,31 @@ a Command Center, and its dish sweeps while it works. It carries no weapons and 
 your lines or next to a Turret. One near a contested expansion shows attacks forming long before they
 arrive; the server enforces fog of war, so this vision is the only way to watch ground you do not hold.
 
+## The Armory
+
+Press **Y** (or the *Armory* button in the top bar) to open the store. Kit is bought once with crystal and worn
+by every unit of that type for the rest of the match — including the ones already in the field, which get the
+extra health on the spot. Twelve pieces, three per unit type:
+
+| Unit | Kit | Cost | Effect |
+| --- | --- | --- | --- |
+| Engineer | Hard hat | 100 | +50% hit points |
+| | Power tools | 150 | repairs and rebuilds 30% faster |
+| | Cargo rig | 150 | 12 crystal per trip instead of 8 |
+| Ranger | Flak jacket | 200 | +25% hit points |
+| | Hollow points | 250 | +20% damage |
+| | Sprint boots | 150 | +15% speed |
+| Sniper | Long scope | 300 | +30 range (360 — further than a dug-in tank) |
+| | Ghillie suit | 200 | +25% hit points |
+| | Match ammo | 250 | reloads 20% faster |
+| Siege Tank | Reactive armour | 300 | +25% hit points |
+| | Extended barrel | 300 | +20 range, mobile and dug in |
+| | Autoloader | 350 | reloads 20% faster |
+
+Kit stacks with veterancy and with building upgrades, so the mix you buy shapes your army: Long scope lets
+Snipers out-reach sieged tanks again, Extended barrel gives tanks it back, and a Cargo rig is the cheapest
+income boost in the game. Computer players shop too once they are sitting on crystal.
+
 ## Attackers reveal themselves
 
 Anything that hits you shows itself to your side for 2.5 seconds, even from beyond your sight. A Sniper or a
@@ -184,7 +209,7 @@ Choose **Multiplayer** (or press **M**) on the title screen.
   dedicated one on macOS).
 - In game, press **Enter** to chat. The game keeps running when you open the menu.
 
-All players must run the same version: the protocol is at 7 (Field Command 1.7.0, veterancy and watchtowers;
+All players must run the same version: the protocol is at 8 (Field Command 1.8.0, the Armory; 7 veterancy and watchtowers;
 6 building upgrades; 5 siege mode; 4 repair; 3 destructible bridges; 2 the Sniper and the Radar Station),
 and a server refuses older clients rather than letting them mis-read the game.
 
@@ -211,6 +236,7 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Engineer builds | C Command Center · E Supply Depot · B Barracks · F Factory · T Turret · D Radar Station |
 | Siege / unsiege | G with Siege Tanks selected (a move order also packs them up) |
 | Building upgrades | V Reinforce · X Armour · U Assembly line / Expanded storage / Twin cannon |
+| The Armory | Y — buy kit for your troops |
 | Repair | Engineer + right-click a damaged building |
 | Bridges | A then click to demolish · Engineer + right-click to rebuild |
 | Train | W Engineer (HQ) · R Ranger, N Sniper (Barracks) · T Siege Tank (Factory) |

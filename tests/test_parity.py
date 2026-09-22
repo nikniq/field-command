@@ -15,7 +15,8 @@ from fieldcommand.defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUIL
                                SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION,
                                UNITS, UNIT_KINDS, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TURRET_UPGRADED_DAMAGE,
                                TURRET_UPGRADED_RANGE, UPGRADES, UPGRADE_KINDS, TOWER_CAPTURE_TIME, TOWER_HALF,
-                               TOWER_RADIUS, TOWER_SIGHT, VET_BONUS, VET_THRESHOLDS, REVEAL_RADIUS, REVEAL_TIME)
+                               TOWER_RADIUS, TOWER_SIGHT, VET_BONUS, VET_THRESHOLDS, REVEAL_RADIUS, REVEAL_TIME,
+                               CARRY_CAP, KITS)
 from fieldcommand import net  # noqa: E402
 from fieldcommand.session import lineup_text  # noqa: E402
 
@@ -132,6 +133,17 @@ def test_upgrade_catalogue_agrees():
     assert const("revealRadius") == REVEAL_RADIUS
     thresholds = re.search(r"let vetThresholds = \[([\d, ]+)\]", src).group(1)
     assert tuple(int(x) for x in thresholds.split(",")) == VET_THRESHOLDS
+
+
+def test_armory_catalogue_agrees():
+    src = swift("Defs.swift")
+    rows = re.findall(r'Kit\(id: "(\w+)", unit: \.(\w+), name: "([^"]+)", cost: (\d+), desc: "([^"]+)", effect: \[(.*?)\]\)', src)
+    assert [r[0] for r in rows] == [k.id for k in KITS], "kit wire order"
+    for (kid, unit, name, cost, desc, effect), k in zip(rows, KITS):
+        assert (unit, name, int(cost), desc) == (k.unit, k.name, k.cost, k.desc), kid
+        eff = tuple((key, float(v)) for key, v in re.findall(r'\("(\w+)", ([\d.]+)\)', effect))
+        assert eff == tuple((key, float(v)) for key, v in k.effect), kid
+    assert int(re.search(r"let carryCap = (\d+)", src).group(1)) == CARRY_CAP
 
 
 def test_app_versions_agree():

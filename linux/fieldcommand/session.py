@@ -10,6 +10,7 @@ import time
 
 from . import mapgen
 from . import defs
+from .defs import KIT_IDS
 from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, TOWER_HALF, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS,
                    VET_BONUS, angle_lerp, rect_distance, rects_intersect, square_rect, upgrade_applies)
@@ -137,6 +138,7 @@ class LocalSession(_Base):
     crystals = property(lambda self: self.world.crystals)
     bridges = property(lambda self: self.world.bridges)
     towers = property(lambda self: self.world.towers)
+    kits = property(lambda self: self.world.kits[self.slot])
     elapsed = property(lambda self: self.world.elapsed)
     game_over = property(lambda self: self.world.game_over)
     winner_team = property(lambda self: self.world.winner_team)
@@ -370,6 +372,7 @@ class NetSession(_Base):
         self._bridges_by_id = {}
         self.towers = []
         self._towers_by_id = {}
+        self.kits = set()
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
         self.units, self.buildings = [], []
@@ -430,6 +433,8 @@ class NetSession(_Base):
         self._snap_time = now
         self.elapsed = m["time"]
         self.resources = m["res"]
+        mask = m.get("kit", 0)
+        self.kits = {k for i, k in enumerate(KIT_IDS) if mask & (1 << i)}
         self.supply_used, self.supply_cap = m["sup"]
         seen = set()
         orders = m.get("o", {})

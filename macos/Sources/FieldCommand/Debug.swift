@@ -385,6 +385,56 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_STORETEST=1: the Armory on the server simulation — every kit effect, the price rules and the wire mask —
+    /// matching linux/tests/test_store.py.
+    static func runStoreTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(bank: Double = 5000) -> (SWorld, SBuilding) {
+            let map = SMapGen.generate("twin_ridges")
+            let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: players, difficulty: .normal)
+            for u in w.units where u.team == 0 { u.command(.idle) }
+            w.resources[0] = bank
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        check(kits.count == 12 && Set(kitIds).count == 12, "twelve distinct kits")
+
+        var (w, hq) = fresh()
+        let vet = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 100, y: hq.y)
+        w.add(vet)
+        vet.hp = 30
+        let base = Double(UnitKind.marine.stats.hp)
+        check(w.buyKit(0, "flak") && vet.maxHp == base * 1.25 && vet.hp == 30 + base * 0.25, "a hit-point kit is worn by units already in the field")
+        let recruit = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 140, y: hq.y)
+        check(recruit.maxHp == base * 1.25 && recruit.hp == recruit.maxHp, "and by every unit that follows")
+
+        (w, hq) = fresh()
+        for id in ["hollowpoint", "boots", "scope", "autoloader", "barrel"] { _ = w.buyKit(0, id) }
+        let r = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 100, y: hq.y)
+        let sn = SUnit(world: w, kind: .sniper, team: 0, x: hq.x + 100, y: hq.y + 50)
+        let t = SUnit(world: w, kind: .tank, team: 0, x: hq.x + 100, y: hq.y + 100)
+        check(abs(r.vetMult - 1.2) < 1e-9 && abs(r.speed - Double(UnitKind.marine.stats.speed) * 1.15) < 1e-9, "damage and speed kit")
+        check(sn.attackRange == Double(UnitKind.sniper.stats.range) + 30 && t.attackRange == Double(UnitKind.tank.stats.range) + 20, "range kit")
+        t.mode = .sieged
+        check(t.attackRange == siegeRange + 20, "range kit applies dug in too")
+
+        (w, hq) = fresh()
+        let eng = SUnit(world: w, kind: .worker, team: 0, x: hq.x + 100, y: hq.y)
+        w.add(eng)
+        let before = (eng.carryCapacity, eng.workMult)
+        _ = w.buyKit(0, "cargorig"); _ = w.buyKit(0, "powertools")
+        check(before == (carryCap, 1.0) && eng.carryCapacity == carryCap + 4 && abs(eng.workMult - 1.3) < 1e-9, "Cargo rig and Power tools")
+
+        (w, hq) = fresh(bank: 250)
+        let refused = !w.buyKit(0, "scope")
+        let bought = w.buyKit(0, "flak") && (w.resources[0] ?? 0) == 50
+        check(refused && bought && !w.buyKit(0, "flak") && !w.buyKit(0, "nope"), "price once, never twice, only with crystal")
+
+        print(ok ? "STORE TEST PASSED" : "STORE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_CARDSHOT=dir: starts a skirmish, selects the Command Center, an Engineer, a Barracks and a mixed
     /// group in turn, and writes the view after each — including a frame with the mouse over a button and
     /// one after pressing one — so the command card can be inspected in the real client.
@@ -427,6 +477,14 @@ enum Debug {
         pick([.barracks], "barracks")
         pick([.barracks, .factory, .depot], "mixed")
         scene.setSelection([]); frames(10); snapshot(scene, dir: dir, name: "card_none")
+        // The Armory, with one piece already issued.
+        world.resources[0] = 640
+        _ = world.buyKit(0, "flak")
+        frames(10)
+        scene.toggleStore()
+        frames(10)
+        snapshot(scene, dir: dir, name: "store")
+        scene.toggleStore()
         print("card shot: wrote \(dir)")
         stopHostedServer()
         exit(0)

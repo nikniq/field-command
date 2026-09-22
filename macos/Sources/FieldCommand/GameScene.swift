@@ -728,6 +728,22 @@ final class GameScene: SKScene {
         }
     }
 
+    /// My kit this match: from the server in a network game, none in the fallback local game.
+    var myKits: Set<String> { net?.kits ?? [] }
+
+    func buyKit(_ id: String) { sendNet(["buy", id]) }
+
+    func toggleStore() {
+        if gameOver { return }
+        if hud.storeOpen {
+            hud.clearOverlay()
+            gamePaused = false
+        } else if !hud.overlayVisible {
+            gamePaused = !isMultiplayer
+            hud.showStore()
+        }
+    }
+
     func toggleHelp() {
         if gameOver { return }
         if hud.overlayVisible {
@@ -945,6 +961,7 @@ final class GameScene: SKScene {
         }
         if chars == "p" { togglePause(); return }
         if chars == "h" || chars == "?" || chars == "/" { toggleHelp(); return }
+        if chars == "y" { toggleStore(); return }
         if gamePaused { return }
         if code == 49 { jumpCamera(); return }
         if chars == "=" || chars == "+" { zoom(by: 0.9); return }

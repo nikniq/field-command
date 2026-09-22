@@ -10,8 +10,8 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (BRIDGE_COST, BUILDINGS, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT, UNITS, clamp,
-                   rect_distance, rects_intersect, square_rect, upgrade_cost)
+from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
+                   UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
 from .entities import IDLE, Bridge, Building, Crystal, Unit, Watchtower
 from .fog import FogGrid
 from .nav import NavGrid
@@ -54,6 +54,7 @@ class World:
         self.alliance_index = {t: i for i, t in enumerate(teams)}
         self.fog = {t: FogGrid() for t in teams}
         self.reveals = {t: {} for t in teams}    # alliance -> {attacker id: revealed until (elapsed seconds)}
+        self.kits = {p.slot: set() for p in players}    # slot -> kit ids bought from the Armory
 
         self.map_walls = [tuple(w[:4]) for w in map_spec.get("walls", [])]
         self.bridges = []
@@ -104,6 +105,35 @@ class World:
         self.by_id[e.id] = e
         if e.is_building:
             self._nav_dirty = True
+
+    # ------------------------------------------------------------ the Armory
+
+    def kit_bonus(self, slot, unit_kind, key):
+        """The summed effect `key` of every kit `slot` has bought for `unit_kind`."""
+        owned = self.kits.get(slot)
+        if not owned:
+            return 0.0
+        return sum(k.bonus(key) for k in KITS if k.unit == unit_kind and k.id in owned)
+
+    def buy_kit(self, slot, kit_id):
+        kit = KIT_BY_ID.get(kit_id)
+        if kit is None or slot not in self.kits or kit_id in self.kits[slot]:
+            return False
+        if self.resources[slot] < kit.cost:
+            self.emit("msg", slot, "Not enough crystal", "bad")
+            return False
+        self.resources[slot] -= kit.cost
+        self.kits[slot].add(kit_id)
+        # Kit is worn at once: units already in the field get the extra health, not just a taller bar.
+        hp = kit.bonus("hp")
+        if hp:
+            for u in self.units:
+                if not u.dead and u.team == slot and u.kind == kit.unit:
+                    added = u.stats.hp * hp
+                    u.max_hp += added
+                    u.hp += added
+        self.emit("kit", slot, kit_id)
+        return True
 
     def reveal(self, attacker, victim_slot):
         """Whoever just hit `victim_slot` shows itself to that player's alliance for a moment."""
@@ -395,6 +425,7 @@ class World:
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
             ["rebuild", worker_id, bridge_id, queue]  ["repair", worker_ids, building_id, queue]
             ["siege", ids, on]                      ["upgrade", building_ids, kind]  ["cancelup", building_id]
+            ["buy", kit_id]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
         Invalid or foreign references are ignored."""
         if self.game_over or slot not in self.players or not self.players[slot].alive or not cmd:
@@ -438,6 +469,8 @@ class World:
             elif op == "cancelup":
                 for b in self._own_buildings(slot, [cmd[1]]):
                     b.cancel_upgrade()
+            elif op == "buy":
+                self.buy_kit(slot, cmd[1])
             elif op == "siege":
                 for u in self._own_units(slot, cmd[1]):
                     u.set_siege(bool(cmd[2]))

@@ -88,6 +88,12 @@ extension GameScene {
         net.snapTime = now
         net.serverTime = jNum(m["time"])
         net.resources = jInt(m["res"])
+        let mask = jInt(m["kit"])
+        let owned = Set(kitIds.enumerated().filter { mask & (1 << $0.offset) != 0 }.map { $0.element })
+        if owned != net.kits {
+            net.kits = owned
+            hud.refreshOverlay()          // the Armory, if open, shows what was just issued
+        }
         let sup = jArr(m["sup"])
         if sup.count == 2 {
             net.supplyUsed = jInt(sup[0])
@@ -282,6 +288,11 @@ extension GameScene {
                 hud.flash("Ally's \(k.stats.name) destroyed", color: Palette.amber)
             } else {
                 hud.flash("Enemy \(k.stats.name) destroyed", color: Palette.good)
+            }
+        case "kit":
+            if let k = kits.first(where: { $0.id == jStr(e[2]) }) {
+                hud.flash("\(k.name) issued to every \(k.unit.stats.name)", color: Palette.good)
+                playSound("Glass")
             }
         case "tower":
             let slot = jInt(e[1])

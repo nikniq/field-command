@@ -9,6 +9,7 @@ import random
 import pygame
 
 from . import art, audio, defs, terrain, ui
+from .defs import KIT_BY_ID
 from .defs import (AMBER, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
                    to255, upgrade_applies, upgrade_cost)
@@ -313,6 +314,9 @@ class GameScene:
                 self.hud.flash(f"Ally's {name} destroyed", AMBER)
             else:
                 self.hud.flash(f"Enemy {name} destroyed", GOOD)
+        elif k == "kit":
+            self.hud.flash(f"{KIT_BY_ID[ev[2]].name} issued to every {UNITS[KIT_BY_ID[ev[2]].unit].name}", GOOD)
+            audio.play("complete")
         elif k == "upgraded":
             self.hud.flash(f"{BUILDINGS[ev[2]].name}: {UPGRADES[ev[3]].name} installed", GOOD)
             audio.play("complete")
@@ -404,6 +408,15 @@ class GameScene:
         else:
             self.paused = True
             self.hud.show_pause()
+
+    def toggle_store(self):
+        if self.hud.store_open:
+            self.hud.close_store()
+        elif not self.hud.overlay_visible:
+            self.hud.open_store()
+
+    def buy_kit(self, kit_id):
+        self.s.send(["buy", kit_id])
 
     def toggle_help(self):
         if self.s.game_over:
@@ -619,6 +632,9 @@ class GameScene:
             return
         if name in ("h", "/", "?") or key == pygame.K_F1:
             self.toggle_help()
+            return
+        if name == "y" and not self.s.game_over:
+            self.toggle_store()
             return
         if self._blocked():
             return

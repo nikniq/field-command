@@ -67,8 +67,13 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 7, so a 1.7.0 Mac and a 1.7.0 Linux client play together; neither accepts an
+Both editions speak protocol 8, so a 1.8.0 Mac and a 1.8.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
+
+## The Armory
+
+**Y** opens the store: twelve pieces of kit, three per unit type, bought once with crystal and worn by every
+unit of that type all match. The catalogue and effects match the Linux edition (`FC_STORETEST`).
 
 ## Attackers reveal themselves
 
@@ -127,5 +132,6 @@ FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player te
 FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: transition, reach, blind spot
 FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrades: each effect and the rules
 FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks and watchtower capture
+FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: every kit effect and the rules
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

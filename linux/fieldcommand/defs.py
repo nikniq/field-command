@@ -205,6 +205,41 @@ def upgrade_applies(kind, building_kind):
     return not a or building_kind in a
 
 
+# The Armory. Kit is bought once per match with crystal and worn by every unit of that type, present and
+# future. Effects: hp/damage/speed/cooldown are fractions of the unit's base value (cooldown is a reduction),
+# range is added in world units, work speeds up an Engineer's repairing and rebuilding, carry adds crystal
+# to each mining trip. The order of KITS is the wire order: what a player owns travels as a bitmask.
+@dataclass(frozen=True)
+class Kit:
+    id: str
+    unit: str
+    name: str
+    cost: int
+    desc: str
+    effect: tuple      # ((key, value), ...)
+
+    def bonus(self, key):
+        return dict(self.effect).get(key, 0.0)
+
+
+KITS = [
+    Kit("hardhat", "worker", "Hard hat", 100, "+50% hit points. Engineers survive a stray shell.", (("hp", 0.5),)),
+    Kit("powertools", "worker", "Power tools", 150, "Repairs and rebuilds 30% faster.", (("work", 0.3),)),
+    Kit("cargorig", "worker", "Cargo rig", 150, "Carries 12 crystal per trip instead of 8.", (("carry", 4),)),
+    Kit("flak", "marine", "Flak jacket", 200, "+25% hit points for every Ranger.", (("hp", 0.25),)),
+    Kit("hollowpoint", "marine", "Hollow points", 250, "+20% Ranger damage.", (("damage", 0.2),)),
+    Kit("boots", "marine", "Sprint boots", 150, "Rangers move 15% faster.", (("speed", 0.15),)),
+    Kit("scope", "sniper", "Long scope", 300, "+30 range: 360, further than a dug-in tank.", (("range", 30),)),
+    Kit("ghillie", "sniper", "Ghillie suit", 200, "+25% hit points for every Sniper.", (("hp", 0.25),)),
+    Kit("matchammo", "sniper", "Match ammo", 250, "Snipers reload 20% faster.", (("cooldown", 0.2),)),
+    Kit("reactive", "tank", "Reactive armour", 300, "+25% hit points for every Siege Tank.", (("hp", 0.25),)),
+    Kit("barrel", "tank", "Extended barrel", 300, "+20 range, mobile and dug in.", (("range", 20),)),
+    Kit("autoloader", "tank", "Autoloader", 350, "Tanks reload 20% faster.", (("cooldown", 0.2),)),
+]
+KIT_BY_ID = {k.id: k for k in KITS}
+KIT_IDS = [k.id for k in KITS]
+CARRY_CAP = 8            # crystal an Engineer carries per trip without a Cargo rig
+
 # Attacker reveal. Anything that hits you shows itself to your alliance for REVEAL_TIME seconds, even from
 # beyond your sight — so a Sniper or a dug-in tank shelling you from the dark can be seen and answered.
 REVEAL_TIME = 2.5
