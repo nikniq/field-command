@@ -398,6 +398,28 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_AUDIOTEST=1: synthesises every effect and checks each has the length and loudness the recipe implies —
+    /// no audio device needed, so it runs in CI.
+    static func runAudioTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        let sounds = Audio.synthesise()
+        check(Set(sounds.keys) == Set(Audio.names), "thirteen effects: \(sounds.keys.sorted().joined(separator: ", "))")
+        let expected: [String: Double] = ["rifle": 0.08, "cannon": 0.5, "explosion": 0.9, "turret": 0.1, "complete": 0.37,
+                                          "alert": 0.45, "wave": 0.75, "snipe": 0.35, "siege": 0.68, "pop": 0.08,
+                                          "click": 0.03, "victory": 0.72, "defeat": 0.9]
+        for name in Audio.names {
+            guard let s = sounds[name] else { continue }
+            let secs = Double(s.count) / Audio.rate
+            let peak = s.map { abs($0) }.max() ?? 0
+            let mean = s.map { abs($0) }.reduce(0, +) / Float(s.count)
+            check(abs(secs - expected[name]!) < 0.02 && peak > 0.05 && peak <= 1 && mean > 0.002,
+                  String(format: "%-10@ %.2fs peak %.2f", name as NSString, secs, peak))
+        }
+        print(ok ? "AUDIO TEST PASSED" : "AUDIO TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_AITEST=1: the computer opponent notices what it faces and answers it — matching linux/tests/test_ai.py.
     static func runAITest() -> Never {
         var ok = true

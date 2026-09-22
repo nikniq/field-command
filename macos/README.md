@@ -1,8 +1,10 @@
 # Field Command — macOS edition
 
 A real-time strategy game in Swift and SpriteKit: mine crystal with Engineers, build a base, train Rangers,
-Snipers and Siege Tanks, and destroy every enemy building. All artwork is drawn procedurally with Core Graphics and
-all sound effects are synthesised, so there are no asset files. The Linux port lives in `../linux/`.
+Snipers and Siege Tanks, and destroy every enemy building. All artwork is drawn procedurally with Core Graphics
+and every sound effect is synthesised at launch (`Audio.swift`, the same thirteen recipes as the Linux edition —
+rifle, cannon, sniper crack, siege lock-down, explosions, chimes and alerts), so there are no asset files. The
+Linux port lives in `../linux/`.
 
 ## Build and run
 
@@ -144,5 +146,6 @@ FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrade
 FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks and watchtower capture
 FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: every kit effect and the rules
 FC_AITEST=1 .build/release/FieldCommand                       # the opponent: observation, counters, standoff
+FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesised effect, length and loudness
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

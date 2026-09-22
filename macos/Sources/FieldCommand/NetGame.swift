@@ -247,6 +247,12 @@ extension GameScene {
             let widths: [CGFloat] = [1.4, 2, 1.1]
             let i = min(max(0, style), colors.count - 1)
             tracer(from: p(1), to: p(3), color: colors[i], width: widths[i])
+        case "sound":
+            // Heard when it happens on screen (or just off it), as in the Python client.
+            if visibleWorldRect().insetBy(dx: -150, dy: -150).contains(p(2)) {
+                let name = jStr(e[1])
+                Audio.play(name, minGap: Audio.minGaps[name] ?? 0)
+            }
         case "muzzle": muzzleFlash(at: p(1), angle: jNum(e[3]), size: jNum(e[4]))
         case "sparks":
             let colors: [String: NSColor] = ["hit": .rgb(1, 0.8, 0.4), "crystal": Palette.crystal, "amber": Palette.amber]

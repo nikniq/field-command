@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.9.0
+Version:        1.9.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,9 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.9.1-1
+- The macOS edition now synthesises the same thirteen sound effects as this one
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.9.0-1
 - The computer opponent watches your army and builds to counter it, keeps its Snipers at range, and raids
 

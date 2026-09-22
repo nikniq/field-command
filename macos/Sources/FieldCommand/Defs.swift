@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.9.0"
+let appVersion = "1.9.1"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -113,9 +113,12 @@ func makeLabel(_ text: String, size: CGFloat, color: NSColor = Palette.text, fon
     return l
 }
 
+/// Plays a synthesised effect (see Audio.swift). The old macOS system-sound names still work, mapped to
+/// their equivalents, so call sites written before the synthesiser need not change.
 func playSound(_ name: String) {
-    guard Settings.sound, !Debug.headless else { return }
-    (NSSound(named: NSSound.Name(name))?.copy() as? NSSound)?.play()
+    let mapped = ["Glass": "complete", "Pop": "pop", "Tink": "click", "Hero": "victory", "Basso": "defeat",
+                  "Submarine": "alert", "Funk": "wave"][name] ?? name
+    Audio.play(mapped, minGap: Audio.minGaps[mapped] ?? 0)
 }
 
 // MARK: - Teams

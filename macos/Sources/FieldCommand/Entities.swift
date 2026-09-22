@@ -629,6 +629,7 @@ final class Unit: Entity {
             if visible {
                 game.muzzleFlash(at: muzzle, angle: angle, size: 26)
                 game.emit(FX.smokeBurst(size: 8), at: muzzle, life: 2)
+                playSound("cannon")
             }
             gun?.run(.sequence([.move(by: CGVector(dx: -dir.x * 4, dy: -dir.y * 4), duration: 0.05),
                                 .move(to: .zero, duration: 0.25)]))
@@ -640,6 +641,7 @@ final class Unit: Entity {
                 game.tracer(from: muzzle, to: t.position, color: .rgb(0.78, 0.95, 1.0), width: 1.1)
                 game.muzzleFlash(at: muzzle, angle: angle, size: 18)
                 game.impact(at: t.position)
+                playSound("snipe")
             }
         case .marine:
             let side = CGPoint(x: dir.y, y: -dir.x) * 4.5
@@ -649,6 +651,7 @@ final class Unit: Entity {
                 game.tracer(from: muzzle, to: t.position + jitter, color: .rgb(1, 0.88, 0.5), width: 1.4)
                 game.muzzleFlash(at: muzzle, angle: angle, size: 12)
                 if Bool.random() { game.impact(at: t.position + jitter) }
+                playSound("rifle")
             }
             body.run(.sequence([.move(to: dir * -1.5, duration: 0.03), .move(to: .zero, duration: 0.1)]))
         case .worker:
