@@ -273,6 +273,10 @@ TOWER_HALF = 26.0
 # Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
 # full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
 # Engineers also repair Siege Tanks, at the same rate and the same share of the tank's price.
+# Gold: a deposit worth a hundred normal mineral nodes. Drawn gold (crystal variant 3), mined like any other,
+# but it does not run out — a spot worth holding for the whole match.
+GOLD_AMOUNT = 150000
+
 REPAIR_TIME = 30.0
 REPAIR_COST_RATIO = 0.35
 

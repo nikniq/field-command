@@ -300,7 +300,7 @@ final class HUD: SKNode {
     private func refreshTopButtons(_ mouse: CGPoint?) {
         let idle = game.idleWorkers.count, army = game.army.count
         let hoverIdx = mouse.flatMap { m in topButtons.firstIndex { $0.0.contains(m) } }
-        let sig = "\(idle)-\(army)-\(String(describing: hoverIdx))-\(size.width)"
+        let sig = "\(idle)-\(army)-\(game.pingPending)-\(String(describing: hoverIdx))-\(size.width)"
         guard sig != lastTopSignature else { return }
         lastTopSignature = sig
         topButtonLayer.removeAllChildren()
@@ -308,17 +308,19 @@ final class HUD: SKNode {
         var x = -size.width / 2 + 220
         x = topButton(idle == 1 ? "1 idle" : "\(idle) idle", icon: Art.unit(.worker, Team.local), x: x, width: 96,
                       highlight: idle > 0, hover: hoverIdx == 0) { [unowned self] in self.game.selectIdleWorker() }
-        _ = topButton("Army \(army)", icon: Art.unit(.marine, Team.local), x: x, width: 104, highlight: false,
+        x = topButton("Army \(army)", icon: Art.unit(.marine, Team.local), x: x, width: 104, highlight: false,
                       hover: hoverIdx == 1) { [unowned self] in self.game.selectArmy() }
+        _ = topButton("Attack (Z)", icon: nil, x: x, width: 96, highlight: game.pingPending,
+                      hover: hoverIdx == 2) { [unowned self] in self.game.beginPing(kind: 0) }
         let right = size.width / 2 - 14
-        _ = topButton("Menu", icon: nil, x: right - 72, width: 72, highlight: false, hover: hoverIdx == 2) { [unowned self] in
+        _ = topButton("Menu", icon: nil, x: right - 72, width: 72, highlight: false, hover: hoverIdx == 3) { [unowned self] in
             self.game.togglePause()
         }
-        _ = topButton("Help", icon: nil, x: right - 72 - 8 - 64, width: 64, highlight: false, hover: hoverIdx == 3) { [unowned self] in
+        _ = topButton("Help", icon: nil, x: right - 72 - 8 - 64, width: 64, highlight: false, hover: hoverIdx == 4) { [unowned self] in
             self.game.toggleHelp()
         }
         let canShop = game.myKits.count < kits.count && game.myResources >= 100
-        _ = topButton("Armory (Y)", icon: nil, x: right - 72 - 8 - 64 - 8 - 92, width: 92, highlight: canShop, hover: hoverIdx == 4) { [unowned self] in
+        _ = topButton("Armory (Y)", icon: nil, x: right - 72 - 8 - 64 - 8 - 92, width: 92, highlight: canShop, hover: hoverIdx == 5) { [unowned self] in
             self.game.toggleStore()
         }
     }
@@ -429,6 +431,8 @@ final class HUD: SKNode {
             let w = minimapToWorld(p)
             if right {
                 game.smartCommand(at: w, queue: queue)
+            } else if game.pingPending || NSEvent.modifierFlags.contains(.option) {
+                game.placePing(at: w)
             } else {
                 game.centerCamera(on: w)
                 game.minimapDragging = true
@@ -504,7 +508,9 @@ final class HUD: SKNode {
             d.isHidden = false
             i += 1
         }
-        for c in game.crystals where !c.dead && game.fog.isExplored(c.position) { put(c.position, Palette.crystal, 3) }
+        for c in game.crystals where !c.dead && game.fog.isExplored(c.position) {
+            put(c.position, c.isGold ? Palette.amber : Palette.crystal, c.isGold ? 5 : 3)
+        }
         // Crossings are strategic, so they are marked: amber while they stand, red once they are down.
         for t in game.towerNodes {
             put(t.position, t.owner.map { Team(rawValue: $0).lightColor } ?? NSColor(white: 0.75, alpha: 1), 5)
@@ -530,17 +536,17 @@ final class HUD: SKNode {
         }
     }
 
-    func ping(at p: CGPoint) {
+    func ping(at p: CGPoint, color: NSColor = Palette.bad, pulses: Int = 4) {
         let r = SKSpriteNode(texture: Art.ring)
         r.size = CGSize(width: 34, height: 34)
-        r.color = Palette.bad
+        r.color = color
         r.colorBlendFactor = 1
         r.position = CGPoint(x: p.x * mmScale, y: p.y * mmScale)
         r.zPosition = 6
         minimapLayer.addChild(r)
         let pulse = SKAction.sequence([.scale(to: 0.2, duration: 0), .fadeIn(withDuration: 0),
                                        .group([.scale(to: 1, duration: 0.6), .fadeOut(withDuration: 0.6)])])
-        r.run(.sequence([.repeat(pulse, count: 4), .removeFromParent()]))
+        r.run(.sequence([.repeat(pulse, count: pulses), .removeFromParent()]))
     }
 
     // MARK: - Selection info
@@ -885,6 +891,7 @@ final class HUD: SKNode {
                                 "Command Center: W Engineer · Barracks: R Ranger · Factory: T Siege Tank",
                                 "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
                                 "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
+                                "Z or Option+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
                                 "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
                                 "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

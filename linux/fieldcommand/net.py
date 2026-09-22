@@ -76,6 +76,8 @@ def event_visible(world, slot, ev):
         return ev[1] == slot
     if kind in PUBLIC:
         return True
+    if kind == "ping":
+        return world.allied(ev[1], slot)      # an alert point is for the whole alliance
     fog = world.fog_for(slot)
     if kind in ("recoil", "pulse"):
         e = world.by_id.get(ev[1])

@@ -276,6 +276,7 @@ extension GameScene {
         case "msg":
             hud.flash(jStr(e[2]), color: jStr(e[3]) == "bad" ? Palette.bad : Palette.text)
         case "alert": alertAttack(at: p(2))
+        case "ping": allyPing(slot: jInt(e[1]), at: p(2), kind: e.count > 4 ? jInt(e[4]) : 0)
         case "income":
             let at = p(2)
             if visibleWorldRect().contains(at) { floatText("+\(jInt(e[4]))", at: at + CGPoint(x: 0, y: 14), color: Palette.crystal) }

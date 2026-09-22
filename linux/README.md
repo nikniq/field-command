@@ -202,10 +202,19 @@ with a single opponent the setting stays on *Free-for-all*.
 | Crossroads | 4 | Bases on each edge, lakes in the quadrants |
 | Grand Arena | 12 | **Mega map**: twelve bases ringing an open plain |
 | Riverlands | 12 | **Mega map**: four rivers and a cliff-walled heartland |
+| Continental Divide | 12 | **Giant map**: a cliff spine splits north from south, five passes through it |
+| Archipelago | 12 | **Giant map**: a rich island in an inland sea, four bridges, lakes along the rim |
+| Six Rivers | 12 | **Giant map**: six rivers run from a central lake to the edges, two bridges each |
+| Crater Fields | 12 | **Giant map**: every base inside a broken ring of cliffs; a walled crater in the middle |
+| The Long March | 12 | **Giant map**: two rows of six bases across a wide river with six bridges |
 
 The two mega maps play up to **twelve** players on a world half again as wide and tall (6000 x 4200 instead of
-4000 x 2800); every other map is the standard size. A twelve-way free-for-all against computer players is
-demanding but runs fine on a normal desktop.
+4000 x 2800). The five **giant** maps are half again as wide and tall as those — 9000 x 6300, five times the
+standard area — with twelve bases, so expansions matter, armies take a while to arrive, and a Radar Station
+or a watchtower is worth more than another turret. Every other map is the standard size. A twelve-way
+free-for-all against computer players is demanding but runs fine on a normal desktop; on a giant map give it
+a minute or two longer to come to blows, and expect this edition to use about a gigabyte of memory for the
+world-sized ground and terrain images.
 
 Water and cliffs block movement, building and line of fire; bridges are walkable until someone breaks them. Troops path around
 terrain and buildings with A* on a 40-unit navigation grid (`nav.py`), walking straight when the way is
@@ -264,12 +273,31 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Idle engineer / army | I · \` or F2 |
 | Camera | Arrows, screen edges, middle-drag, minimap; wheel or +/− to zoom; Space jumps to alerts |
 | Pause & settings / help | P or Esc / H or F1 (online: the game keeps running) |
+| Attack point / help point for allies | Z then click (or Alt+click) / Shift+Z then click, map or minimap |
 | Quick save / quick load (single player) | F5 / F9 |
 | Chat (multiplayer) | Enter |
 | Fullscreen | F11 or Alt+Enter |
 
 Settings (game speed, edge scrolling, sound, objectives, fullscreen) are saved to
 `~/.config/fieldcommand/settings.json`.
+
+## Gold deposits
+
+Every map has at least one **gold deposit** — nodes drawn in gold, each worth 150,000 crystal, a hundred times
+a normal field. They are mined like any other node, at the same rate, and they do not run out: the side that
+holds the deposit never wants for crystal. They sit where the fighting is — the centre of most maps, the
+middle bridges of River Crossing and The Long March, the middle pass of Continental Divide, north and south of
+the lake on Six Rivers — and show as larger gold dots on the minimap.
+
+## Alert points
+
+Press **Z** (or the *Attack (Z)* button in the top bar) and click the map or the minimap — or simply
+**Alt+click** — to drop an **attack point**: a target reticle in your colour that everyone on your side sees,
+with a ping on the minimap, a message, and **Space** to jump to it. **Shift+Z** drops a **help point** (a
+pennant) instead — "come and defend here". Computer allies answer it: whatever they
+have standing at home, at least a pair and up to a wave's worth, sets off for the point and fights on from
+there. One alert point every three seconds; enemies never see them. Use it to direct the whole team onto a
+push, a defence or a bridge.
 
 ## Saving and loading
 

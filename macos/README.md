@@ -33,9 +33,17 @@ under the map shows who is with whom — see `../linux/README.md`.
 | Crossroads | 4 | Bases on each edge, lakes in the quadrants |
 | Grand Arena | 12 | **Mega map**: twelve bases ringing an open plain |
 | Riverlands | 12 | **Mega map**: four rivers and a cliff-walled heartland |
+| Continental Divide | 12 | **Giant map**: a cliff spine splits north from south, five passes through it |
+| Archipelago | 12 | **Giant map**: a rich island in an inland sea, four bridges, lakes along the rim |
+| Six Rivers | 12 | **Giant map**: six rivers run from a central lake to the edges, two bridges each |
+| Crater Fields | 12 | **Giant map**: every base inside a broken ring of cliffs; a walled crater in the middle |
+| The Long March | 12 | **Giant map**: two rows of six bases across a wide river with six bridges |
 
 The two mega maps play up to **twelve** players on a world half again as wide and tall (6000 x 4200 instead of
-4000 x 2800). Maps carry their own size, so the fog, navigation and terrain grids are built to fit the map in play.
+4000 x 2800); the five giant maps are half again as wide and tall as those (9000 x 6300). Maps carry their own
+size, so the fog, navigation and terrain grids are built to fit the map in play. The giant maps' layouts are
+baked into `GiantMaps.swift` from the Linux generator (`mapgen.bake_swift()`), and the parity tests check the
+file is current.
 
 Water and cliffs block movement, building and line of fire; bridges are walkable until someone breaks them. Troops path around terrain
 and buildings with A* on a 40-unit navigation grid (`Nav.swift`), so they no longer snag on the corner of a
@@ -70,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 9, so a 1.11.0 Mac and a 1.11.0 Linux client play together; neither accepts an
+Both editions speak protocol 9, so a 1.12.0 Mac and a 1.12.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -131,6 +139,18 @@ Linux edition — see `../linux/README.md`.
 Same as the Linux edition (see `../linux/README.md`), with **⌃⌘F** for full screen and **⌘Q** to quit.
 Preferences (game speed, edge scrolling, sound, objectives, map, opponents) are stored in `UserDefaults`.
 
+## Gold deposits
+
+Every map has a contested gold deposit: nodes worth 150,000 crystal each, drawn gold, mined at the normal
+rate and never running out. Same sites as the Linux edition (the parity tests check them).
+
+## Alert points
+
+**Z** then click — or **Option+click** — on the map or the minimap drops an attack point (a reticle), and
+**Shift+Z** a help point (a pennant): a beacon and a minimap ping for your whole side, a message, and Space to
+jump there. Computer allies send their idle troops.
+Same rules as the Linux edition (`FC_PINGTEST`).
+
 ## Saving and loading
 
 **F5** quick-saves a single-player game and **F9** loads it back; the pause menu has *Save Game* and *Load
@@ -163,6 +183,7 @@ FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: ever
 FC_AITEST=1 .build/release/FieldCommand                       # the opponent: observation, counters, standoff
 FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesised effect, length and loudness
 FC_MEDICTEST=1 .build/release/FieldCommand                    # Medics healing, Engineers repairing tanks
+FC_PINGTEST=1 .build/release/FieldCommand                     # alert points: alliance-only, rate limit, AI allies answer
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

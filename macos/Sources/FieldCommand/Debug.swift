@@ -102,7 +102,12 @@ enum Debug {
         if let tex = v.texture(from: g, crop: g.visibleWorldRect()) {
             write(tex.cgImage(), to: "\(dir)/\(name)_view.png")
         }
-        if let tex = v.texture(from: g.world, crop: CGRect(origin: .zero, size: worldSize)) {
+        // Metal caps a texture at 16384 pixels a side; at the view's 2x backing scale a giant map (9000 wide)
+        // would not fit, so the whole-map shot is the largest centred window that does.
+        let limit = 16384 / max(1, v.window?.backingScaleFactor ?? 2) - 64
+        let w = min(worldSize.width, limit), h = min(worldSize.height, limit)
+        let crop = CGRect(x: (worldSize.width - w) / 2, y: (worldSize.height - h) / 2, width: w, height: h)
+        if let tex = v.texture(from: g.world, crop: crop) {
             write(tex.cgImage(), to: "\(dir)/\(name)_map.png")
         }
     }
@@ -395,6 +400,53 @@ enum Debug {
         check({ if case .repair = e2.order { return false }; return true }(), "refuses to repair an enemy building")
 
         print(ok ? "REPAIR TEST PASSED" : "REPAIR TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
+    /// FC_PINGTEST=1: alert points — an event for the whole alliance only, rate-limited, clamped to the map,
+    /// and answered by a computer ally's idle troops.
+    static func runPingTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        let map = SMapGen.generate("four_corners")
+        // Slot 2 is a computer player allied with slot 0.
+        let players = (0..<4).map { SPlayer(slot: $0, name: "P\($0)", team: $0 % 2 + 1, isAI: $0 == 2, start: $0) }
+        let w = SWorld(map: map, players: players, difficulty: .normal)
+        w.apply(0, ["ping", 1000, 900])
+        let ev = w.events.first { jStr($0.first) == "ping" }
+        check(ev != nil && jInt(ev![1]) == 0 && jNum(ev![2]) == 1000 && jNum(ev![3]) == 900 && jInt(ev![4]) == 0, "a ping is an event (kind 0: attack here)")
+        check(w.pings.last.map { $0.slot == 0 && $0.x == 1000 && $0.y == 900 } ?? false, "and is remembered on the server")
+        w.events.removeAll()
+        w.apply(0, ["ping", 100, 100])
+        check(!w.events.contains { jStr($0.first) == "ping" }, "a second one within 3 seconds is dropped")
+        var t = 0.0
+        while t < 3.1 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        w.apply(1, ["ping", -500, 99999])       // from the enemy side, so the ally below never sees it
+        check(w.pings.last.map { $0.x == 0 && $0.y == worldH } ?? false, "and coordinates are clamped to the map")
+
+        let hq = w.buildings.first { $0.team == 2 && $0.kind == .hq }!
+        for u in w.units where u.team == 2 { u.command(.idle) }
+        var troops: [SUnit] = []
+        for i in 0..<4 {
+            let u = SUnit(world: w, kind: .marine, team: 2, x: hq.x + 200 + Double(i) * 30, y: hq.y + 200); w.add(u); troops.append(u)
+        }
+        t = 0
+        while t < 3.1 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        let target = (hq.x - 900, hq.y + 900)
+        w.apply(0, ["ping", target.0, target.1])
+        t = 0
+        while t < 1.5 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        func going(_ u: SUnit) -> Bool { if case .amove(let x, let y) = u.order { return abs(x - target.0) < 5 && abs(y - target.1) < 5 }; return false }
+        let moving = troops.filter(going)
+        check(moving.count >= 2, "a computer ally sends its idle troops to the alert point (\(moving.count) went)")
+        for u in troops { u.command(.idle) }
+        t = 0
+        while t < 3.5 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        w.apply(1, ["ping", target.0, target.1])
+        t = 0
+        while t < 1.5 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        check(!troops.contains(where: going), "an enemy's ping is ignored, and the same ping is not answered twice")
+        print(ok ? "PING TEST PASSED" : "PING TEST FAILED")
         exit(ok ? 0 : 1)
     }
 

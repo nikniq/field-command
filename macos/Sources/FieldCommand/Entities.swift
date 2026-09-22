@@ -18,6 +18,7 @@ enum Order {
 final class Crystal: SKNode {
     var amount: Int
     let maxAmount: Int
+    let isGold: Bool
     let radius: CGFloat = 18
     var dead = false
     var netId = 0
@@ -27,7 +28,8 @@ final class Crystal: SKNode {
     init(at p: CGPoint, amount: Int, variant: Int) {
         self.amount = amount
         self.maxAmount = amount
-        sprite = SKSpriteNode(texture: Art.crystal(variant % 3))
+        sprite = SKSpriteNode(texture: Art.crystal(variant % 4))      // 3 is gold
+        isGold = variant % 4 == 3
         super.init()
         position = p
         zPosition = 1

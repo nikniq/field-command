@@ -820,20 +820,26 @@ def scaffold(half):
 
 # ---------------------------------------------------------------- crystals & nature
 
+# Gold (variant 3): the same shards in warm metal with a bright edge, so a deposit reads at a glance.
+GOLD_FACES = ([rgb(1.0, 0.96, 0.7), rgb(0.95, 0.78, 0.25)], [rgb(0.85, 0.62, 0.15), rgb(0.45, 0.3, 0.05)])
+CRYSTAL_FACES = ([rgb(0.75, 1, 1), rgb(0.3, 0.85, 1)], [rgb(0.25, 0.7, 0.95), rgb(0.08, 0.35, 0.6)])
+
+
 def crystal(variant):
     def d(c):
+        left, right = GOLD_FACES if variant == 3 else CRYSTAL_FACES
         rnd = random.Random(100 + variant)
         shards = [(rnd.uniform(-13, 13), rnd.uniform(-18, -6), rnd.uniform(7, 12), rnd.uniform(16, 34), rnd.uniform(-5, 5))
                   for _ in range(5)]
         for (x, y, w, h, tilt) in sorted(shards, key=lambda s: -s[1]):
             bl, bm, br = (x - w / 2, y), (x, y - w * 0.3), (x + w / 2, y)
             tl, tr, tip = (x - w / 2 + tilt, y + h * 0.78), (x + w / 2 + tilt, y + h * 0.78), (x + tilt, y + h)
-            linear(c, poly([bl, bm, tip, tl]), [rgb(0.75, 1, 1), rgb(0.3, 0.85, 1)], tip, bm)
-            linear(c, poly([bm, br, tr, tip]), [rgb(0.25, 0.7, 0.95), rgb(0.08, 0.35, 0.6)], tip, bm)
+            linear(c, poly([bl, bm, tip, tl]), left, tip, bm)
+            linear(c, poly([bm, br, tr, tip]), right, tip, bm)
             stroke(c, poly([bl, bm, br, tr, tip, tl]), alpha(WHITE, 0.6), 0.8)
             lines(c, [(bm, tip)], alpha(WHITE, 0.5), 0.8)
             lines(c, [((bl[0] + 1.5, bl[1] + 2), (tl[0] + 1.5, tl[1] - 2))], alpha(WHITE, 0.7), 1)
-    return texture(("crystal", variant % 3), (54, 60), d)
+    return texture(("crystal", variant % 4), (54, 60), d)
 
 
 def tree(variant):

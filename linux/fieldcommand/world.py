@@ -48,6 +48,9 @@ class World:
         self.crystals_mined = {s: 0 for s in self.players}
         self.trained_kinds = {s: {} for s in self.players}
         self._alert_time = {s: -100.0 for s in self.players}
+        # Alert points: a player marks a spot and every ally is shown it; computer allies send troops.
+        self.pings = []                  # [(slot, x, y, elapsed)], the last 30 seconds' worth
+        self._ping_time = {s: -100.0 for s in self.players}
         self._fog_timer = 0.0
         defs.set_world_size(map_spec.get("w", defs.DEFAULT_WORLD[0]), map_spec.get("h", defs.DEFAULT_WORLD[1]))
         teams = sorted({p.team for p in players})
@@ -477,6 +480,8 @@ class World:
             elif op == "siege":
                 for u in self._own_units(slot, cmd[1]):
                     u.set_siege(bool(cmd[2]))
+            elif op == "ping":
+                self.place_ping(slot, float(cmd[1]), float(cmd[2]), int(cmd[3]) if len(cmd) > 3 else 0)
             elif op == "repair":
                 b = self.by_id.get(cmd[2])
                 queue = bool(cmd[3]) if len(cmd) > 3 else False
@@ -763,6 +768,18 @@ class World:
             return min(bs, key=lambda b: math.hypot(b.x - x, b.y - y))
         us = [u for u in self.units if not u.dead and self.enemies(u.team, team)]
         return min(us, key=lambda u: math.hypot(u.x - x, u.y - y)) if us else None
+
+    def place_ping(self, slot, x, y, kind=0):
+        """An alert point — kind 0 "attack here", 1 "help here" — shown to the whole alliance and answered by
+        its computer players. One every 3 seconds."""
+        if self.elapsed - self._ping_time.get(slot, -100) < 3.0:
+            return
+        x = clamp(x, 0.0, defs.WORLD_W)
+        y = clamp(y, 0.0, defs.WORLD_H)
+        kind = 1 if kind else 0
+        self._ping_time[slot] = self.elapsed
+        self.pings = [p for p in self.pings if self.elapsed - p[3] < 30.0] + [(slot, x, y, self.elapsed, kind)]
+        self.emit("ping", slot, x, y, kind)
 
     def alert_attack(self, team, x, y):
         if self.elapsed - self._alert_time.get(team, -100) > 1.0:

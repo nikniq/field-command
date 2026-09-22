@@ -92,8 +92,8 @@ class HUD:
         self.messages.insert(0, [text, color, 0.0])
         del self.messages[4:]
 
-    def ping(self, x, y):
-        self._pings.append([x, y, 0.0])
+    def ping(self, x, y, color=None, life=2.4):
+        self._pings.append([x, y, 0.0, color or BAD, life])
 
     def set_hover(self, text, color, pos):
         self._hover_text = (text, color, pos) if text and not self.overlay_visible else None
@@ -106,7 +106,7 @@ class HUD:
         self.messages = [m for m in self.messages if m[2] < 4.6]
         for p in self._pings:
             p[2] += dt
-        self._pings = [p for p in self._pings if p[2] < 2.4]
+        self._pings = [p for p in self._pings if p[2] < p[4]]
         for k in list(self._press):
             self._press[k] -= dt
             if self._press[k] <= 0:
@@ -147,6 +147,8 @@ class HUD:
             wx, wy = self._mm_to_world(pos)
             if right:
                 g.smart_command(wx, wy, queue)
+            elif g.ping_pending or pygame.key.get_mods() & pygame.KMOD_ALT:
+                g.place_ping(wx, wy)
             else:
                 g.center_camera(wx, wy)
                 g.minimap_dragging = True
@@ -303,7 +305,8 @@ class HUD:
         army = len(g.army())
         me = g.s.slot
         x = self._top_button(screen, mouse, 220, 96, f"{idle} idle", art.unit("worker", me), idle > 0, g.select_idle_worker)
-        self._top_button(screen, mouse, x, 104, f"Army {army}", art.unit("marine", me), False, g.select_army)
+        x = self._top_button(screen, mouse, x, 104, f"Army {army}", art.unit("marine", me), False, g.select_army)
+        self._top_button(screen, mouse, x, 90, "Attack (Z)", None, g.ping_pending, g.begin_ping)
         speed = settings.speed_index != 1 and g.s.can_pause
         clock = fmt_time(g.elapsed) + (f"  ·  {settings.speed_name}" if speed else "") + ("" if g.s.can_pause else "  ·  ONLINE")
         ui.blit_text(screen, clock, 16, TEXT, (w / 2, cy), align="center", bold=True, mono=True)
@@ -325,7 +328,10 @@ class HUD:
         for c in s.crystals:
             if s.fog.is_explored(c.x, c.y):
                 p = self._mm_point(c.x, c.y)
-                pygame.draw.rect(screen, to255(CRYSTAL), (p[0] - 1, p[1] - 1, 3, 3))
+                if c.gold:
+                    pygame.draw.rect(screen, to255(AMBER), (p[0] - 2, p[1] - 2, 5, 5))
+                else:
+                    pygame.draw.rect(screen, to255(CRYSTAL), (p[0] - 1, p[1] - 1, 3, 3))
         for t in getattr(s, "towers", ()):
             p = self._mm_point(t.x, t.y)
             col = to255(TEAM_LIGHT[t.owner]) if t.owner is not None else (190, 190, 190)
@@ -345,10 +351,10 @@ class HUD:
                 p = self._mm_point(u.x, u.y)
                 sz = 4 if u.kind == "tank" else 3
                 pygame.draw.rect(screen, to255(TEAM_LIGHT[u.team]), (p[0] - 1, p[1] - 1, sz, sz))
-        for x, y, age in self._pings:
+        for x, y, age, color, _life in self._pings:
             k = (age % 0.6) / 0.6
             p = self._mm_point(x, y)
-            c = tuple(int(ch * (1 - k)) for ch in to255(BAD))
+            c = tuple(int(ch * (1 - k)) for ch in to255(color))
             pygame.draw.circle(screen, c, p, int(3 + 14 * k), 2)
         v = g.cam.view_rect()
         a = self._mm_point(max(0, v[0]), min(defs.WORLD_H, v[3]))
@@ -738,6 +744,7 @@ class HUD:
             "Command Center: W Engineer · Barracks: R Ranger · Factory: T Siege Tank",
             "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
             "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
+            "Z or Alt+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
             "Arrows / screen edge / middle-drag — pan · Wheel or +/− — zoom",
             "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
             "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

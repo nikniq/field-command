@@ -29,10 +29,14 @@ class Crystal:
         self.id = id
         self.x, self.y = x, y
         self.amount = self.max_amount = amount
-        self.variant = variant % 3
+        self.variant = variant % 4          # 3 is gold
         self.dead = False
         self.flip = random.random() < 0.5
         self.phase = random.uniform(0, 6)
+
+    @property
+    def gold(self):
+        return self.variant == 3
 
     @property
     def scale(self):

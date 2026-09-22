@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.11.0"
+let appVersion = "1.12.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -297,6 +297,10 @@ let bridgeRebuildTime: Double = 25
 // Repair: one Engineer restores a building's full health in `repairTime` seconds (more Engineers stack), and a
 // full bar costs `repairCostRatio` of the building's price, charged as the health goes back on. Engineers also
 // repair Siege Tanks, at the same rate and the same share of the tank's price.
+// Gold: a deposit worth a hundred normal mineral nodes. Drawn gold (crystal variant 3), mined like any other,
+// but it does not run out — a spot worth holding for the whole match.
+let goldAmount = 150000
+
 let repairTime: Double = 30
 let repairCostRatio: Double = 0.35
 

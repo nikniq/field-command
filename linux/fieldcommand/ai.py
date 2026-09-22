@@ -25,6 +25,7 @@ class AI:
         self.next_wave = d.first_attack
         self.attackers = []
         self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0}     # decaying count of enemy units seen
+        self.answered_ping = -1.0        # time of the last allied alert point this side sent troops to
         self.next_raid = 240.0
 
     @property
@@ -346,6 +347,26 @@ class AI:
         self._raid(hq, home)
         self._siege(home)
         self._towers(hq, home)
+        self._answer_pings(home)
+
+    def _answer_pings(self, home):
+        """An ally's alert point: whatever is standing idle at home goes there (at least a pair, up to a wave),
+        and stays out as attackers — so a human ally can call the computer's army onto a fight."""
+        g = self.game
+        calls = [p for p in g.pings if p[0] != self.team and g.allied(p[0], self.team)
+                 and p[3] > self.answered_ping and g.elapsed - p[3] < 30.0]
+        if not calls:
+            return
+        slot, x, y, t, _kind = calls[-1]
+        self.answered_ping = t
+        # Standing idle, or on a home errand (a watchtower, a defence): the call takes priority.
+        idle = [u for u in home if u.order[0] in ("idle", "amove")]
+        if len(idle) < 2:
+            return
+        party = idle[:max(4, self.wave_size)]
+        for u in party:
+            u.command(("amove", *self._standoff(u, x, y)))
+        self.attackers += party
 
     def _raid(self, hq, home):
         """Between waves, two or three troops go for the enemy building nearest this base — usually an

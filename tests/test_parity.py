@@ -146,6 +146,45 @@ def test_armory_catalogue_agrees():
     assert int(re.search(r"let carryCap = (\d+)", src).group(1)) == CARRY_CAP
 
 
+def test_map_catalogue_agrees():
+    """Same ids, names, player counts, blurbs and world sizes; and the giant maps' baked layouts are what
+    mapgen.py generates today."""
+    from fieldcommand import mapgen
+    src = swift("ServerWorld.swift")
+    rows = re.findall(r'Info\(id: "(\w+)", name: "([^"]+)", players: (\d+), desc: "([^"]+)"\)', src)
+    assert [(r[0], r[1], int(r[2]), r[3]) for r in rows] == [(m["id"], m["name"], m["players"], m["desc"]) for m in mapgen.CATALOG]
+    giant = re.search(r"giantWorld = CGSize\(width: (\d+), height: (\d+)\)", src)
+    mega = re.search(r"megaWorld = CGSize\(width: (\d+), height: (\d+)\)", src)
+    assert (float(giant.group(1)), float(giant.group(2))) == mapgen.GIANT_WORLD
+    assert (float(mega.group(1)), float(mega.group(2))) == mapgen.MEGA_WORLD
+    ids = set(re.search(r"giantIds: Set<String> = \[(.*?)\]", src).group(1).replace('"', "").replace(" ", "").split(","))
+    assert ids == set(mapgen.GIANT_IDS)
+
+    baked = swift("GiantMaps.swift")
+    for mid in mapgen.GIANT_IDS:
+        m = mapgen.generate(mid)
+        cam = "".join(p.title() for p in mid.split("_"))
+        cam = cam[0].lower() + cam[1:]
+        for part, fn in [("Starts", mapgen.bake_starts), ("Expansions", mapgen.bake_expansions), ("Roads", mapgen.bake_roads),
+                         ("Walls", mapgen.bake_walls), ("Bridges", mapgen.bake_bridges)]:
+            got = re.search(rf'let {cam}{part} = "(.*?)"\n', baked).group(1)
+            assert got == fn(m), f"{mid} {part}: re-bake with mapgen.bake_swift()"
+
+
+def test_gold_deposits_agree():
+    from fieldcommand import mapgen
+    from fieldcommand.defs import GOLD_AMOUNT
+    src = swift("Defs.swift")
+    assert int(re.search(r"let goldAmount = (\d+)", src).group(1)) == GOLD_AMOUNT
+    # Every map has at least one gold deposit, and the baked/hand-written Swift maps carry the same number.
+    sw = swift("ServerWorld.swift") + swift("GiantMaps.swift")
+    for m in mapgen.CATALOG:
+        spec = mapgen.generate(m["id"])
+        gold = [c for c in spec["crystals"] if c[3] == 3]
+        assert gold and all(c[2] == GOLD_AMOUNT for c in gold), m["id"]
+    assert sw.count("goldAmount)") + sw.count("goldAmount]") >= 7        # the seven hand-written maps' sites
+
+
 def test_healing_constants_agree():
     from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
     src = swift("Defs.swift")

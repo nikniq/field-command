@@ -515,6 +515,7 @@ final class GameServer {
         switch kind {
         case "msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank", "kit": return jInt(e[1]) == slot
         case "elim", "gameover", "chat", "bridge", "tower": return true
+        case "ping": return w.allied(jInt(e[1]), slot)        // an alert point is for the whole alliance
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
             return w.sees(slot, ent)

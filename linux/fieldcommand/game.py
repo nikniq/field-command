@@ -129,6 +129,11 @@ class GameScene:
         self._last_click = (0, 0, 0)
         self._last_alert = -100.0
         self._last_alert_pos = None
+        # Alert points: Z (or Alt+click) marks "attack here", Shift+Z "help here", for the whole alliance;
+        # beacons are [x, y, slot, age, kind].
+        self.ping_pending = False
+        self.ping_kind = 0
+        self.beacons = []
         self._idle_cycle = 0
         self._last_builder = None
         self.hovered = None
@@ -191,6 +196,9 @@ class GameScene:
             self.fx.update(dt * (settings.game_speed if self.s.can_pause else 1.0))
             self._update_client_fx(dt)
         self.hud.update(dt, mouse)
+        for b in self.beacons:
+            b[3] += dt
+        self.beacons = [b for b in self.beacons if b[3] < 12.0]
         self._autosave()
         if self.fog_view.update(dt):
             self.hud.fog_changed()
@@ -299,6 +307,8 @@ class GameScene:
             self.hud.flash(ev[2], {"bad": BAD, "good": GOOD}.get(ev[3], TEXT))
         elif k == "alert":
             self._alert(ev[2], ev[3])
+        elif k == "ping":
+            self._ping(ev[1], ev[2], ev[3], ev[4] if len(ev) > 4 else 0)
         elif k == "income":
             if self._on_screen(ev[2], ev[3]):
                 fx.text(f"+{ev[4]}", ev[2], ev[3] + 14, CRYSTAL)
@@ -352,6 +362,66 @@ class GameScene:
             who = "Server" if ev[1] == -1 else self.s.player_name(ev[1])
             self.hud.flash(f"{who}: {ev[2]}", TEAM_LIGHT.get(ev[1], TEXT))
             audio.play("pop")
+
+    def _ping(self, slot, x, y, kind=0):
+        """An alert point placed by someone on our side (maybe us): a beacon on the map and the minimap, and
+        Space jumps there. Kind 0 is "attack here", 1 is "help here"."""
+        me = slot == self.s.slot
+        p = self.s.players.get(slot) if hasattr(self.s.players, "get") else None
+        who = "You" if me else getattr(p, "name", f"Player {slot + 1}")
+        color = TEAM_LIGHT[slot]
+        self.beacons = [b for b in self.beacons if b[2] != slot] + [[x, y, slot, 0.0, kind]]
+        self.hud.ping(x, y, color, 4.0)
+        for i in range(3):
+            self.fx.ring(x, y, 30, 160, color, 0.9, delay=i * 0.3)
+        self._last_alert = self.elapsed
+        self._last_alert_pos = (x, y)
+        if me:
+            self.hud.flash("Attack point set: allies are called here" if kind == 0 else "Alert point set: allies are called to help", TEXT)
+        else:
+            self.hud.flash((f"{who}: attack here!" if kind == 0 else f"{who} calls for help here!") + "  (Space to view)", color)
+            audio.play("alert")
+
+    def begin_ping(self, kind=0):
+        self.cancel_modes()
+        self.ping_pending = True
+        self.ping_kind = kind
+        self.hud.flash("Attack point: click the map or minimap to direct your allies there" if kind == 0
+                       else "Help point: click the map or minimap to call your allies there", TEXT)
+
+    def place_ping(self, x, y):
+        self.ping_pending = False
+        self.s.send(["ping", x, y, self.ping_kind])
+        self.ping_kind = 0
+        audio.play("click")
+
+    def _draw_beacons(self, screen):
+        """A pulsing marker in the pinger's colour, on top of the fog so it can be seen anywhere."""
+        cam = self.cam
+        z = cam.zoom
+        for x, y, slot, age, kind in self.beacons:
+            if not self._on_screen(x, y, 60):
+                continue
+            sx, sy = cam.to_screen(x, y)
+            col = to255(TEAM_LIGHT[slot])
+            k = (age % 1.0)
+            r = int((10 + 34 * k) / z)
+            pygame.draw.circle(screen, col, (int(sx), int(sy)), max(2, r), 2)
+            if kind == 0:
+                # Attack here: a target reticle in the caller's colour with a red core
+                rr_ = int(16 / z)
+                pygame.draw.circle(screen, col, (int(sx), int(sy)), max(3, rr_), max(1, int(2 / z)))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    pygame.draw.line(screen, col, (int(sx + dx * rr_ * 0.6), int(sy + dy * rr_ * 0.6)),
+                                     (int(sx + dx * rr_ * 1.5), int(sy + dy * rr_ * 1.5)), max(1, int(2 / z)))
+                pygame.draw.circle(screen, to255(BAD), (int(sx), int(sy)), max(2, int(5 / z)))
+            else:
+                # Help here: a pennant so it reads as a marker, not a hit
+                pygame.draw.circle(screen, col, (int(sx), int(sy)), max(2, int(6 / z)))
+                pole = int(36 / z)
+                pygame.draw.line(screen, col, (int(sx), int(sy)), (int(sx), int(sy) - pole), max(1, int(2 / z)))
+                flag = [(int(sx), int(sy) - pole), (int(sx) + int(18 / z), int(sy) - pole + int(7 / z)), (int(sx), int(sy) - pole + int(14 / z))]
+                pygame.draw.polygon(screen, col, flag)
 
     def _alert(self, x, y):
         if self.elapsed - self._last_alert <= 12:
@@ -602,6 +672,9 @@ class GameScene:
             self.attack_pending = False
             self.issue_attack_move(*w, queue=shift)
             return
+        if self.ping_pending or pygame.key.get_mods() & pygame.KMOD_ALT:
+            self.place_ping(*w)
+            return
         self.drag_start = self.drag_now = pos
 
     def _left_up(self, pos, shift):
@@ -648,7 +721,7 @@ class GameScene:
                 self.to_menu()
             return
         if key == pygame.K_ESCAPE:
-            if self.placing or self.attack_pending:
+            if self.placing or self.attack_pending or self.ping_pending:
                 self.cancel_modes()
             elif self.hud.overlay_visible:
                 self.hud.clear_overlay()
@@ -703,6 +776,8 @@ class GameScene:
                 self._last_group_tap = (d, now)
         elif name in ("i", "."):
             self.select_idle_worker()
+        elif name == "z":
+            self.begin_ping(1 if mods & pygame.KMOD_SHIFT else 0)
         else:
             self.hud.current_buttons = self.command_buttons()  # selection may have changed this frame
             for i, b in enumerate(self.hud.current_buttons):
@@ -739,7 +814,10 @@ class GameScene:
                 label += "    right-click to repair" if menders[0].kind == "worker" else "    right-click to treat"
             self.hud.set_hover(label, color, mouse)
         elif mouse and crystal:
-            self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
+            if crystal.gold:
+                self.hud.set_hover(f"Gold deposit  {crystal.amount}  (a hundred fields' worth)", AMBER, mouse)
+            else:
+                self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
         elif mouse and bridge and getattr(bridge, "name", "") == "Watchtower":
             t = bridge
             if t.owner is None:
@@ -763,7 +841,7 @@ class GameScene:
         kind = None
         if mouse and not self.hud.over_hud(mouse) and not self.hud.overlay_visible:
             own = self.selected_own_units()
-            if self.attack_pending:
+            if self.attack_pending or self.ping_pending:
                 kind = "attack"
             elif own and self.placing is None:
                 if target and not self.friendly(target):
@@ -984,6 +1062,7 @@ class GameScene:
     def cancel_modes(self):
         self.placing = None
         self.attack_pending = False
+        self.ping_pending = False
 
     def begin_placement(self, kind):
         s = BUILDINGS[kind]
@@ -1188,6 +1267,7 @@ class GameScene:
         for e in units + buildings:
             self._draw_bars(screen, e)
         self.fog_view.draw(screen, cam)
+        self._draw_beacons(screen)
         self._draw_overlays(screen, mouse)
         screen.blit(art.vignette(cam.w * 1.1, cam.h * 1.1), (-cam.w * 0.05, -cam.h * 0.05))
         self.hud.draw(screen, mouse)

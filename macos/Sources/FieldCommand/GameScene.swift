@@ -47,6 +47,9 @@ final class GameScene: SKScene {
     private let ghostFrame = SKShapeNode()
     private let ghostRange = SKShapeNode()
     var attackMovePending = false
+    /// Alert points: Z (or Option+click) marks "attack here", Shift+Z "help here", for the whole alliance.
+    var pingPending = false
+    var pingKind = 0
     var dragStart: CGPoint?
     private let selectionBox = SKShapeNode()
     private let rallyFlag = SKNode()
@@ -893,6 +896,10 @@ final class GameScene: SKScene {
             issueAttackMove(at: w, queue: shift)
             return
         }
+        if pingPending || event.modifierFlags.contains(.option) {
+            placePing(at: w)
+            return
+        }
         dragStart = w
         selectionBox.path = nil
         selectionBox.isHidden = false
@@ -986,7 +993,7 @@ final class GameScene: SKScene {
             return
         }
         if code == 53 { // Esc
-            if placing != nil || attackMovePending { cancelModes() }
+            if placing != nil || attackMovePending || pingPending { cancelModes() }
             else if hud.overlayVisible { hud.clearOverlay(); gamePaused = false }
             else if !selection.isEmpty { setSelection([]) }
             else { togglePause() }
@@ -1026,6 +1033,7 @@ final class GameScene: SKScene {
             return
         }
         if chars == "i" || chars == "." { selectIdleWorker(); return }
+        if chars == "z" || chars == "Z" { beginPing(kind: event.modifierFlags.contains(.shift) ? 1 : 0); return }
         for (i, b) in hud.currentButtons.enumerated() where b.hotkey.lowercased() == chars {
             hud.pressButton(i)
             return
@@ -1066,7 +1074,8 @@ final class GameScene: SKScene {
                 }
                 hud.setHover(label, color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
             } else if let c = crystal {
-                hud.setHover("Crystal  \(c.amount)", color: Palette.crystal, at: m.hud)
+                hud.setHover(c.isGold ? "Gold deposit  \(c.amount)  (a hundred fields' worth)" : "Crystal  \(c.amount)",
+                             color: c.isGold ? Palette.amber : Palette.crystal, at: m.hud)
             } else if let t = hoveredTower {
                 let who: String
                 if let o = t.owner { who = Team(rawValue: o).isLocal ? "yours" : "held by \(playerName(Team(rawValue: o)))" }
@@ -1093,7 +1102,7 @@ final class GameScene: SKScene {
         var kind = Art.CursorKind.normal
         if !hud.isOverHUD(m.hud) && !hud.overlayVisible {
             let own = selectedOwnUnits
-            if attackMovePending {
+            if attackMovePending || pingPending {
                 kind = .attack
             } else if !own.isEmpty && placing == nil {
                 if let t = target, !t.team.isFriendly { kind = .attack }
@@ -1401,6 +1410,7 @@ final class GameScene: SKScene {
     func cancelModes() {
         placing = nil
         attackMovePending = false
+        pingPending = false
         ghost.isHidden = true
         ghostFrame.isHidden = true
         ghostRange.isHidden = true
@@ -1666,6 +1676,85 @@ final class GameScene: SKScene {
         }
         return units.filter { $0.team.isHostile(to: team) && !$0.dead }.min { $0.position.distance(to: p) < $1.position.distance(to: p) }
     }
+
+    // MARK: - Alert points
+
+    func beginPing(kind: Int = 0) {
+        cancelModes()
+        pingPending = true
+        pingKind = kind
+        hud.flash(kind == 0 ? "Attack point: click the map or minimap to direct your allies there"
+                            : "Help point: click the map or minimap to call your allies there", color: Palette.text)
+    }
+
+    func placePing(at p: CGPoint) {
+        pingPending = false
+        sendNet(["ping", p.x, p.y, pingKind])
+        pingKind = 0
+        playSound("click")
+    }
+
+    /// An alert point placed by someone on our side (maybe us): a beacon on the map and the minimap, and
+    /// Space jumps there. Kind 0 is "attack here", 1 is "help here".
+    func allyPing(slot: Int, at p: CGPoint, kind: Int = 0) {
+        let team = Team(rawValue: slot)
+        let mine = team.isLocal
+        let color = team.lightColor
+        hud.ping(at: p, color: color, pulses: 6)
+        lastAlertTime = elapsed
+        lastAlertPos = p
+        if mine {
+            hud.flash(kind == 0 ? "Attack point set: allies are called here" : "Alert point set: allies are called to help", color: Palette.text)
+        } else {
+            hud.flash((kind == 0 ? "\(playerName(team)): attack here!" : "\(playerName(team)) calls for help here!") + "  (Space to view)", color: color)
+            playSound("Submarine")
+        }
+        beacons.filter { $0.name == "beacon-\(slot)" }.forEach { $0.removeFromParent() }
+        let b = SKNode()
+        b.name = "beacon-\(slot)"
+        b.position = p
+        b.zPosition = 40
+        if kind == 0 {
+            // Attack here: a target reticle in the caller's colour with a red core.
+            let ret = SKShapeNode(circleOfRadius: 16)
+            ret.strokeColor = color; ret.lineWidth = 2; ret.fillColor = .clear
+            b.addChild(ret)
+            let ticks = CGMutablePath()
+            for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)] {
+                ticks.move(to: CGPoint(x: dx * 10, y: dy * 10)); ticks.addLine(to: CGPoint(x: dx * 24, y: dy * 24))
+            }
+            let t = SKShapeNode(path: ticks)
+            t.strokeColor = color; t.lineWidth = 2
+            b.addChild(t)
+            let core = SKShapeNode(circleOfRadius: 5)
+            core.fillColor = Palette.bad; core.strokeColor = .clear
+            b.addChild(core)
+        } else {
+            // Help here: a pennant so it reads as a marker, not a hit.
+            let pole = SKShapeNode(rect: CGRect(x: -1, y: 0, width: 2, height: 36))
+            pole.fillColor = color; pole.strokeColor = .clear
+            b.addChild(pole)
+            let flagPath = CGMutablePath()
+            flagPath.move(to: CGPoint(x: 0, y: 36)); flagPath.addLine(to: CGPoint(x: 18, y: 29)); flagPath.addLine(to: CGPoint(x: 0, y: 22)); flagPath.closeSubpath()
+            let flag = SKShapeNode(path: flagPath)
+            flag.fillColor = color; flag.strokeColor = .clear
+            b.addChild(flag)
+            let dot = SKShapeNode(circleOfRadius: 6)
+            dot.fillColor = color; dot.strokeColor = .clear
+            b.addChild(dot)
+        }
+        // Rings keep pulsing while it stands.
+        let ring = SKShapeNode(circleOfRadius: 22)
+        ring.strokeColor = color; ring.lineWidth = 2; ring.fillColor = .clear
+        b.addChild(ring)
+        ring.run(.repeatForever(.sequence([.group([.scale(to: 0.45, duration: 0), .fadeAlpha(to: 1, duration: 0)]),
+                                           .group([.scale(to: 1.6, duration: 1.0), .fadeAlpha(to: 0, duration: 1.0)])])))
+        b.run(.sequence([.wait(forDuration: 10), .fadeOut(withDuration: 2), .removeFromParent()]))
+        world.addChild(b)
+        beacons.append(b)
+        beacons = beacons.filter { $0.parent != nil }
+    }
+    private var beacons: [SKNode] = []
 
     func alertAttack(at p: CGPoint) {
         guard elapsed - lastAlertTime > 12 else { return }

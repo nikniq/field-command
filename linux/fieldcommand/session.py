@@ -224,10 +224,14 @@ class _ProxyCrystal:
     def __init__(self, id, x, y, amount, variant):
         self.id, self.x, self.y = id, x, y
         self.amount = self.max_amount = amount
-        self.variant = variant % 3
+        self.variant = variant % 4          # 3 is gold
         self.dead = False
         self.flip = (id * 7) % 2 == 0
         self.phase = (id * 1.37) % 6
+
+    @property
+    def gold(self):
+        return self.variant == 3
 
     @property
     def scale(self):

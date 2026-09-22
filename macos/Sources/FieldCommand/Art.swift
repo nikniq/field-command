@@ -753,8 +753,10 @@ enum Art {
                 let tip = CGPoint(x: s.x + s.tilt, y: s.y + s.h)
                 let left = poly([bl, bm, tip, tl])
                 let right = poly([bm, br, tr, tip])
-                linear(ctx, left, [.rgb(0.75, 1, 1), .rgb(0.3, 0.85, 1)], tip, bm)
-                linear(ctx, right, [.rgb(0.25, 0.7, 0.95), .rgb(0.08, 0.35, 0.6)], tip, bm)
+                // Gold (variant 3): the same shards in warm metal with a bright edge.
+                let gold = variant == 3
+                linear(ctx, left, gold ? [.rgb(1.0, 0.96, 0.7), .rgb(0.95, 0.78, 0.25)] : [.rgb(0.75, 1, 1), .rgb(0.3, 0.85, 1)], tip, bm)
+                linear(ctx, right, gold ? [.rgb(0.85, 0.62, 0.15), .rgb(0.45, 0.3, 0.05)] : [.rgb(0.25, 0.7, 0.95), .rgb(0.08, 0.35, 0.6)], tip, bm)
                 stroke(ctx, poly([bl, bm, br, tr, tip, tl]), NSColor(white: 1, alpha: 0.6), 0.8)
                 lines(ctx, [(bm, tip)], NSColor(white: 1, alpha: 0.5), 0.8)
                 lines(ctx, [(CGPoint(x: bl.x + 1.5, y: bl.y + 2), CGPoint(x: tl.x + 1.5, y: tl.y - 2))], NSColor(white: 1, alpha: 0.7), 1)

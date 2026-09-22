@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.11.0
+Version:        1.12.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.12.0-1
+- Five giant maps (9000 x 6300, twelve players): Continental Divide, Archipelago, Six Rivers, Crater Fields,
+  The Long March — the same layouts in the macOS edition
+- Attack points (Z or Alt+click) and help points (Shift+Z): beacons for the whole alliance; computer
+  allies send troops to them
+- Gold deposits: every map has a contested field worth a hundred normal mineral nodes
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.11.0-1
 - Medics: an unarmed Barracks unit (M, 75 crystal) that heals anyone on foot and follows the line
 - Engineers repair Siege Tanks, at the repair rate and 35% of the tank's price

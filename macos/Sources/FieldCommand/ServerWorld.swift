@@ -110,11 +110,21 @@ enum SMapGen {
         Info(id: "crossroads", name: "Crossroads", players: 4, desc: "Bases on each edge; lakes guard the corners."),
         Info(id: "grand_arena", name: "Grand Arena", players: 12, desc: "Mega map: twelve bases ringing an open plain."),
         Info(id: "riverlands", name: "Riverlands", players: 12, desc: "Mega map: four rivers and a walled heartland."),
+        Info(id: "continental_divide", name: "Continental Divide", players: 12, desc: "Giant map: a cliff spine splits north from south; five passes."),
+        Info(id: "archipelago", name: "Archipelago", players: 12, desc: "Giant map: a bridged island in an inland sea, lakes along the rim."),
+        Info(id: "six_rivers", name: "Six Rivers", players: 12, desc: "Giant map: six rivers run from the middle to the edges; two bases a wedge."),
+        Info(id: "crater_fields", name: "Crater Fields", players: 12, desc: "Giant map: every base sits inside a broken crater on an open plain."),
+        Info(id: "long_march", name: "The Long March", players: 12, desc: "Giant map: two rows of six bases face each other across a wide river."),
     ]
 
-    /// The mega maps are half again as wide and tall to hold twelve bases.
+    /// The mega maps are half again as wide and tall to hold twelve bases; the giant maps are half again as
+    /// wide and tall as those (9000 x 6300, five times the standard area).
     static let megaWorld = CGSize(width: 6000, height: 4200)
-    static func size(_ id: String) -> CGSize { (info(id)?.players ?? 2) > 4 ? megaWorld : defaultWorldSize }
+    static let giantWorld = CGSize(width: 9000, height: 6300)
+    static let giantIds: Set<String> = ["continental_divide", "archipelago", "six_rivers", "crater_fields", "long_march"]
+    static func size(_ id: String) -> CGSize {
+        giantIds.contains(id) ? giantWorld : (info(id)?.players ?? 2) > 4 ? megaWorld : defaultWorldSize
+    }
     static func info(_ id: String) -> Info? { catalog.first { $0.id == id } }
 
     static func map(players n: Int) -> [String: Any] {
@@ -129,6 +139,11 @@ enum SMapGen {
         case "crossroads": return crossroads()
         case "grand_arena": return grandArena()
         case "riverlands": return riverlands()
+        case "continental_divide": return continentalDivide()
+        case "archipelago": return archipelago()
+        case "six_rivers": return sixRivers()
+        case "crater_fields": return craterFields()
+        case "long_march": return longMarch()
         default: return twinRidges()
         }
     }
@@ -152,7 +167,28 @@ enum SMapGen {
         return best
     }
 
-    private static func finish(_ id: String, _ starts: [Start], _ expansions: [(Double, Double, Int, Int)],
+    // Baked layouts (GiantMaps.swift) are strings: entries split by ";", numbers by " ", a road's points by ",".
+    private static func nums(_ s: Substring) -> [Double] { s.split(separator: " ").compactMap { Double($0) } }
+    static func starts(_ s: String) -> [Start] {
+        s.split(separator: ";").map { let n = nums($0); return Start(x: n[0], y: n[1], angle: n[2]) }
+    }
+    static func expansions(_ s: String) -> [(Double, Double, Int, Int)] {
+        s.split(separator: ";").map { let n = nums($0); return (n[0], n[1], Int(n[2]), Int(n[3])) }
+    }
+    static func roads(_ s: String) -> [[(Double, Double)]] {
+        s.split(separator: ";").map { $0.split(separator: ",").map { let n = nums($0); return (n[0], n[1]) } }
+    }
+    static func walls(_ s: String) -> [Wall] {
+        s.split(separator: ";").map { e in
+            let f = e.split(separator: " ")
+            return (Double(f[0])!, Double(f[1])!, Double(f[2])!, Double(f[3])!, String(f[4]))
+        }
+    }
+    static func rects(_ s: String) -> [(Double, Double, Double, Double)] {
+        s.isEmpty ? [] : s.split(separator: ";").map { let n = nums($0); return (n[0], n[1], n[2], n[3]) }
+    }
+
+    static func finish(_ id: String, _ starts: [Start], _ expansions: [(Double, Double, Int, Int)],
                                _ roads: [[(Double, Double)]], seed: UInt64, walls: [Wall] = [],
                                bridges: [(Double, Double, Double, Double)] = []) -> [String: Any] {
         let meta = info(id)!
@@ -173,7 +209,8 @@ enum SMapGen {
             clearings.append((x, y, 300))
             for i in 0..<n {
                 let a = Double(i) / Double(n) * 2 * .pi + 0.3
-                crystals.append([x + cos(a) * 70, y + sin(a) * 70, amount, variant % 3])
+                // A gold deposit is an expansion worth goldAmount a node; its nodes are drawn gold (variant 3).
+                crystals.append([x + cos(a) * 70, y + sin(a) * 70, amount, amount >= goldAmount ? 3 : variant % 3])
                 variant += 1
             }
         }
@@ -218,7 +255,7 @@ enum SMapGen {
         setWorldSize(size("twin_ridges").width, size("twin_ridges").height)
         let ps = (560.0, 560.0), es = (worldW - 560, worldH - 560)
         return finish("twin_ridges", [Start(x: ps.0, y: ps.1, angle: .pi), Start(x: es.0, y: es.1, angle: 0)],
-                      [(2000, 480, 6, 1000), (2000, 2320, 6, 1000), (520, 2280, 6, 1000), (3480, 520, 6, 1000), (2000, 1400, 4, 2000)],
+                      [(2000, 480, 6, 1000), (2000, 2320, 6, 1000), (520, 2280, 6, 1000), (3480, 520, 6, 1000), (2000, 1400, 4, goldAmount)],
                       [[ps, (1150, 820), (1600, 1250), (2000, 1400), (2400, 1550), (2850, 1980), es],
                        [(1600, 1250), (1850, 800), (2000, 600)], [(2400, 1550), (2150, 2000), (2000, 2200)],
                        [ps, (700, 1400), (560, 2150)], [es, (3300, 1400), (3440, 650)]], seed: 42)
@@ -231,7 +268,7 @@ enum SMapGen {
         return finish("four_corners",
                       [Start(x: bl.0, y: bl.1, angle: .pi), Start(x: tr.0, y: tr.1, angle: 0),
                        Start(x: br.0, y: br.1, angle: 1.5 * .pi), Start(x: tl.0, y: tl.1, angle: 0.5 * .pi)],
-                      [(2000, 430, 6, 1000), (2000, 2370, 6, 1000), (430, 1400, 6, 1000), (3570, 1400, 6, 1000), (c.0, c.1, 4, 2000)],
+                      [(2000, 430, 6, 1000), (2000, 2370, 6, 1000), (430, 1400, 6, 1000), (3570, 1400, 6, 1000), (c.0, c.1, 4, goldAmount)],
                       [[bl, (1300, 950), c], [br, (2700, 950), c], [tl, (1300, 1850), c], [tr, (2700, 1850), c],
                        [bl, (1300, 520), (2000, 560), (2700, 520), br], [tl, (1300, 2280), (2000, 2240), (2700, 2280), tr],
                        [bl, (560, 1400), tl], [br, (3440, 1400), tr]], seed: 7)
@@ -244,7 +281,7 @@ enum SMapGen {
         let lb = (620.0, 1400.0), rb = rot(lb)
         return finish("river_crossing", [Start(x: lb.0, y: lb.1, angle: 0.75 * .pi), Start(x: rb.0, y: rb.1, angle: 1.75 * .pi)],
                       [(560, 380, 6, 1000), (560, 2420, 6, 1000), (3440, 380, 6, 1000), (3440, 2420, 6, 1000),
-                       (1450, 1400, 4, 1200), (2550, 1400, 4, 1200)],
+                       (1450, 1400, 4, goldAmount), (2550, 1400, 4, goldAmount)],
                       [[lb, (1150, 1400), (2000, 1400), (2850, 1400), rb],
                        [lb, (1100, 800), (2000, 660), (2900, 520), (3440, 520)],
                        [rb, (2900, 2000), (2000, 2140), (1100, 2280), (560, 2280)],
@@ -255,7 +292,7 @@ enum SMapGen {
         setWorldSize(size("highland_pass").width, size("highland_pass").height)
         let ps = (560.0, 560.0), es = rot(ps)
         return finish("highland_pass", [Start(x: ps.0, y: ps.1, angle: .pi), Start(x: es.0, y: es.1, angle: 0)],
-                      [(420, 1400, 6, 1000), (3580, 1400, 6, 1000), (2000, 1400, 4, 2000), (2000, 480, 6, 1000), (2000, 2320, 6, 1000)],
+                      [(420, 1400, 6, 1000), (3580, 1400, 6, 1000), (2000, 1400, 4, goldAmount), (2000, 480, 6, 1000), (2000, 2320, 6, 1000)],
                       [[ps, (770, 820), (770, 1300), (1660, 1500), (1660, 1950), (2600, 2200), es],
                        [ps, (1500, 700), (2340, 860), (2340, 1300), (3230, 1500), (3230, 1980), es],
                        [(770, 1300), (420, 1400)], [(3230, 1500), (3580, 1400)], [(1660, 1500), (2000, 1400), (2340, 1300)]],
@@ -269,7 +306,7 @@ enum SMapGen {
         return finish("crossroads",
                       [Start(x: left.0, y: left.1, angle: 0.75 * .pi), Start(x: right.0, y: right.1, angle: 1.75 * .pi),
                        Start(x: bottom.0, y: bottom.1, angle: 1.25 * .pi), Start(x: top.0, y: top.1, angle: 0.25 * .pi)],
-                      [(380, 380, 6, 1000), (3620, 380, 6, 1000), (380, 2420, 6, 1000), (3620, 2420, 6, 1000), (c.0, c.1, 4, 2000)],
+                      [(380, 380, 6, 1000), (3620, 380, 6, 1000), (380, 2420, 6, 1000), (3620, 2420, 6, 1000), (c.0, c.1, 4, goldAmount)],
                       [[left, c, right], [bottom, c, top],
                        [left, (560, 700), (380, 380)], [bottom, (1400, 420), (380, 380)],
                        [right, (3440, 2100), (3620, 2420)], [top, (2600, 2380), (3620, 2420)],
@@ -305,7 +342,7 @@ enum SMapGen {
                 expansions.append((cx + cos(a + 0.26) * rx * 0.52, cy + sin(a + 0.26) * ry * 0.52, 5, 1400))
             }
         }
-        expansions.append((cx, cy, 8, 2500))
+        expansions.append((cx, cy, 8, goldAmount))
         roads.append(ring + [ring[0]])
         for i in stride(from: 0, to: 12, by: 2) {
             roads.append([ring[i], (cx + (ring[i].0 - cx) * 0.4, cy + (ring[i].1 - cy) * 0.4), (cx, cy)])
@@ -328,7 +365,7 @@ enum SMapGen {
             let a = Double(q * 90 + 45) * .pi / 180
             expansions.append((cx + cos(a) * 700, cy + sin(a) * 700, 6, 1600))
         }
-        expansions.append((cx, cy, 8, 2500))
+        expansions.append((cx, cy, 8, goldAmount))
         let ring = (0..<12).map { k -> (Double, Double) in
             let a = Double(k * 30) * .pi / 180
             return (cx + cos(a) * worldW * 0.40, cy + sin(a) * worldH * 0.40)
@@ -1273,6 +1310,9 @@ final class SWorld {
     var resources: [Int: Double] = [:]
     var unitsTrained: [Int: Int] = [:], unitsLost: [Int: Int] = [:], crystalsMined: [Int: Int] = [:]
     private var alertTime: [Int: Double] = [:]
+    /// Alert points: a player marks a spot and every ally is shown it; computer allies send troops.
+    private(set) var pings: [(slot: Int, x: Double, y: Double, t: Double, kind: Int)] = []
+    private var pingTime: [Int: Double] = [:]
     private var fogTimer = 0.0
     var allianceIndex: [Int: Int] = [:]
     var fog: [Int: SFogGrid] = [:]
@@ -1711,6 +1751,8 @@ final class SWorld {
             buyKit(slot, jStr(cmd[1]))
         case "siege" where cmd.count >= 3:
             for u in ownUnits(slot, ids(cmd[1])) { u.setSiege(flag(2)) }
+        case "ping" where cmd.count >= 3:
+            placePing(slot, Double(jNum(cmd[1])), Double(jNum(cmd[2])), kind: cmd.count > 3 ? jInt(cmd[3]) : 0)
         case "repair" where cmd.count >= 3:
             // Engineers mend a finished building or a Siege Tank; Medics treat anyone on foot.
             if let b = byId[jInt(cmd[2])] as? SEntity, !b.dead, allied(b.team, slot) {
@@ -1996,6 +2038,17 @@ final class SWorld {
         return units.filter { !$0.dead && enemies($0.team, team) }.min { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }
     }
 
+    /// An alert point — kind 0 "attack here", 1 "help here" — shown to the whole alliance and answered by its
+    /// computer players. One every 3 seconds.
+    func placePing(_ slot: Int, _ x: Double, _ y: Double, kind: Int = 0) {
+        guard elapsed - (pingTime[slot] ?? -100) >= 3 else { return }
+        let px = clampD(x, 0, worldW), py = clampD(y, 0, worldH)
+        let k = kind == 0 ? 0 : 1
+        pingTime[slot] = elapsed
+        pings = pings.filter { elapsed - $0.t < 30 } + [(slot, px, py, elapsed, k)]
+        emit(["ping", slot, px, py, k])
+    }
+
     func alertAttack(_ team: Int, _ x: Double, _ y: Double) {
         if elapsed - (alertTime[team] ?? -100) > 1 {
             alertTime[team] = elapsed
@@ -2051,6 +2104,9 @@ final class SAI {
     /// A decaying tally of enemy units this side has seen, by kind — what the army is built to answer.
     var seen: [UnitKind: Double] = [.marine: 0, .sniper: 0, .tank: 0]
     private var nextRaid = 240.0
+    /// Time of the last allied alert point this side sent troops to.
+    private var answeredPing = -1.0
+    var attackersCount: Int { attackers.count }
 
     init(world: SWorld, team: Int) {
         self.world = world
@@ -2360,6 +2416,22 @@ final class SAI {
         raid(hq, home)
         siege(home)
         towersRun(hq, home)
+        answerPings(home)
+    }
+
+    /// An ally's alert point: whatever is standing idle at home goes there (at least a pair, up to a wave),
+    /// and stays out as attackers — so a human ally can call the computer's army onto a fight.
+    private func answerPings(_ home: [SUnit]) {
+        let g = world
+        let calls = g.pings.filter { $0.slot != team && g.allied($0.slot, team) && $0.t > answeredPing && g.elapsed - $0.t < 30 }
+        guard let call = calls.last else { return }
+        answeredPing = call.t
+        // Standing idle, or on a home errand (a watchtower, a defence): the call takes priority.
+        let idle = home.filter { u in u.order.isIdle || { if case .amove = u.order { return true }; return false }() }
+        guard idle.count >= 2 else { return }
+        let party = Array(idle.prefix(max(4, waveSize)))
+        for u in party { let (x, y) = standoff(u, call.x, call.y); u.command(.amove(x, y)) }
+        attackers += party
     }
 
     /// Between waves, two or three troops go for the enemy building nearest this base — usually an expansion
