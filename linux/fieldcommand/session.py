@@ -362,6 +362,7 @@ class _ProxyBuilding:
         self.upgrading = None
         self.upgrade_progress = 0.0
         self.dish_angle = (id * 0.7) % 6.28
+        self.shield = 0.0
         self.dead = False
         self.selected = self.hovered = False
 
@@ -488,7 +489,7 @@ class NetSession(_Base):
         for i in [i for i in self._units if i not in seen]:
             self._units.pop(i).dead = True
         seen = set()
-        for (i, team, k, x, y, hp, built, prog, qprog, gun, queue, rally, ups, upg) in m["b"]:
+        for (i, team, k, x, y, hp, built, prog, qprog, gun, queue, rally, ups, upg, *rest) in m["b"]:
             seen.add(i)
             b = self._buildings.get(i)
             if b is None:
@@ -502,6 +503,7 @@ class NetSession(_Base):
             b.upgrades = {UPGRADE_KINDS[j] for j in range(len(UPGRADE_KINDS)) if ups & (1 << j)}
             b.upgrading = UPGRADE_KINDS[upg[0]] if upg else None
             b.upgrade_progress = upg[1] / 100 if upg else 0.0
+            b.shield = float(rest[0]) if rest else 0.0
         for i in [i for i in self._buildings if i not in seen]:
             self._buildings.pop(i).dead = True
         for (i, intact, hp, prog) in m.get("br", ()):

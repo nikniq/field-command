@@ -100,7 +100,8 @@ class AI:
         if want is None:
             plan = [("barracks", 1 if t > 35 else 0), ("turret", 1 if t > 140 else 0), ("factory", 1 if t > 170 else 0),
                     ("barracks", 2 if t > 230 else 0), ("radar", 1 if t > 260 else 0), ("turret", 2 if t > 300 else 0),
-                    ("factory", 2 if t > 420 else 0), ("barracks", 3 if t > 520 else 0), ("turret", 4 if t > 560 else 0)]
+                    ("shield", 1 if t > 380 else 0), ("factory", 2 if t > 420 else 0), ("artillery", 1 if t > 480 else 0),
+                    ("barracks", 3 if t > 520 else 0), ("turret", 4 if t > 560 else 0), ("artillery", 2 if t > 720 else 0)]
             for k, n in plan:
                 if n > 0 and count(k) < n:
                     req = BUILDINGS[k].requires
@@ -226,9 +227,10 @@ class AI:
         to_center = math.atan2(defs.WORLD_H / 2 - cy, defs.WORLD_W / 2 - cx)
         half = BUILDINGS[kind].half
         for attempt in range(90):
-            spread = 0.7 if kind == "turret" else (math.pi * 0.65 if attempt < 30 else math.pi)
+            guns = kind in ("turret", "artillery")
+            spread = 0.7 if guns else (math.pi * 0.65 if attempt < 30 else math.pi)
             a = to_center + random.uniform(-spread, spread)
-            d = random.uniform(190, 260 + attempt * 8) + (90 if kind == "turret" else 0)
+            d = random.uniform(190, 260 + attempt * 8) + (90 if guns else 0)
             p = g.snapped(cx + math.cos(a) * d, cy + math.sin(a) * d)
             r = square_rect(p[0], p[1], half)
             if all(rect_distance(r, c.x, c.y) > 90 for c in g.crystals) and g.can_place(kind, p[0], p[1], margin=26 if attempt < 45 else 14):

@@ -83,7 +83,7 @@ enum SaveGame {
              "built": b.built, "progress": b.progress, "queue": b.queue.map { NetProtocol.name($0) }, "queue_progress": b.queueProgress,
              "rally": b.rally.map { [$0.0, $0.1] as Any } ?? NSNull(), "gun_angle": b.gunAngle,
              "upgrades": b.upgrades.map { $0.wireName }.sorted(), "upgrading": b.upgrading.map { $0.wireName as Any } ?? NSNull(),
-             "upgrade_progress": b.upgradeProgress]
+             "upgrade_progress": b.upgradeProgress, "shield": b.shield]
         }
         var ai: [String: Any] = [:]
         for (s, p) in w.players { if let a = p.ai { ai[String(s)] = a.saveState() } }
@@ -103,6 +103,7 @@ enum SaveGame {
             "crystals": w.crystals.filter { !$0.dead }.map {
                 ["id": $0.id, "x": $0.x, "y": $0.y, "amount": $0.amount, "max_amount": $0.amount, "variant": $0.variant] as [String: Any] },
             "units": units, "buildings": buildings,
+            "shells": w.shellsForSave.map { s in [s.0, s.1, s.2, s.3, s.4, s.5, s.6, s.7, s.8, s.9 >= 0 ? s.9 as Any : NSNull()] as [Any] },
             "bridges": w.bridges.map { ["id": $0.id, "intact": $0.intact, "hp": $0.hp, "progress": $0.progress] as [String: Any] },
             "towers": w.towers.map { ["id": $0.id, "owner": $0.owner.map { $0 as Any } ?? NSNull(),
                                       "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
@@ -151,6 +152,7 @@ enum SaveGame {
             bd.upgrades = Set(jArr(b["upgrades"]).compactMap { u in UpgradeKind.allCases.first { $0.wireName == jStr(u) } })
             bd.upgrading = UpgradeKind.allCases.first { $0.wireName == jStr(b["upgrading"]) }
             bd.upgradeProgress = Double(jNum(b["upgrade_progress"]))
+            bd.shield = Double(jNum(b["shield"]))
             w.add(bd)
         }
         var pending: [(SUnit, [String: Any])] = []
@@ -174,6 +176,10 @@ enum SaveGame {
             let rp = jArr(u["resume_point"]); un.resumePoint = rp.count == 2 ? (Double(jNum(rp[0])), Double(jNum(rp[1]))) : nil
         }
         w.setNextId(max(jInt(d["next_id"]), (w.byId.keys.max() ?? 0) + 1))
+        for s in jArr(d["shells"]).map({ jArr($0) }) where s.count >= 10 {
+            w.restoreShell((Double(jNum(s[0])), Double(jNum(s[1])), Double(jNum(s[2])), Double(jNum(s[3])), Double(jNum(s[4])),
+                            Double(jNum(s[5])), Double(jNum(s[6])), Double(jNum(s[7])), jInt(s[8]), w.byId[jInt(s[9])] as? SEntity))
+        }
         w.elapsed = Double(jNum(d["elapsed"]))
         for (s, v) in jDict(d["resources"]) { w.resources[Int(s) ?? -1] = Double(jNum(v)) }
         for (s, v) in jDict(d["units_trained"]) { w.unitsTrained[Int(s) ?? -1] = jInt(v) }

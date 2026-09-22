@@ -727,7 +727,7 @@ final class Building: Entity {
         let h = kind.stats.half
         body = SKSpriteNode(texture: Art.building(kind, team))
         super.init(team: team, maxHp: kind.stats.hp, sight: kind.stats.sight, game: game,
-                   markerTexture: kind == .turret ? Art.ring : Art.squareRing,
+                   markerTexture: kind == .turret || kind == .artillery ? Art.ring : Art.squareRing,
                    markerSize: CGSize(width: h * 2 + 22, height: h * 2 + 22),
                    barWidth: max(44, h * 1.6), barY: h + 12)
         position = p
@@ -749,6 +749,20 @@ final class Building: Entity {
             g.zPosition = 1
             addChild(g)
             gun = g
+        case .artillery:
+            let g = SKSpriteNode(texture: Art.artilleryGun(team))
+            g.size = CGSize(width: 104, height: 40)
+            g.zPosition = 1
+            addChild(g)
+            gun = g
+        case .shield:
+            let d = SKSpriteNode(texture: Art.shieldDome)
+            d.size = CGSize(width: 88, height: 88)
+            d.zPosition = 5
+            d.alpha = built ? 0.7 : 0
+            d.run(.repeatForever(.sequence([.fadeAlpha(to: 0.35, duration: 1.1), .fadeAlpha(to: 0.8, duration: 1.1)])))
+            addChild(d)
+            dome = d
         case .radar:
             let d = SKSpriteNode(texture: Art.radarDish(team))
             d.size = CGSize(width: 84, height: 50)
@@ -862,6 +876,31 @@ final class Building: Entity {
     }
 
     /// Applies state mirrored from a multiplayer server snapshot.
+    /// Shield points from a generator in range: a field-blue bar above the health bar.
+    private(set) var shield: CGFloat = 0
+    private var shieldBack: SKSpriteNode?
+    private var shieldFill: SKSpriteNode?
+    var dome: SKSpriteNode?
+
+    func applyShield(_ v: CGFloat) {
+        guard v != shield else { return }
+        shield = v
+        if shieldBack == nil {
+            let w = hpBarWidth, y = stats.half + 19
+            let back = SKSpriteNode(color: NSColor(white: 0, alpha: 0.75), size: CGSize(width: w + 2, height: 5))
+            back.position = CGPoint(x: 0, y: y); back.zPosition = 20
+            let fill = SKSpriteNode(color: .rgb(0.43, 0.84, 1.0), size: CGSize(width: w, height: 3))
+            fill.anchorPoint = CGPoint(x: 0, y: 0.5); fill.position = CGPoint(x: -w / 2, y: y); fill.zPosition = 21
+            addChild(back); addChild(fill)
+            shieldBack = back; shieldFill = fill
+        }
+        let frac = max(0, min(1, v / CGFloat(shieldMax)))
+        shieldBack?.isHidden = v <= 0
+        shieldFill?.isHidden = v <= 0
+        shieldFill?.size = CGSize(width: hpBarWidth * frac, height: 3)
+        if kind == .shield, let d = dome, built, d.alpha == 0 { d.alpha = 0.7 }
+    }
+
     func applyNet(hp newHp: CGFloat, built nowBuilt: Bool, progress p: CGFloat, queueProgress qp: CGFloat,
                   gunAngle: CGFloat, queue q: [UnitKind], rally r: CGPoint?) {
         if newHp != hp {

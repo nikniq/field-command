@@ -53,7 +53,7 @@ class HUD:
         self.mm_scale = MM_W / defs.WORLD_W
         mm_h = int(defs.WORLD_H * self.mm_scale)
         self.mm_rect = pygame.Rect(16, h - PANEL_H + (PANEL_H - mm_h) // 2, MM_W, mm_h)
-        card_w, card_h = 4 * BTN + 3 * GAP, 2 * BTN + GAP
+        card_w, card_h = 5 * BTN + 4 * GAP, 2 * BTN + GAP
         self.card_origin = (w - 22 - card_w, h - PANEL_H + (PANEL_H - card_h) // 2)
         self.card_frame = pygame.Rect(self.card_origin[0] - 10, self.card_origin[1] - 10, card_w + 20, card_h + 20)
         self.mm_frame = self.mm_rect.inflate(16, 16)
@@ -485,8 +485,8 @@ class HUD:
         g = self.game
         self.button_rects = []
         ox, oy = self.card_origin
-        for i in range(8):
-            col, row = i % 4, i // 4
+        for i in range(10):
+            col, row = i % 5, i // 5
             r = pygame.Rect(ox + col * (BTN + GAP), oy + row * (BTN + GAP), BTN, BTN)
             if i >= len(self.current_buttons):
                 img = art.button(BTN, BTN, "disabled").copy()

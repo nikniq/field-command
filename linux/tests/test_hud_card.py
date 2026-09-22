@@ -67,7 +67,7 @@ def test_every_card_icon_is_drawn_through_the_whole_workout(game):
             g.set_selection(sel)
             for k in range(30):
                 ox, oy = g.hud.card_origin
-                rects = [pygame.Rect(ox + (i % 4) * (BTN + GAP), oy + (i // 4) * (BTN + GAP), BTN, BTN) for i in range(8)]
+                rects = [pygame.Rect(ox + (i % 5) * (BTN + GAP), oy + (i // 5) * (BTN + GAP), BTN, BTN) for i in range(10)]
                 mouse = rects[0].center if 8 <= k < 14 and g.hud.current_buttons else None
                 if k == 14 and g.hud.current_buttons:
                     g.hud.press_button(0)

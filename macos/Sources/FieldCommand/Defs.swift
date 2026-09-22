@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.12.0"
+let appVersion = "1.13.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -238,7 +238,7 @@ struct BuildingStats {
 }
 
 enum BuildingKind: CaseIterable {
-    case hq, depot, barracks, factory, turret, radar
+    case hq, depot, barracks, factory, turret, radar, artillery, shield
 
     var stats: BuildingStats {
         switch self {
@@ -270,6 +270,16 @@ enum BuildingKind: CaseIterable {
                                  buildTime: 30, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
                                  cooldown: 0, sight: 900, hotkey: "D",
                                  desc: "Sweeps a wide circle of the map. Unarmed.")
+        case .artillery:
+            return BuildingStats(name: "Artillery", short: "Artillery", glyph: "AT", cost: 250, hp: 600, half: 40,
+                                 buildTime: 40, supply: 0, produces: [], requires: .factory, range: 480, damage: 45,
+                                 cooldown: 4.0, sight: 300, hotkey: "L",
+                                 desc: "Lobs shells 480 out, further than it sees: spotters find its targets. Blind inside 150.")
+        case .shield:
+            return BuildingStats(name: "Shield Generator", short: "Shield", glyph: "SG", cost: 225, hp: 500, half: 36,
+                                 buildTime: 35, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
+                                 cooldown: 0, sight: 240, hotkey: "K",
+                                 desc: "Shields every building of yours within 320: 300 points soaked before the walls, recharging.")
         }
     }
 }
@@ -297,6 +307,20 @@ let bridgeRebuildTime: Double = 25
 // Repair: one Engineer restores a building's full health in `repairTime` seconds (more Engineers stack), and a
 // full bar costs `repairCostRatio` of the building's price, charged as the health goes back on. Engineers also
 // repair Siege Tanks, at the same rate and the same share of the tank's price.
+// Artillery: a fixed gun that reaches beyond its own sight, so it needs something else to see the target. Its
+// shells fly slowly in a high arc (visible all the way), land with splash, and it cannot hit anything close.
+let artilleryMinRange: Double = 150
+let artillerySplash: Double = 55
+let artilleryShellSpeed: Double = 380    // world units a second; tank shells fly at 650
+let tankShellSpeed: Double = 650
+
+// Shield generators: every friendly building within shieldRadius carries up to shieldMax shield points that
+// soak damage before the walls; after shieldDelay seconds without a hit they recharge at shieldRegen a second.
+let shieldRadius: Double = 320
+let shieldMax: Double = 300
+let shieldRegen: Double = 15
+let shieldDelay: Double = 4
+
 // Gold: a deposit worth a hundred normal mineral nodes. Drawn gold (crystal variant 3), mined like any other,
 // but it does not run out — a spot worth holding for the whole match.
 let goldAmount = 150000

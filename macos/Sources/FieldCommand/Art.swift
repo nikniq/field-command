@@ -383,6 +383,8 @@ enum Art {
             case .factory: drawFactory(ctx, h, team)
             case .turret: drawTurretBase(ctx, h, team)
             case .radar: drawRadar(ctx, h, team)
+            case .artillery: drawArtilleryBase(ctx, h, team)
+            case .shield: drawShieldGen(ctx, h, team)
             }
             roofKit(ctx, k, h, team)
         }
@@ -401,6 +403,8 @@ enum Art {
         case .hq: return octagon(h * 0.98)
         case .turret: return circle(.zero, h * 0.8)
         case .radar: return octagon(h * 0.92)
+        case .shield: return octagon(h * 0.9)
+        case .artillery: return rr(box(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76), 6)
         case .depot: return rr(box(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74), 4)
         case .barracks: return rr(box(-h * 0.9, -h * 0.62, h * 1.8, h * 1.52), 4)
         case .factory: return rr(box(-h * 0.92, -h * 0.66, h * 1.84, h * 1.5), 4)
@@ -472,7 +476,7 @@ enum Art {
                 fill(ctx, rr(box(-h * 0.2, sy * h - 2, h * 0.4, 4), 2), .rgb(0.1, 0.1, 0.11))
             }
             mast(-h * 0.72, -h * 0.72, h * 0.22)
-        case .turret, .radar:
+        case .turret, .radar, .artillery, .shield:
             break
         }
 
@@ -652,6 +656,84 @@ enum Art {
         let ring = circle(.zero, h * 0.66)
         lit(ctx, ring, team.color.mix(.black, 0.35))
         stroke(ctx, ring, team.color, 1.5)
+    }
+
+    /// A square gun pit: concrete floor, a sandbag parapet and a lit pivot ring for the carriage.
+    private static func drawArtilleryBase(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        let c = team.color
+        let pit = rr(box(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76), 6)
+        lit(ctx, pit, concrete, 0.8)
+        stroke(ctx, pit, NSColor(white: 0, alpha: 0.5), 1.2)
+        var rng = SeededRNG(77)
+        for i in 0..<20 {        // sandbags along the parapet
+            let t = CGFloat(i) / 20
+            let side = Int(t * 4)
+            let u = (t * 4 - CGFloat(side)) * 2 - 1
+            let p: CGPoint = [CGPoint(x: u * h * 0.8, y: -h * 0.8), CGPoint(x: h * 0.8, y: u * h * 0.8),
+                              CGPoint(x: -u * h * 0.8, y: h * 0.8), CGPoint(x: -h * 0.8, y: -u * h * 0.8)][side]
+            let bag = ellipse(box(p.x - 5.5, p.y - 3.5, 11, 7))
+            lit(ctx, bag, .rgb(0.55 + CGFloat.random(in: -0.04...0.04, using: &rng), 0.48, 0.32))
+            stroke(ctx, bag, NSColor(white: 0, alpha: 0.45), 0.7)
+        }
+        let ring = circle(.zero, h * 0.5)
+        lit(ctx, ring, c.mix(.black, 0.35))
+        stroke(ctx, ring, c, 1.5)
+        for i in 0..<8 {
+            let a = CGFloat(i) * .pi / 4
+            fill(ctx, circle(CGPoint(x: cos(a) * h * 0.42, y: sin(a) * h * 0.42), 1.6), .rgb(0.2, 0.2, 0.2))
+        }
+    }
+
+    /// The carriage and long barrel that swing on the pit's pivot.
+    static func artilleryGun(_ team: Team) -> SKTexture {
+        texture("agun-\(team.rawValue)", size: CGSize(width: 104, height: 40)) { ctx in
+            let barrel = rr(box(2, -3.2, 46, 6.4), 1.6)
+            linear(ctx, barrel, [.rgb(0.7, 0.72, 0.74), .rgb(0.28, 0.29, 0.31)], CGPoint(x: 0, y: 3), CGPoint(x: 0, y: -3))
+            stroke(ctx, barrel, NSColor(white: 0, alpha: 0.55), 0.8)
+            fill(ctx, rr(box(44, -4.4, 7, 8.8), 1.4), gunmetal)            // muzzle brake
+            for x: CGFloat in [14, 22] { fill(ctx, rr(box(x, -4, 2.5, 8), 0.6), .rgb(0.2, 0.2, 0.22)) }   // recuperator bands
+            let cradle = rr(box(-16, -12, 30, 24), 6)
+            lit(ctx, cradle, team.color.mix(steel, 0.25))
+            rim(ctx, cradle, 0.5)
+            stroke(ctx, cradle, NSColor(white: 0, alpha: 0.6), 1)
+            fill(ctx, rr(box(-13, -9, 8, 18), 2), .rgb(0.22, 0.23, 0.25))    // breech block
+            fill(ctx, circle(CGPoint(x: -3, y: 0), 2.4), .rgb(1, 0.35, 0.3))
+        }
+    }
+
+    /// An octagonal pad with three pylons around a glowing emitter core.
+    private static func drawShieldGen(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        let c = team.color
+        let pad = octagon(h * 0.9)
+        lit(ctx, pad, concrete, 0.8)
+        stroke(ctx, pad, NSColor(white: 0, alpha: 0.5), 1.2)
+        let glow = NSColor.rgb(0.45, 0.85, 1.0)
+        for i in 0..<3 {
+            let a = CGFloat(i) * 2 * .pi / 3 - .pi / 2
+            let x = cos(a) * h * 0.58, y = sin(a) * h * 0.58
+            let pylon = rr(box(x - 5, y - 5, 10, 10), 2)
+            lit(ctx, pylon, .rgb(0.32, 0.33, 0.36))
+            stroke(ctx, pylon, NSColor(white: 0, alpha: 0.55), 0.9)
+            fill(ctx, circle(CGPoint(x: x, y: y), 2.2), glow)
+            lines(ctx, [(CGPoint(x: x, y: y), CGPoint(x: x * 0.25, y: y * 0.25))], glow.withAlphaComponent(0.5), 1.2)
+        }
+        let core = circle(.zero, h * 0.26)
+        lit(ctx, core, c.mix(steel, 0.4))
+        stroke(ctx, core, c, 1.4)
+        fill(ctx, circle(.zero, h * 0.13), .rgb(0.55, 0.9, 1.0))
+        fill(ctx, circle(CGPoint(x: -h * 0.04, y: h * 0.05), h * 0.05), NSColor(white: 1, alpha: 0.8))
+    }
+
+    /// The translucent field drawn over a working generator; the node pulses its alpha.
+    static var shieldDome: SKTexture {
+        texture("dome", size: CGSize(width: 88, height: 88)) { ctx in
+            let field = NSColor.rgb(0.45, 0.85, 1.0), edge = NSColor.rgb(0.6, 0.92, 1.0)
+            let dome = ellipse(box(-40, -40, 80, 80))
+            fill(ctx, dome, field.withAlphaComponent(0.16))
+            stroke(ctx, dome, edge.withAlphaComponent(0.7), 1.4)
+            stroke(ctx, ellipse(box(-30, -30, 60, 60)), edge.withAlphaComponent(0.25), 1)
+            fill(ctx, ellipse(box(-22, 18, 24, 12)), NSColor(white: 1, alpha: 0.18))
+        }
     }
 
     /// Ringed concrete pad with a lit mounting collar; the dish itself is a separate sprite.

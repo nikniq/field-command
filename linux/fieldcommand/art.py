@@ -511,7 +511,7 @@ def building(kind, team):
             _foundation(c, h)
         _extrude(c, kind, h, team)
         {"hq": _hq, "depot": _depot, "barracks": _barracks, "factory": _factory, "turret": _turret_base,
-         "radar": _radar}[kind](c, h, team)
+         "radar": _radar, "artillery": _artillery_base, "shield": _shield_gen}[kind](c, h, team)
         _roof_kit(c, kind, h, team)
     return texture(("bld", kind, team), building_canvas(kind), d)
 
@@ -524,6 +524,10 @@ def _silhouette(kind, h):
         return circle(0, 0, h * 0.8)
     if kind == "radar":
         return _octagon(h * 0.92)
+    if kind == "shield":
+        return _octagon(h * 0.9)
+    if kind == "artillery":
+        return rr(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76, 6)
     if kind == "depot":
         return rr(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74, 4)
     if kind == "barracks":
@@ -765,6 +769,79 @@ def _radar(c, h, team):
     lit(c, box, rgb(0.3, 0.31, 0.33))
     stroke(c, box, rgb(0, 0, 0, 0.55), 0.9)
     fill(c, circle(-h * 0.63, 0, 1.6), rgb(0.45, 0.95, 0.5))
+
+
+def _artillery_base(c, h, team):
+    """A square gun pit: concrete floor, a sandbag parapet and a lit pivot ring for the carriage."""
+    col = TEAM_COLOR[team]
+    pit = rr(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76, 6)
+    lit(c, pit, CONCRETE, 0.8)
+    stroke(c, pit, rgb(0, 0, 0, 0.5), 1.2)
+    rnd = random.Random(77)
+    for i in range(20):        # sandbags along the parapet
+        t = i / 20
+        side = int(t * 4)
+        u = (t * 4 - side) * 2 - 1
+        x, y = ((u * h * 0.8, -h * 0.8), (h * 0.8, u * h * 0.8), (-u * h * 0.8, h * 0.8), (-h * 0.8, -u * h * 0.8))[side]
+        bag = ellipse(x - 5.5, y - 3.5, 11, 7)
+        lit(c, bag, rgb(0.55 + rnd.uniform(-0.04, 0.04), 0.48, 0.32))
+        stroke(c, bag, rgb(0, 0, 0, 0.45), 0.7)
+    ringp = circle(0, 0, h * 0.5)
+    lit(c, ringp, mix(col, BLACK, 0.35))
+    stroke(c, ringp, col, 1.5)
+    for i in range(8):
+        a = i * math.pi / 4
+        fill(c, circle(math.cos(a) * h * 0.42, math.sin(a) * h * 0.42, 1.6), rgb(0.2, 0.2, 0.2))
+
+
+def artillery_gun(team):
+    """The carriage and long barrel that swing on the pit's pivot."""
+    def d(c):
+        barrel = rr(2, -3.2, 46, 6.4, 1.6)
+        linear(c, barrel, [rgb(0.7, 0.72, 0.74), rgb(0.28, 0.29, 0.31)], (0, 3), (0, -3))
+        stroke(c, barrel, rgb(0, 0, 0, 0.55), 0.8)
+        fill(c, rr(44, -4.4, 7, 8.8, 1.4), GUNMETAL)           # muzzle brake
+        for x in (14, 22):
+            fill(c, rr(x, -4, 2.5, 8, 0.6), rgb(0.2, 0.2, 0.22))   # recuperator bands
+        cradle = rr(-16, -12, 30, 24, 6)
+        lit(c, cradle, mix(TEAM_COLOR[team], STEEL, 0.25))
+        rim(c, cradle, 0.5)
+        stroke(c, cradle, rgb(0, 0, 0, 0.6), 1)
+        fill(c, rr(-13, -9, 8, 18, 2), rgb(0.22, 0.23, 0.25))   # breech block
+        fill(c, circle(-3, 0, 2.4), rgb(1, 0.35, 0.3))
+    return texture(("agun", team), (104, 40), d)
+
+
+def _shield_gen(c, h, team):
+    """An octagonal pad with three pylons around a glowing emitter core."""
+    col = TEAM_COLOR[team]
+    pad = _octagon(h * 0.9)
+    lit(c, pad, CONCRETE, 0.8)
+    stroke(c, pad, rgb(0, 0, 0, 0.5), 1.2)
+    for i in range(3):
+        a = i * 2 * math.pi / 3 - math.pi / 2
+        x, y = math.cos(a) * h * 0.58, math.sin(a) * h * 0.58
+        pylon = rr(x - 5, y - 5, 10, 10, 2)
+        lit(c, pylon, rgb(0.32, 0.33, 0.36))
+        stroke(c, pylon, rgb(0, 0, 0, 0.55), 0.9)
+        fill(c, circle(x, y, 2.2), rgb(0.45, 0.85, 1.0))
+        lines(c, [((x, y), (x * 0.25, y * 0.25))], alpha(rgb(0.45, 0.85, 1.0), 0.5), 1.2)
+    core = circle(0, 0, h * 0.26)
+    lit(c, core, mix(col, STEEL, 0.4))
+    stroke(c, core, col, 1.4)
+    fill(c, circle(0, 0, h * 0.13), rgb(0.55, 0.9, 1.0))
+    fill(c, circle(-h * 0.04, -h * 0.05, h * 0.05), alpha(WHITE, 0.8))
+
+
+def shield_dome(team):
+    """The translucent field drawn over a working generator; the game pulses its alpha."""
+    def d(c):
+        dome = ellipse(-40, -40, 80, 80)
+        fill(c, dome, alpha(rgb(0.45, 0.85, 1.0), 0.16))
+        stroke(c, dome, alpha(rgb(0.6, 0.92, 1.0), 0.7), 1.4)
+        stroke(c, ellipse(-30, -30, 60, 60), alpha(rgb(0.6, 0.92, 1.0), 0.25), 1)
+        fill(c, ellipse(-22, -30, 24, 12), alpha(WHITE, 0.18))
+    return texture(("dome", team), (88, 88), d)
 
 
 def radar_dish(team):

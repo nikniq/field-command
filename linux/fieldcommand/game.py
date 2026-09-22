@@ -10,7 +10,8 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (AMBER, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, TEAM_COLOR,
+from .defs import (AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
+                   SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
                    to255, upgrade_applies, upgrade_cost)
 from .effects import Effects
@@ -258,7 +259,9 @@ class GameScene:
         for s in self.shells:
             s[5] += dt
             f = min(1.0, s[5] / s[4])
-            arc = math.sin(f * math.pi) * min(40, math.hypot(s[2] - s[0], s[3] - s[1]) * 0.12)
+            dist = math.hypot(s[2] - s[0], s[3] - s[1])
+            # Artillery shells climb high and slow so you can follow them across the screen
+            arc = math.sin(f * math.pi) * (min(220, dist * 0.35) if s[8] else min(40, dist * 0.12))
             s[6] = s[0] + (s[2] - s[0]) * f
             s[7] = s[1] + (s[3] - s[1]) * f + arc
             fx.trail(s[6], s[7])
@@ -285,14 +288,16 @@ class GameScene:
                 self.shake(min(10, ev[3] * 0.18))
         elif k == "flash":
             key = ev[4]
-            col = TEAM_LIGHT.get(int(key[4:]), TEXT) if str(key).startswith("team") else (1, 0.7, 0.3, 1)
+            key = str(key)
+            col = (TEAM_LIGHT.get(int(key[4:]), TEXT) if key.startswith("team")
+                   else (0.45, 0.85, 1.0, 1) if key == "shield" else (1, 0.7, 0.3, 1))
             fx.flash(ev[1], ev[2], ev[3], col, 0.5)
         elif k in ("recoil", "pulse"):
             e = self.s.by_id(ev[1])
             if e is not None:
                 setattr(e, k, 1.0)
         elif k == "shell":
-            self.shells.append([ev[1], ev[2], ev[3], ev[4], ev[5], 0.0, ev[1], ev[2]])
+            self.shells.append([ev[1], ev[2], ev[3], ev[4], ev[5], 0.0, ev[1], ev[2], ev[7] if len(ev) > 7 else 0])
         elif k == "wreck":
             fx.decal("wreck", ev[1], ev[2], 54, 30, angle=ev[3], team=ev[4])
         elif k == "rubble":
@@ -1222,7 +1227,7 @@ class GameScene:
                 else:
                     col = to255(BAD)
                 if e.is_building:
-                    base, size = (art.ring() if e.kind == "turret" else art.square_ring()), e.half * 2 + 22
+                    base, size = (art.ring() if e.kind in ("turret", "artillery") else art.square_ring()), e.half * 2 + 22
                 else:
                     base, size = art.ring(), e.radius * 2 + 12
                 img = art.sprites.get(("ring", col), base, 0, size / (64 * art.SCALE) / z, tint=(*col, 255),
@@ -1260,9 +1265,12 @@ class GameScene:
                 sx, sy = cam.to_screen(x, y)
                 screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
         for sh in self.shells:
-            g = self.fx._glow(int(16 / z), (255, 216, 115), 8)
+            big = sh[8]
+            g = self.fx._glow(int((26 if big else 16) / z), (255, 216, 115), 8)
             sx, sy = cam.to_screen(sh[6], sh[7])
             screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2), special_flags=pygame.BLEND_ADD)
+            if big:
+                pygame.draw.circle(screen, (60, 50, 40), (int(sx), int(sy)), max(2, int(4 / z)))     # the shell itself
         self.fx.draw(screen, cam, ui.text)
         for e in units + buildings:
             self._draw_bars(screen, e)
@@ -1360,6 +1368,13 @@ class GameScene:
         if b.kind == "turret":
             g = art.sprites.get(("tgun", b.team), art.turret_gun(b.team), math.degrees(b.gun_angle), ts, fade=fade)
             screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
+        if b.kind == "artillery":
+            g = art.sprites.get(("agun", b.team), art.artillery_gun(b.team), math.degrees(b.gun_angle), ts, fade=fade)
+            screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
+        if b.kind == "shield" and b.built:
+            pulse = 0.55 + 0.25 * math.sin(self.elapsed * 3 + b.id)
+            d = art.sprites.get(("dome", b.team), art.shield_dome(b.team), 0, ts, fade=int(255 * pulse))
+            screen.blit(d, (sx - d.get_width() / 2, sy - d.get_height() / 2))
         if b.kind == "radar" and b.built:
             d = art.sprites.get(("rdish", b.team), art.radar_dish(b.team), math.degrees(b.gun_angle), ts)
             screen.blit(d, (sx - d.get_width() / 2, sy - d.get_height() / 2))
@@ -1410,6 +1425,12 @@ class GameScene:
             pygame.draw.rect(screen, (0, 0, 0), (bx - width / 2 - 1, by - 2.5, width + 2, 5))
             col = to255(GOOD if frac > 0.6 else AMBER if frac > 0.3 else BAD)
             pygame.draw.rect(screen, col, (bx - width / 2, by - 1.5, width * frac, 3))
+        if building and getattr(e, "shield", 0) > 0:
+            # The shield sits above the health bar, in field blue
+            sfrac = max(0.0, min(1.0, e.shield / SHIELD_MAX))
+            bx, by = cam.to_screen(e.x, e.y + e.half + 19)
+            pygame.draw.rect(screen, (0, 0, 0), (bx - width / 2 - 1, by - 2.5, width + 2, 5))
+            pygame.draw.rect(screen, (110, 215, 255), (bx - width / 2, by - 1.5, width * sfrac, 3))
         if building and self.friendly(e):
             p = None
             if not e.built:
@@ -1449,8 +1470,12 @@ class GameScene:
             screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
             h = BUILDINGS[k].half / z
             pygame.draw.rect(screen, col, (sx - h, sy - h, 2 * h, 2 * h), 2, border_radius=int(8 / z))
-            if k == "turret":
+            if k in ("turret", "artillery"):
                 pygame.draw.circle(screen, (200, 200, 200), (int(sx), int(sy)), int(BUILDINGS[k].range / z), 1)
+            if k == "artillery":
+                pygame.draw.circle(screen, (200, 120, 120), (int(sx), int(sy)), int(ARTILLERY_MIN_RANGE / z), 1)
+            if k == "shield":
+                pygame.draw.circle(screen, (120, 210, 255), (int(sx), int(sy)), int(SHIELD_RADIUS / z), 1)
         if self.drag_start and self.drag_now:
             (ax, ay), (bx, by) = self.drag_start, self.drag_now
             r = pygame.Rect(min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))

@@ -93,7 +93,8 @@ def world_to_dict(world, label=""):
         buildings.append({"id": b.id, "kind": b.kind, "team": b.team, "x": b.x, "y": b.y, "hp": b.hp, "max_hp": b.max_hp,
                           "built": b.built, "progress": b.progress, "queue": list(b.queue), "queue_progress": b.queue_progress,
                           "rally": list(b.rally) if b.rally else None, "gun_angle": b.gun_angle,
-                          "upgrades": sorted(b.upgrades), "upgrading": b.upgrading, "upgrade_progress": b.upgrade_progress})
+                          "upgrades": sorted(b.upgrades), "upgrading": b.upgrading, "upgrade_progress": b.upgrade_progress,
+                          "shield": b.shield})
     ai = {}
     for s, p in w.players.items():
         if p.ai is not None:
@@ -114,6 +115,8 @@ def world_to_dict(world, label=""):
         "trained_kinds": {str(s): dict(v) for s, v in w.trained_kinds.items()},
         "crystals": [{"id": c.id, "x": c.x, "y": c.y, "amount": c.amount, "max_amount": c.max_amount, "variant": c.variant}
                      for c in w.crystals if not c.dead],
+        "shells": [[s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9].id if s[9] is not None else None]
+                   for s in w.shells],
         "units": units, "buildings": buildings,
         "bridges": [{"id": b.id, "intact": b.intact, "hp": b.hp, "progress": b.progress} for b in w.bridges],
         "towers": [{"id": t.id, "owner": t.owner, "capturing": t.capturing, "progress": t.progress} for t in w.towers],
@@ -157,6 +160,7 @@ def world_from_dict(data):
         bd.rally = tuple(b["rally"]) if b["rally"] else None
         bd.gun_angle = b["gun_angle"]
         bd.upgrades, bd.upgrading, bd.upgrade_progress = set(b["upgrades"]), b["upgrading"], b["upgrade_progress"]
+        bd.shield = float(b.get("shield", 0.0))
         w.buildings.append(bd)
         w.by_id[bd.id] = bd
     units = []
@@ -182,6 +186,7 @@ def world_from_dict(data):
     w.units_trained = {int(s): v for s, v in data["units_trained"].items()}
     w.units_lost = {int(s): v for s, v in data["units_lost"].items()}
     w.crystals_mined = {int(s): v for s, v in data["crystals_mined"].items()}
+    w.shells = [[*s[:9], w.by_id.get(s[9]) if s[9] is not None else None] for s in data.get("shells", [])]
     w.trained_kinds = {int(s): dict(v) for s, v in data["trained_kinds"].items()}
     for s, a in data["ai"].items():
         p = w.players[int(s)]

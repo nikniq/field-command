@@ -179,7 +179,7 @@ final class HUD: SKNode {
         minimapLayer.position = minimapRect.origin
 
         let bs = Self.buttonSize, gap = Self.buttonGap
-        let cardW = 4 * bs + 3 * gap, cardH = 2 * bs + gap
+        let cardW = 5 * bs + 4 * gap, cardH = 2 * bs + gap
         cardOrigin = CGPoint(x: w / 2 - 22 - cardW, y: -h / 2 + (panelH - cardH) / 2)
         let cf = CGRect(x: cardOrigin.x - 10, y: cardOrigin.y - 10, width: cardW + 20, height: cardH + 20)
         cardFrame.texture = Art.panel(cf.size, radius: 8)
@@ -713,8 +713,8 @@ final class HUD: SKNode {
         buttonBGs = []
         hoverButton = nil
         let bs = Self.buttonSize, gap = Self.buttonGap
-        for i in 0..<8 {
-            let col = i % 4, row = i / 4
+        for i in 0..<10 {
+            let col = i % 5, row = i / 5
             let r = CGRect(x: cardOrigin.x + CGFloat(col) * (bs + gap), y: cardOrigin.y + CGFloat(1 - row) * (bs + gap),
                            width: bs, height: bs)
             guard i < buttons.count else {

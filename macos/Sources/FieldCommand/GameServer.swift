@@ -561,7 +561,7 @@ final class GameServer {
             buildings.append([b.id, b.team, NetProtocol.buildingKinds.firstIndex(of: b.kind) ?? 0, r1(b.x), r1(b.y), Int(b.hp.rounded(.up)),
                               b.built ? 1 : 0, Int(b.progress * 100), own ? Int(b.queueProgress * 100) : 0, deg(b.gunAngle),
                               own ? b.queue.map { NetProtocol.unitKinds.firstIndex(of: $0) ?? 0 } : [], rally,
-                              b.upgrades.reduce(0) { $0 | (1 << $1.rawValue) }, upgradeInProgress])
+                              b.upgrades.reduce(0) { $0 | (1 << $1.rawValue) }, upgradeInProgress, Int(b.shield)])
         }
         var alive: [String: Any] = [:]
         for (s, p) in w.players { alive[String(s)] = p.alive ? 1 : 0 }

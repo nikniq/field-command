@@ -185,6 +185,16 @@ def test_gold_deposits_agree():
     assert sw.count("goldAmount)") + sw.count("goldAmount]") >= 7        # the seven hand-written maps' sites
 
 
+def test_artillery_and_shield_constants_agree():
+    from fieldcommand import defs
+    src = swift("Defs.swift")
+    for name, value in [("artilleryMinRange", defs.ARTILLERY_MIN_RANGE), ("artillerySplash", defs.ARTILLERY_SPLASH),
+                        ("artilleryShellSpeed", defs.ARTILLERY_SHELL_SPEED), ("tankShellSpeed", defs.TANK_SHELL_SPEED),
+                        ("shieldRadius", defs.SHIELD_RADIUS), ("shieldMax", defs.SHIELD_MAX),
+                        ("shieldRegen", defs.SHIELD_REGEN), ("shieldDelay", defs.SHIELD_DELAY)]:
+        assert float(re.search(rf"let {name}: Double = ([\d.]+)", src).group(1)) == value, name
+
+
 def test_healing_constants_agree():
     from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
     src = swift("Defs.swift")

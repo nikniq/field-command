@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 9, so a 1.12.0 Mac and a 1.12.0 Linux client play together; neither accepts an
+Both editions speak protocol 10, so a 1.13.0 Mac and a 1.13.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -120,6 +120,13 @@ edition (`FC_SIEGETEST` checks them).
 Select Engineers and right-click a damaged friendly building — or Siege Tank — to repair it: 30 seconds for a
 full bar with one Engineer (more stack), at 35% of the building's or tank's price for a full bar, charged as it
 heals. The rules and numbers match the Linux edition exactly — `FC_REPAIRTEST` and `FC_MEDICTEST` check them.
+
+## Artillery and shield generators
+
+**L** builds an Artillery emplacement (250, needs a Factory): 480 reach beyond its 300 sight, so a spotter
+finds its targets; slow, high-arcing 45-damage shells with splash every 4 seconds, blind inside 150. **K**
+builds a Shield Generator (225, needs a Barracks): every building of yours within 320 carries 300 shield
+points that soak damage first and recharge. Same numbers as the Linux edition (`FC_ARTYTEST`).
 
 ## Medics
 
@@ -184,6 +191,7 @@ FC_AITEST=1 .build/release/FieldCommand                       # the opponent: ob
 FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesised effect, length and loudness
 FC_MEDICTEST=1 .build/release/FieldCommand                    # Medics healing, Engineers repairing tanks
 FC_PINGTEST=1 .build/release/FieldCommand                     # alert points: alliance-only, rate limit, AI allies answer
+FC_ARTYTEST=1 .build/release/FieldCommand                     # artillery reach, arc and blind spot; shields soak and recharge
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

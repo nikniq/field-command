@@ -403,6 +403,97 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_ARTYTEST=1: Artillery reaches beyond its sight only with a spotter, lobs arcing shells with splash,
+    /// is blind up close; Shield Generators soak damage within their radius, recharge, and collapse when lost.
+    static func runArtilleryTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func field() -> (SWorld, SBuilding) {
+            let w = SWorld(map: SMapGen.generate("twin_ridges"),
+                           players: [SPlayer(slot: 0, name: "P0", team: 1, isAI: false, start: 0),
+                                     SPlayer(slot: 1, name: "P1", team: 2, isAI: false, start: 1)], difficulty: .normal)
+            for u in w.units { u.command(.idle) }
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func built(_ w: SWorld, _ k: BuildingKind, _ x: Double, _ y: Double, team: Int = 0) -> SBuilding {
+            w.startBuilding(k, x, y, team)
+            let b = w.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+            w.bridgesChanged()
+            return b
+        }
+        func run(_ w: SWorld, _ seconds: Double, until: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if until() { return true } }
+            return until()
+        }
+        do {
+            let (w, hq) = field()
+            let a = built(w, .artillery, hq.x + 300, hq.y)
+            let rng = Double(BuildingKind.artillery.stats.range)
+            check(rng > Double(BuildingKind.artillery.stats.sight), "artillery reaches further than it sees")
+            let target = SUnit(world: w, kind: .tank, team: 1, x: a.x + rng - 30, y: a.y); w.add(target)
+            let hp0 = target.hp
+            _ = run(w, 6)
+            check(target.hp == hp0, "and stays quiet while nobody of ours can see the target")
+            let spotter = SUnit(world: w, kind: .marine, team: 0, x: target.x - 120, y: target.y); w.add(spotter)
+            w.updateVisibility()
+            check(run(w, 12) { target.hp < hp0 }, "a spotter lets it fire at the edge of its reach")
+        }
+        do {
+            let (w, hq) = field()
+            let a = built(w, .artillery, hq.x + 300, hq.y)
+            let close = SUnit(world: w, kind: .marine, team: 1, x: a.x + artilleryMinRange - 40, y: a.y); w.add(close)
+            w.updateVisibility()
+            let hp0 = close.hp
+            _ = run(w, 6)
+            check(close.hp == hp0, "inside the minimum range it is blind")
+            let far = SUnit(world: w, kind: .marine, team: 1, x: a.x + 250, y: a.y); w.add(far)
+            w.updateVisibility()
+            var shell: [Any]?
+            var t = 0.0
+            while t < 8 && shell == nil {
+                w.step(1.0 / 30)
+                shell = w.events.first { jStr($0.first) == "shell" }
+                w.events.removeAll()
+                t += 1.0 / 30
+            }
+            check(shell != nil && jInt(shell![7]) == 1 && jNum(shell![5]) > 0.4, "it lobs an arcing shell slow enough to watch")
+            check(w.shellSplashesForTests.first == artillerySplash, "with artillery splash")
+        }
+        do {
+            let (w, hq) = field()
+            let gen = built(w, .shield, hq.x + 200, hq.y)
+            let depot = built(w, .depot, hq.x, hq.y + 200)
+            let outside = built(w, .depot, hq.x + shieldRadius + 400, hq.y)
+            _ = run(w, shieldMax / shieldRegen + shieldDelay + 1)
+            check(hq.shield == shieldMax && depot.shield == shieldMax && gen.shield == shieldMax && outside.shield == 0,
+                  "every building within \(Int(shieldRadius)) carries a full shield; one outside carries none")
+            let hp0 = hq.hp
+            hq.takeDamage(120, from: nil)
+            check(hq.hp == hp0 && hq.shield == shieldMax - 120, "the shield takes a hit whole")
+            hq.takeDamage(shieldMax, from: nil)
+            check(hq.shield == 0 && hq.hp == hp0 - 120, "what spills over hits the walls")
+            _ = run(w, shieldDelay - 1)
+            let early = hq.shield
+            _ = run(w, 3)
+            check(early == 0 && hq.shield > 0, "it recharges after \(Int(shieldDelay))s without a hit")
+            gen.takeDamage(99999, from: nil)
+            _ = run(w, 6)
+            check(hq.shield == 0 && !hq.shielded, "and collapses when the generator dies")
+        }
+        do {
+            let (w, hq) = field()
+            _ = built(w, .shield, hq.x + 200, hq.y)
+            _ = run(w, shieldMax / shieldRegen + shieldDelay + 1)
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            check((w2.byId[hq.id] as? SBuilding)?.shield == shieldMax, "the shield survives a save")
+        }
+        print(ok ? "ARTILLERY TEST PASSED" : "ARTILLERY TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_PINGTEST=1: alert points — an event for the whole alliance only, rate-limited, clamped to the map,
     /// and answered by a computer ally's idle troops.
     static func runPingTest() -> Never {
@@ -1120,7 +1211,8 @@ enum Debug {
             let players = (0..<m.players).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }
             let w = SWorld(map: map, players: players, difficulty: .normal)
             let t0 = Date()
-            while !w.gameOver && w.elapsed < 1500 { w.step(1.0 / 30) }
+            let limit = m.players > 4 ? 2700.0 : 1500.0     // twelve sides, shields and artillery: longer games
+            while !w.gameOver && w.elapsed < limit { w.step(1.0 / 30) }
             ok = ok && w.gameOver
             let snipers = w.units.filter { $0.kind == .sniper }.count
             let radars = w.buildings.filter { $0.kind == .radar && $0.built }.count

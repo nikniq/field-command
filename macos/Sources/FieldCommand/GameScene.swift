@@ -1439,9 +1439,15 @@ final class GameScene: SKScene {
         ghostFrame.path = k == .turret
             ? CGPath(ellipseIn: CGRect(x: -h, y: -h, width: h * 2, height: h * 2), transform: nil)
             : CGPath(roundedRect: CGRect(x: -h, y: -h, width: h * 2, height: h * 2), cornerWidth: 8, cornerHeight: 8, transform: nil)
-        if k == .turret {
-            let r = k.stats.range
-            ghostRange.path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: r * 2, height: r * 2), transform: nil)
+        if k == .turret || k == .artillery || k == .shield {
+            let r = k == .shield ? CGFloat(shieldRadius) : k.stats.range
+            let p = CGMutablePath()
+            p.addEllipse(in: CGRect(x: -r, y: -r, width: r * 2, height: r * 2))
+            if k == .artillery {        // and the blind circle inside
+                let m = CGFloat(artilleryMinRange)
+                p.addEllipse(in: CGRect(x: -m, y: -m, width: m * 2, height: m * 2))
+            }
+            ghostRange.path = p
         }
         hud.flash("Place \(k.stats.name): click to build · Shift to place several · right-click to cancel", color: Palette.text)
     }
@@ -1469,7 +1475,7 @@ final class GameScene: SKScene {
         ghostFrame.strokeColor = c
         ghostFrame.fillColor = c.withAlphaComponent(0.12)
         ghostRange.position = p
-        ghostRange.isHidden = k != .turret
+        ghostRange.isHidden = !(k == .turret || k == .artillery || k == .shield)
     }
 
     func canPlace(_ k: BuildingKind, at p: CGPoint, margin: CGFloat = 4, ignoring: Unit? = nil) -> Bool {
@@ -1803,7 +1809,7 @@ final class GameScene: SKScene {
                 })
             }
             if us.contains(where: { $0.kind == .worker }) {
-                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar] {
+                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield] {
                     let s = k.stats
                     let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                     let tip = s.desc + (reqOK ? "" : "\nRequires \(s.requires!.stats.name).")

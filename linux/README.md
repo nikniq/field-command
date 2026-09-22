@@ -129,6 +129,25 @@ goes up, and you see **700** around it until someone takes it back the same way.
 flips, and the capture clock winds back when the ring empties. Towers are marked on the minimap, and
 computer players send a few idle troops to sit on the nearest one they do not hold.
 
+## Artillery
+
+The **Artillery** emplacement (250 crystal, needs a Factory, hotkey **L**) is a fixed gun with 480 reach —
+further than a dug-in Siege Tank's 340 or a Sniper's 360 — but only 300 sight, so it can only hit what
+something of yours can see: push a Ranger, a Radar Station or a watchtower forward and the guns behind you do
+the rest. It lobs a 45-damage shell with a 55 splash every 4 seconds; the shell climbs in a high, slow arc
+(380 a second) that you can follow across the screen and lands with a blast. It cannot hit anything inside
+150, so it needs a turret or troops to guard it up close. The placement ghost shows both circles. Computer
+players build one from about eight minutes in and a second late in a long game.
+
+## Shield generators
+
+The **Shield Generator** (225 crystal, needs a Barracks, hotkey **K**) projects a field over every building
+of yours within 320 — including itself. Each carries up to 300 shield points, shown as a blue bar above the
+health bar, that soak damage before the walls take any; four seconds after the last hit they recharge at 15
+a second. Overlapping generators do not stack. If the generator falls, the field collapses over the next
+few seconds. Armour plating applies before the shield, so an armoured, shielded Command Center is a very hard
+nut. Computer players build one from about six minutes in.
+
 ## Building upgrades
 
 Select a finished building and the command card offers its upgrades. Each is researched by that building

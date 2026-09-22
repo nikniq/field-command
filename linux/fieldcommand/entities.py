@@ -14,9 +14,9 @@ from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWE
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
-                   HEAL_RANGE, HEAL_RATE,
+                   ARTILLERY_MIN_RANGE, ARTILLERY_SPLASH, HEAL_RANGE, HEAL_RATE, SHIELD_DELAY, SHIELD_MAX, SHIELD_REGEN,
                    MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
-                   SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_lerp,
+                   SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_diff, angle_lerp,
                    rect_distance, square_rect)
 
 IDLE = ("idle",)
@@ -863,6 +863,10 @@ class Building(Entity):
         self.turret_target = None
         self.gun_angle = random.uniform(0, 2 * math.pi)
         self.dish_angle = random.uniform(0, 2 * math.pi)
+        # Shield points from a generator in range (see World.step), and when they were last hit.
+        self.shield = 0.0
+        self.shield_hit = -100.0
+        self.shielded = False
         # Upgrades: the set installed, and the one being researched (kind, progress 0..1) if any.
         self.upgrades = set()
         self.upgrading = None
@@ -921,6 +925,12 @@ class Building(Entity):
     def take_damage(self, amount, attacker):
         if "armor" in self.upgrades:
             amount *= ARMOR_FACTOR
+        if self.shield > 0 and amount > 0:
+            soaked = min(self.shield, amount)
+            self.shield -= soaked
+            amount -= soaked
+            self.shield_hit = self.game.elapsed
+            self.game.emit("flash", self.x, self.y, self.half * 2.4, "shield")
         super().take_damage(amount, attacker)
 
     def update(self, dt):
@@ -948,32 +958,56 @@ class Building(Entity):
                 kind, self.upgrading, self.upgrade_progress = self.upgrading, None, 0.0
                 self._install(kind)
 
-        if self.kind == "turret":
-            self._update_turret(dt)
+        if self.shielded:
+            if g.elapsed - self.shield_hit >= SHIELD_DELAY:
+                self.shield = min(SHIELD_MAX, self.shield + SHIELD_REGEN * dt)
+        elif self.shield > 0:
+            self.shield = max(0.0, self.shield - 60 * dt)      # the generator is gone: the field collapses
+
+        if self.kind in ("turret", "artillery"):
+            self._update_gun(dt)
         elif self.kind == "radar":
             self.gun_angle = (self.gun_angle + dt * 0.8) % (2 * math.pi)
 
-    def _update_turret(self, dt):
+    @property
+    def min_range(self):
+        return ARTILLERY_MIN_RANGE if self.kind == "artillery" else 0.0
+
+    def _update_gun(self, dt):
+        """Turrets and artillery: acquire, turn, fire. Artillery lobs shells and cannot hit inside its
+        minimum range; its reach exceeds its sight, so what it can shoot is what its side can see."""
         g = self.game
         self.cooldown = max(0.0, self.cooldown - dt)
         self.scan -= dt
         t = self.turret_target
-        if t and (t.dead or self.distance_to(t) > self.turret_range or not t.targetable_by(self.team)):
+        if t and (t.dead or not (self.min_range <= self.distance_to(t) <= self.turret_range) or not t.targetable_by(self.team)):
             self.turret_target = t = None
         if t is None and self.scan <= 0:
             self.scan = 0.3
-            self.turret_target = t = g.find_target(self, self.turret_range)
+            self.turret_target = t = g.find_target(self, self.turret_range, min_range=self.min_range)
         if t is None:
             return
         a = math.atan2(t.y - self.y, t.x - self.x)
-        self.gun_angle = angle_lerp(self.gun_angle, a, dt * 10)
-        if self.cooldown <= 0:
-            self.cooldown = self.stats.cooldown
-            t.take_damage(self.turret_damage, self)
-            ux, uy = math.cos(a), math.sin(a)
-            side = 4.5 if random.random() < 0.5 else -4.5
-            mx, my = self.x + ux * 36 + uy * side, self.y + uy * 36 - ux * side
-            g.emit("tracer", mx, my, t.x, t.y, 1)
-            g.emit("muzzle", mx, my, a, 16)
-            g.emit("sparks", t.x, t.y, 4, 60, "hit")
-            g.emit("sound", "turret", self.x, self.y)
+        self.gun_angle = angle_lerp(self.gun_angle, a, dt * (4 if self.kind == "artillery" else 10))
+        if self.cooldown > 0:
+            return
+        self.cooldown = self.stats.cooldown
+        ux, uy = math.cos(a), math.sin(a)
+        if self.kind == "artillery":
+            if abs(angle_diff(self.gun_angle, a)) > 0.35:
+                self.cooldown = 0.2          # still traversing: wait for the barrel
+                return
+            mx, my = self.x + ux * 44, self.y + uy * 44
+            jx, jy = random.uniform(-14, 14), random.uniform(-14, 14)
+            g.launch_shell(mx, my, t.x + jx, t.y + jy, self.stats.damage, ARTILLERY_SPLASH, self.team, self, arc=True)
+            g.emit("muzzle", mx, my, a, 34)
+            g.emit("smoke", mx, my, 14)
+            g.emit("sound", "cannon", self.x, self.y)
+            return
+        t.take_damage(self.turret_damage, self)
+        side = 4.5 if random.random() < 0.5 else -4.5
+        mx, my = self.x + ux * 36 + uy * side, self.y + uy * 36 - ux * side
+        g.emit("tracer", mx, my, t.x, t.y, 1)
+        g.emit("muzzle", mx, my, a, 16)
+        g.emit("sparks", t.x, t.y, 4, 60, "hit")
+        g.emit("sound", "turret", self.x, self.y)

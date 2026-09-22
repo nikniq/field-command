@@ -10,6 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
+from .defs import ARTILLERY_SHELL_SPEED, SHIELD_RADIUS, TANK_SHELL_SPEED
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
 from .entities import IDLE, Bridge, Building, Crystal, Unit, Watchtower
@@ -238,6 +239,7 @@ class World:
             if not u.dead:
                 u.update(dt)
         self._resolve_collisions()
+        self._update_shields()
         for b in self.buildings:
             if not b.dead:
                 b.update(dt)
@@ -763,9 +765,14 @@ class World:
         return best
 
     def primary_target(self, team, x, y):
+        """The nearest enemy building — unless a Shield Generator covers it, in which case the generator: drop
+        the field first and the rest comes down."""
         bs = [b for b in self.buildings if not b.dead and self.enemies(b.team, team)]
         if bs:
-            return min(bs, key=lambda b: math.hypot(b.x - x, b.y - y))
+            near = min(bs, key=lambda b: math.hypot(b.x - x, b.y - y))
+            gens = [g for g in bs if g.kind == "shield" and g.team == near.team and g.built
+                    and math.hypot(g.x - near.x, g.y - near.y) <= SHIELD_RADIUS]
+            return min(gens, key=lambda g: math.hypot(g.x - x, g.y - y)) if gens else near
         us = [u for u in self.units if not u.dead and self.enemies(u.team, team)]
         return min(us, key=lambda u: math.hypot(u.x - x, u.y - y)) if us else None
 
@@ -793,10 +800,18 @@ class World:
 
     # ------------------------------------------------------------ shells
 
-    def launch_shell(self, x0, y0, x1, y1, damage, splash, team, attacker):
-        dur = max(0.05, math.hypot(x1 - x0, y1 - y0) / 650)
+    def launch_shell(self, x0, y0, x1, y1, damage, splash, team, attacker, arc=False):
+        """A shell in flight. Artillery shells (`arc`) fly slowly in a high arc that the clients draw."""
+        dur = max(0.05, math.hypot(x1 - x0, y1 - y0) / (ARTILLERY_SHELL_SPEED if arc else TANK_SHELL_SPEED))
         self.shells.append([x0, y0, x1, y1, dur, 0.0, damage, splash, team, attacker])
-        self.emit("shell", x0, y0, x1, y1, dur, team)
+        self.emit("shell", x0, y0, x1, y1, dur, team, 1 if arc else 0)
+
+    def _update_shields(self):
+        """Every building within SHIELD_RADIUS of a finished friendly Shield Generator carries a shield."""
+        gens = [b for b in self.buildings if b.kind == "shield" and b.built and not b.dead]
+        for b in self.buildings:
+            b.shielded = b.built and not b.dead and any(
+                g.team == b.team and math.hypot(g.x - b.x, g.y - b.y) <= SHIELD_RADIUS for g in gens)
 
     def _update_shells(self, dt):
         if not self.shells:

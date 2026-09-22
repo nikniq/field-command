@@ -68,7 +68,7 @@ COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
 # Order matters: the network protocol sends a kind as its index here, so new kinds are appended
 # at the end and the macOS edition's NetProtocol lists must match exactly.
 UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic"]
-BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar"]
+BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield"]
 
 
 # ---------------------------------------------------------------- stats
@@ -147,8 +147,12 @@ BUILDINGS = {
                             "Static defense. Fires on nearby enemies."),
     "radar": BuildingStats("Radar Station", "Radar", "RD", 175, 520, 34, 30, 0, (), "barracks", 0, 0, 0, 900, "D",
                            "Sweeps a wide circle of the map. Unarmed."),
+    "artillery": BuildingStats("Artillery", "Artillery", "AT", 250, 600, 40, 40, 0, (), "factory", 480, 45, 4.0, 300, "L",
+                               "Lobs shells 480 out, further than it sees: spotters find its targets. Blind inside 150."),
+    "shield": BuildingStats("Shield Generator", "Shield", "SG", 225, 500, 36, 35, 0, (), "barracks", 0, 0, 0, 240, "K",
+                            "Shields every building of yours within 320: 300 points soaked before the walls, recharging."),
 }
-BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar"]
+BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield"]
 
 # Bridges. They come with the map rather than being built from scratch, so their numbers live here
 # rather than in BUILDINGS: nobody owns one, anybody can shell it down, any Engineer can rebuild it.
@@ -273,6 +277,20 @@ TOWER_HALF = 26.0
 # Repair: one Engineer restores a building's full health in REPAIR_TIME seconds (more Engineers stack), and a
 # full bar costs REPAIR_COST_RATIO of the building's price, charged as the health goes back on.
 # Engineers also repair Siege Tanks, at the same rate and the same share of the tank's price.
+# Artillery: a fixed gun that reaches beyond its own sight, so it needs something else to see the target. Its
+# shells fly slowly in a high arc (visible all the way), land with splash, and it cannot hit anything close.
+ARTILLERY_MIN_RANGE = 150.0
+ARTILLERY_SPLASH = 55.0
+ARTILLERY_SHELL_SPEED = 380.0    # world units a second; tank shells fly at 650
+TANK_SHELL_SPEED = 650.0
+
+# Shield generators: every friendly building within SHIELD_RADIUS carries up to SHIELD_MAX shield points that
+# soak damage before the walls; after SHIELD_DELAY seconds without a hit they recharge at SHIELD_REGEN a second.
+SHIELD_RADIUS = 320.0
+SHIELD_MAX = 300.0
+SHIELD_REGEN = 15.0
+SHIELD_DELAY = 4.0
+
 # Gold: a deposit worth a hundred normal mineral nodes. Drawn gold (crystal variant 3), mined like any other,
 # but it does not run out — a spot worth holding for the whole match.
 GOLD_AMOUNT = 150000
@@ -328,9 +346,13 @@ def inset(r, d):
     return (r[0] + d, r[1] + d, r[2] - d, r[3] - d)
 
 
+def angle_diff(a, b):
+    """The signed shortest turn from a to b."""
+    return (b - a + math.pi) % (2 * math.pi) - math.pi
+
+
 def angle_lerp(a, b, t):
-    d = (b - a + math.pi) % (2 * math.pi) - math.pi
-    return a + d * min(1.0, t)
+    return a + angle_diff(a, b) * min(1.0, t)
 
 
 def fmt_time(t):

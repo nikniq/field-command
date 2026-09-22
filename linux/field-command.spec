@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.12.0
+Version:        1.13.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.13.0-1
+- Artillery emplacement (L): 480 reach beyond its sight, slow high-arcing shells you can watch, blind up close
+- Shield Generator (K): 300 recharging shield points on every building within 320
+- The command card grows to ten buttons; protocol 10 (older clients are refused)
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.12.0-1
 - Five giant maps (9000 x 6300, twelve players): Continental Divide, Archipelago, Six Rivers, Crater Fields,
   The Long March — the same layouts in the macOS edition

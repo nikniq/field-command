@@ -9,12 +9,15 @@ import Foundation
 private func hyp(_ x: Double, _ y: Double) -> Double { (x * x + y * y).squareRoot() }
 private func clampD(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(max(v, lo), hi) }
 
-private func angLerp(_ a: Double, _ b: Double, _ t: Double) -> Double {
+/// The signed shortest turn from a to b.
+private func angDiff(_ a: Double, _ b: Double) -> Double {
     var d = b - a
     while d > .pi { d -= 2 * .pi }
     while d < -.pi { d += 2 * .pi }
-    return a + d * min(1, t)
+    return d
 }
+
+private func angLerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + angDiff(a, b) * min(1, t) }
 
 struct SRect {
     var x0, y0, x1, y1: Double
@@ -1165,6 +1168,10 @@ final class SBuilding: SEntity {
     var cooldown = 0.0, scan = 0.0
     var turretTarget: SEntity?
     var gunAngle = Double.random(in: 0...(2 * .pi))
+    // Shield points from a generator in range (see SWorld.updateShields), and when they were last hit.
+    var shield = 0.0
+    var shieldHit = -100.0
+    var shielded = false
     // Upgrades: the set installed, and the one being researched with its progress 0..1, if any.
     var upgrades: Set<UpgradeKind> = []
     var upgrading: UpgradeKind?
@@ -1204,7 +1211,15 @@ final class SBuilding: SEntity {
     var turretDamage: Double { upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage) }
 
     override func takeDamage(_ amount: Double, from attacker: SEntity?) {
-        super.takeDamage(upgrades.contains(.armor) ? amount * armorFactor : amount, from: attacker)
+        var left = upgrades.contains(.armor) ? amount * armorFactor : amount
+        if shield > 0 && left > 0 {
+            let soaked = min(shield, left)
+            shield -= soaked
+            left -= soaked
+            shieldHit = world.elapsed
+            world.emit(["flash", x, y, half * 2.4, "shield"])
+        }
+        super.takeDamage(left, from: attacker)
     }
 
     init(world: SWorld, kind: BuildingKind, team: Int, x: Double, y: Double, built: Bool) {
@@ -1249,32 +1264,54 @@ final class SBuilding: SEntity {
                 install(k)
             }
         }
-        if kind == .turret { updateTurret(dt) }
+        if shielded {
+            if world.elapsed - shieldHit >= shieldDelay { shield = min(shieldMax, shield + shieldRegen * dt) }
+        } else if shield > 0 {
+            shield = max(0, shield - 60 * dt)      // the generator is gone: the field collapses
+        }
+        if kind == .turret || kind == .artillery { updateGun(dt) }
         else if kind == .radar { gunAngle = (gunAngle + dt * 0.8).truncatingRemainder(dividingBy: 2 * .pi) }
     }
 
-    private func updateTurret(_ dt: Double) {
+    var minRange: Double { kind == .artillery ? artilleryMinRange : 0 }
+
+    /// Turrets and artillery: acquire, turn, fire. Artillery lobs shells and cannot hit inside its minimum
+    /// range; its reach exceeds its sight, so what it can shoot is what its side can see.
+    private func updateGun(_ dt: Double) {
         let g = world
         cooldown = max(0, cooldown - dt)
         scan -= dt
-        if let t = turretTarget, t.dead || distanceTo(t) > turretRange || !t.targetable(by: team) { turretTarget = nil }
+        if let t = turretTarget, t.dead || !(minRange...turretRange).contains(distanceTo(t)) || !t.targetable(by: team) { turretTarget = nil }
         if turretTarget == nil && scan <= 0 {
             scan = 0.3
-            turretTarget = g.findTarget(self, turretRange)
+            turretTarget = g.findTarget(self, turretRange, minRange: minRange)
         }
         guard let t = turretTarget else { return }
         let a = atan2(t.y - y, t.x - x)
-        gunAngle = angLerp(gunAngle, a, dt * 10)
-        if cooldown <= 0 {
-            cooldown = Double(stats.cooldown)
-            t.takeDamage(Double(stats.damage), from: self)
-            let ux = cos(a), uy = sin(a), side = Bool.random() ? 4.5 : -4.5
-            let mx = x + ux * 36 + uy * side, my = y + uy * 36 - ux * side
-            g.emit(["tracer", mx, my, t.x, t.y, 1])
-            g.emit(["muzzle", mx, my, a, 16])
-            g.emit(["sparks", t.x, t.y, 4, 60, "hit"])
-            g.emit(["sound", "turret", x, y])
+        gunAngle = angLerp(gunAngle, a, dt * (kind == .artillery ? 4 : 10))
+        guard cooldown <= 0 else { return }
+        cooldown = Double(stats.cooldown)
+        let ux = cos(a), uy = sin(a)
+        if kind == .artillery {
+            if abs(angDiff(gunAngle, a)) > 0.35 {
+                cooldown = 0.2          // still traversing: wait for the barrel
+                return
+            }
+            let mx = x + ux * 44, my = y + uy * 44
+            let jx = Double.random(in: -14...14), jy = Double.random(in: -14...14)
+            g.launchShell(mx, my, t.x + jx, t.y + jy, Double(stats.damage), artillerySplash, team, self, arc: true)
+            g.emit(["muzzle", mx, my, a, 34])
+            g.emit(["smoke", mx, my, 14])
+            g.emit(["sound", "cannon", x, y])
+            return
         }
+        t.takeDamage(turretDamage, from: self)
+        let side = Bool.random() ? 4.5 : -4.5
+        let mx = x + ux * 36 + uy * side, my = y + uy * 36 - ux * side
+        g.emit(["tracer", mx, my, t.x, t.y, 1])
+        g.emit(["muzzle", mx, my, a, 16])
+        g.emit(["sparks", t.x, t.y, 4, 60, "hit"])
+        g.emit(["sound", "turret", x, y])
     }
 }
 
@@ -1436,6 +1473,7 @@ final class SWorld {
         pathBudget = 6
         for u in units where !u.dead { u.update(dt) }
         resolveCollisions()
+        updateShields()
         for b in buildings where !b.dead { b.update(dt) }
         updateShells(dt)
         for t in towers { t.update(dt) }
@@ -1454,6 +1492,13 @@ final class SWorld {
     // MARK: Saving
 
     var nextIdForSave: Int { idCounter }
+    var shellSplashesForTests: [Double] { shells.map { $0.7 } }
+    var shellsForSave: [(Double, Double, Double, Double, Double, Double, Double, Double, Int, Int)] {
+        shells.map { ($0.x0, $0.y0, $0.x1, $0.y1, $0.dur, $0.t, $0.damage, $0.splash, $0.team, $0.attacker?.id ?? -1) }
+    }
+    func restoreShell(_ s: (Double, Double, Double, Double, Double, Double, Double, Double, Int, SEntity?)) {
+        shells.append((s.0, s.1, s.2, s.3, s.4, s.5, s.6, s.7, s.8, s.9))
+    }
     func setNextId(_ n: Int) { idCounter = n }
     var revealsForSave: [Int: [Int: Double]] { reveals }
     func restoreReveals(_ d: [String: Any]) {
@@ -2031,9 +2076,13 @@ final class SWorld {
         return best
     }
 
+    /// The nearest enemy building — unless a Shield Generator covers it, in which case the generator: drop the
+    /// field first and the rest comes down.
     func primaryTarget(_ team: Int, _ x: Double, _ y: Double) -> SEntity? {
-        if let b = buildings.filter({ !$0.dead && enemies($0.team, team) }).min(by: { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }) {
-            return b
+        let bs = buildings.filter { !$0.dead && enemies($0.team, team) }
+        if let near = bs.min(by: { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }) {
+            let gens = bs.filter { $0.kind == .shield && $0.team == near.team && $0.built && hyp($0.x - near.x, $0.y - near.y) <= shieldRadius }
+            return gens.min(by: { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }) ?? near
         }
         return units.filter { !$0.dead && enemies($0.team, team) }.min { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }
     }
@@ -2062,10 +2111,20 @@ final class SWorld {
 
     // MARK: Shells
 
-    func launchShell(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ damage: Double, _ splash: Double, _ team: Int, _ attacker: SEntity) {
-        let dur = max(0.05, hyp(x1 - x0, y1 - y0) / 650)
+    /// A shell in flight. Artillery shells (`arc`) fly slowly in a high arc that the clients draw.
+    func launchShell(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, _ damage: Double, _ splash: Double, _ team: Int,
+                     _ attacker: SEntity, arc: Bool = false) {
+        let dur = max(0.05, hyp(x1 - x0, y1 - y0) / (arc ? artilleryShellSpeed : tankShellSpeed))
         shells.append((x0, y0, x1, y1, dur, 0, damage, splash, team, attacker))
-        emit(["shell", x0, y0, x1, y1, dur, team])
+        emit(["shell", x0, y0, x1, y1, dur, team, arc ? 1 : 0])
+    }
+
+    /// Every building within shieldRadius of a finished friendly Shield Generator carries a shield.
+    private func updateShields() {
+        let gens = buildings.filter { $0.kind == .shield && $0.built && !$0.dead }
+        for b in buildings {
+            b.shielded = b.built && !b.dead && gens.contains { $0.team == b.team && hyp($0.x - b.x, $0.y - b.y) <= shieldRadius }
+        }
     }
 
     private func updateShells(_ dt: Double) {
@@ -2236,7 +2295,8 @@ final class SAI {
         if want == nil {
             let plan: [(BuildingKind, Int)] = [(.barracks, t > 35 ? 1 : 0), (.turret, t > 140 ? 1 : 0), (.factory, t > 170 ? 1 : 0),
                                                (.barracks, t > 230 ? 2 : 0), (.radar, t > 260 ? 1 : 0), (.turret, t > 300 ? 2 : 0),
-                                               (.factory, t > 420 ? 2 : 0), (.barracks, t > 520 ? 3 : 0), (.turret, t > 560 ? 4 : 0)]
+                                               (.shield, t > 380 ? 1 : 0), (.factory, t > 420 ? 2 : 0), (.artillery, t > 480 ? 1 : 0),
+                                               (.barracks, t > 520 ? 3 : 0), (.turret, t > 560 ? 4 : 0), (.artillery, t > 720 ? 2 : 0)]
             for (k, n) in plan where n > 0 && count(k) < n {
                 if let r = k.stats.requires, !g.hasBuilt(r, team) { continue }
                 want = k
@@ -2347,9 +2407,10 @@ final class SAI {
         let toCenter = atan2(worldH / 2 - cy, worldW / 2 - cx)
         let half = Double(k.stats.half)
         for attempt in 0..<90 {
-            let spread = k == .turret ? 0.7 : (attempt < 30 ? Double.pi * 0.65 : .pi)
+            let guns = k == .turret || k == .artillery
+            let spread = guns ? 0.7 : (attempt < 30 ? Double.pi * 0.65 : .pi)
             let a = toCenter + Double.random(in: -spread...spread)
-            let d = Double.random(in: 190...(260 + Double(attempt) * 8)) + (k == .turret ? 90 : 0)
+            let d = Double.random(in: 190...(260 + Double(attempt) * 8)) + (guns ? 90 : 0)
             let p = g.snapped(cx + cos(a) * d, cy + sin(a) * d)
             let r = SRect(cx: p.0, cy: p.1, half: half)
             if g.crystals.allSatisfy({ r.distance($0.x, $0.y) > 90 }) && g.canPlace(k, p.0, p.1, margin: attempt < 45 ? 26 : 14) { return p }

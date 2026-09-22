@@ -175,6 +175,7 @@ extension GameScene {
                        queueProgress: jNum(v[8]) / 100, gunAngle: jNum(v[9]) * .pi / 180,
                        queue: jArr(v[10]).map { NetProtocol.unitKinds[min(NetProtocol.unitKinds.count - 1, max(0, jInt($0)))] },
                        rally: rally.count == 2 ? CGPoint(x: jNum(rally[0]), y: jNum(rally[1])) : nil)
+            if v.count > 14 { b.applyShield(CGFloat(jNum(v[14]))) }
             if v.count > 13 {
                 let up = jArr(v[13])
                 let inProgress = up.count == 2 ? UpgradeKind(rawValue: jInt(up[0])).map { ($0, jNum(up[1]) / 100) } : nil
@@ -265,11 +266,12 @@ extension GameScene {
             explosion(at: p(1), size: jNum(e[3]), delay: e.count > 5 ? Double(jNum(e[5])) : 0, scorch: jInt(e[4]) == 1)
         case "flash":
             let key = jStr(e[4])
-            let color = key.hasPrefix("team") ? Team(rawValue: Int(key.dropFirst(4)) ?? 0).lightColor : NSColor.rgb(1, 0.7, 0.3)
+            let color = key.hasPrefix("team") ? Team(rawValue: Int(key.dropFirst(4)) ?? 0).lightColor
+                : key == "shield" ? NSColor.rgb(0.45, 0.85, 1.0) : NSColor.rgb(1, 0.7, 0.3)
             glowFlash(at: p(1), size: jNum(e[3]), color: color, duration: 0.5)
         case "recoil": net.units[jInt(e[1])]?.netRecoil()
         case "pulse": net.units[jInt(e[1])]?.netPulse()
-        case "shell": netShell(from: p(1), to: p(3), duration: jNum(e[5]))
+        case "shell": netShell(from: p(1), to: p(3), duration: jNum(e[5]), arc: e.count > 7 && jInt(e[7]) == 1)
         case "wreck": addWreck(at: p(1), angle: jNum(e[3]) * .pi / 180, team: Team(rawValue: jInt(e[4])))
         case "rubble": decal(Art.rubble, at: p(1), size: jNum(e[3]), life: 60)
         case "shake": if visibleWorldRect().contains(p(1)) { shake(jNum(e[3])) }
@@ -351,10 +353,15 @@ extension GameScene {
 
     // MARK: Visual-only shells
 
-    private func netShell(from a: CGPoint, to b: CGPoint, duration: CGFloat) {
+    private func netShell(from a: CGPoint, to b: CGPoint, duration: CGFloat, arc: Bool = false) {
         guard let net else { return }
         let node = SKSpriteNode(texture: Art.glow)
-        node.size = CGSize(width: 14, height: 14)
+        node.size = arc ? CGSize(width: 26, height: 26) : CGSize(width: 14, height: 14)
+        if arc {        // the shell itself, so an artillery round reads as a thing in the air, not a spark
+            let body = SKShapeNode(circleOfRadius: 4)
+            body.fillColor = .rgb(0.24, 0.2, 0.16); body.strokeColor = .clear; body.blendMode = .alpha
+            node.addChild(body)
+        }
         node.color = .rgb(1, 0.85, 0.45)
         node.colorBlendFactor = 1
         node.blendMode = .add
@@ -363,7 +370,7 @@ extension GameScene {
         let trail = FX.trail()
         trail.targetNode = effectLayer
         node.addChild(trail)
-        net.shells.append(NetShell(node: node, from: a, to: b, duration: max(0.05, duration), t: 0))
+        net.shells.append(NetShell(node: node, from: a, to: b, duration: max(0.05, duration), t: 0, arc: arc))
     }
 
     private func updateNetShells(_ dt: CGFloat) {
@@ -372,7 +379,9 @@ extension GameScene {
             net.shells[i].t += dt
             let s = net.shells[i]
             let f = min(1, s.t / s.duration)
-            let arc = sin(f * .pi) * min(40, s.from.distance(to: s.to) * 0.12)
+            // Artillery shells climb high and slow so you can follow them across the screen
+            let d = s.from.distance(to: s.to)
+            let arc = sin(f * .pi) * (s.arc ? min(220, d * 0.35) : min(40, d * 0.12))
             s.node.position = s.from + (s.to - s.from) * f + CGPoint(x: 0, y: arc)
             if f >= 1 { s.node.removeFromParent() }
         }
@@ -479,6 +488,7 @@ struct NetShell {
     let to: CGPoint
     let duration: CGFloat
     var t: CGFloat
+    var arc = false
 }
 
 /// Starts a single-player skirmish. The game runs on a private loopback server with the same simulation as
