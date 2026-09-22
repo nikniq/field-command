@@ -250,6 +250,16 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 Settings (game speed, edge scrolling, sound, objectives, fullscreen) are saved to
 `~/.config/fieldcommand/settings.json`.
 
+## Screen size and UI scale
+
+The interface is drawn at a fixed design size and scaled to the window: **2x** on 4K-class screens, **1.5x**
+on 1440p-class, **1x** otherwise, judged by the shorter side. Without this, on a 4K monitor the command card
+was a row of 64-pixel buttons in the corner and its icons were a few millimetres wide. Override the choice
+with **UI scale** on the title screen (Auto / 1x / 1.5x / 2x) or `FC_UI_SCALE=2`.
+
+**F12** saves a screenshot of the window to `~/Pictures/field-command-<time>.png` together with a `.txt` note
+of the versions, window size, scale and display driver — attach both to a bug report.
+
 ## Developer options
 
 ```sh

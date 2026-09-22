@@ -22,7 +22,8 @@ class _Settings:
     defaults = {"speed_index": 1, "edge_scroll": True, "sound": True, "objectives": True,
                 "last_difficulty": 1, "fullscreen": False,
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
-                "teams": 0}   # 0 = free-for-all, otherwise the number of teams the players are dealt into
+                "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
+                "ui_scale": 0}  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
 
     def __init__(self):
         self._data = dict(self.defaults)
@@ -91,6 +92,25 @@ class _Settings:
     def _clamp_teams(self):
         if self.teams not in self.team_options:
             self.set("teams", 0)
+
+    # UI scale. The interface is drawn at a logical size and scaled up, so on a 4K or HiDPI screen the buttons
+    # and icons stay the size they were designed at instead of shrinking to specks.
+
+    UI_SCALES = (0, 1, 1.5, 2)
+
+    @staticmethod
+    def auto_ui_scale(w, h):
+        """2x on 4K-class screens, 1.5x on 1440p-class, otherwise 1x — judged by the shorter side."""
+        short = min(w, h)
+        return 2 if short >= 1600 else (1.5 if short >= 1200 else 1)
+
+    def ui_scale_for(self, w, h):
+        return self.auto_ui_scale(w, h) if not self.ui_scale else self.ui_scale
+
+    def cycle_ui_scale(self):
+        opts = list(self.UI_SCALES)
+        cur = self.ui_scale if self.ui_scale in opts else 0
+        self.set("ui_scale", opts[(opts.index(cur) + 1) % len(opts)])
 
     @property
     def game_speed(self):

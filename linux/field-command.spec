@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.8.0
+Version:        1.8.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.8.1-1
+- UI scale: the interface is drawn at 2x on 4K and 1.5x on 1440p screens (or as set on the title screen)
+- F12 saves a screenshot and an environment note to ~/Pictures
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.8.0-1
 - The Armory (Y): buy kit for your troops with crystal, worn by every unit of that type all match
 - Network protocol 8

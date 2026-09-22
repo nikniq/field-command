@@ -8,6 +8,7 @@ Developer environment variables (all optional):
     FC_MENUSHOT=path      render the title screen to a PNG and exit
     FC_MAP=id             map for FC_AUTOSTART games (see mapgen.CATALOG); FC_OPPONENTS=1..11 computer opponents
     FC_TEAMS=n            deal the players into n teams (default: free-for-all)
+    FC_UI_SCALE=x         force the interface scale (1, 1.5 or 2) instead of choosing it from the screen size
 
 Command line:
     field-command --server [--port 47777] [--name NAME]   run a dedicated multiplayer server
@@ -52,11 +53,16 @@ class App:
             audio.init()
         pygame.display.set_caption("Field Command")
         self.windowed_size = (1400, 880)
-        flags = pygame.RESIZABLE
+        # `window` is the real display surface; `screen` is what scenes draw on. They are the same object at
+        # UI scale 1, and a smaller logical surface that is scaled up to the window otherwise, so on a 4K or
+        # HiDPI screen the interface keeps the size it was designed at.
+        self.ui_scale = 1
         if settings.fullscreen and not self.headless:
-            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            self.window = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         else:
-            self.screen = pygame.display.set_mode(self.windowed_size, flags)
+            self.window = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+        self.screen = self.window
+        self._apply_ui_scale(env.get("FC_UI_SCALE"))
         try:
             from . import art
             pygame.display.set_icon(art.app_icon(64))
@@ -84,6 +90,76 @@ class App:
     def set_scene(self, scene):
         self.scene = scene
 
+    # ------------------------------------------------------------ window, scale and screenshots
+
+    def _apply_ui_scale(self, forced=None):
+        """Picks the UI scale for the current window and (re)creates the logical surface to match."""
+        w, h = self.window.get_size()
+        scale = float(forced) if forced else self.settings.ui_scale_for(w, h)
+        self.ui_scale = scale
+        if scale == 1:
+            self.screen = self.window
+        else:
+            self.screen = self.pg.Surface((max(320, int(w / scale)), max(200, int(h / scale)))).convert()
+
+    def _window_changed(self):
+        self.window = self.pg.display.get_surface()
+        self._apply_ui_scale()
+        self.scene.resize(*self.screen.get_size())
+
+    def set_ui_scale(self, value):
+        self.settings.set("ui_scale", value)
+        self._window_changed()
+
+    def to_logical(self, pos):
+        s = self.ui_scale
+        return pos if s == 1 else (pos[0] / s, pos[1] / s)
+
+    def _scaled_event(self, e):
+        if self.ui_scale == 1 or not hasattr(e, "pos"):
+            return e
+        d = dict(e.dict)
+        d["pos"] = self.to_logical(e.pos)
+        if "rel" in d:
+            d["rel"] = (e.rel[0] / self.ui_scale, e.rel[1] / self.ui_scale)
+        return self.pg.event.Event(e.type, d)
+
+    def present(self):
+        """Puts the logical surface on the window, scaled, and flips."""
+        if self.screen is not self.window:
+            if float(self.ui_scale).is_integer():
+                self.pg.transform.scale(self.screen, self.window.get_size(), self.window)
+            else:
+                self.pg.transform.smoothscale(self.screen, self.window.get_size(), self.window)
+        self.pg.display.flip()
+
+    def screenshot(self):
+        """F12: saves the window as it is shown, plus a note on the environment, and says where."""
+        import datetime
+        import platform
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        folder = next((d for d in (os.path.join(os.path.expanduser("~"), "Pictures"), os.path.expanduser("~"), os.getcwd())
+                       if os.path.isdir(d)), os.getcwd())
+        path = os.path.join(folder, f"field-command-{stamp}.png")
+        try:
+            self.pg.image.save(self.window, path)
+        except Exception as e:  # noqa: BLE001 — pygame builds without image saving fall back to the logical surface
+            path = os.path.join(folder, f"field-command-{stamp}.bmp")
+            self.pg.image.save(self.window, path)
+        from . import __version__
+        info = self.pg.display.Info()
+        with open(path.rsplit(".", 1)[0] + ".txt", "w") as f:
+            f.write(f"Field Command {__version__}\npygame {self.pg.version.ver} SDL {'.'.join(map(str, self.pg.get_sdl_version()))}\n"
+                    f"python {platform.python_version()} on {platform.platform()}\n"
+                    f"window {self.window.get_size()} logical {self.screen.get_size()} ui_scale {self.ui_scale} "
+                    f"(setting {self.settings.ui_scale}) depth {info.bitsize} fullscreen {self.settings.fullscreen}\n"
+                    f"driver {self.pg.display.get_driver()}\n")
+        hud = getattr(self.scene, "hud", None)
+        if hud is not None:
+            hud.flash(f"Screenshot saved to {path}", (0.9, 0.93, 0.95, 1))
+        print(f"screenshot: {path}", flush=True)
+        return path
+
     def quit(self):
         self.running = False
         if self.server is not None:
@@ -94,11 +170,11 @@ class App:
         full = not self.settings.fullscreen
         self.settings.set("fullscreen", full)
         if full:
-            self.windowed_size = self.screen.get_size()
-            self.screen = pg.display.set_mode((0, 0), pg.FULLSCREEN)
+            self.windowed_size = self.window.get_size()
+            pg.display.set_mode((0, 0), pg.FULLSCREEN)
         else:
-            self.screen = pg.display.set_mode(self.windowed_size, pg.RESIZABLE)
-        self.scene.resize(*self.screen.get_size())
+            pg.display.set_mode(self.windowed_size, pg.RESIZABLE)
+        self._window_changed()
 
     def game_ended(self, game, won):
         if self.snapshot_dir:
@@ -115,7 +191,7 @@ class App:
 
     def _snapshot(self, name):
         os.makedirs(self.snapshot_dir, exist_ok=True)
-        self.pg.image.save(self.screen, os.path.join(self.snapshot_dir, f"{name}.png"))
+        self.pg.image.save(self.window, os.path.join(self.snapshot_dir, f"{name}.png"))
 
     def _maybe_snapshot(self, force=False):
         g = self.scene
@@ -139,18 +215,19 @@ class App:
                     self.running = False
                 elif e.type in (pg.VIDEORESIZE, getattr(pg, "WINDOWSIZECHANGED", -1)):
                     if not self.settings.fullscreen:
-                        self.screen = pg.display.get_surface()
-                        self.scene.resize(*self.screen.get_size())
+                        self._window_changed()
                 elif e.type == pg.KEYDOWN and (e.key == pg.K_F11 or (e.key == pg.K_RETURN and e.mod & pg.KMOD_ALT)):
                     self.toggle_fullscreen()
+                elif e.type == pg.KEYDOWN and e.key == pg.K_F12:
+                    self.screenshot()
                 elif e.type == pg.KEYDOWN and e.key == pg.K_q and e.mod & pg.KMOD_CTRL:
                     self.quit()
                 else:
-                    self.scene.handle_event(e)
-            mouse = pg.mouse.get_pos() if pg.mouse.get_focused() else None
+                    self.scene.handle_event(self._scaled_event(e))
+            mouse = self.to_logical(pg.mouse.get_pos()) if pg.mouse.get_focused() else None
             self.scene.update(dt, mouse)
             self.scene.draw(self.screen, mouse)
-            pg.display.flip()
+            self.present()
             self._maybe_snapshot()
         self.quit()
         pg.quit()

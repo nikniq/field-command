@@ -81,6 +81,19 @@ enum Debug {
         }
     }
 
+    /// F12 in a game: the view as shown, saved to ~/Pictures with a note on the environment, for bug reports.
+    static func saveScreenshot(_ g: GameScene) -> String? {
+        guard let v = g.view, let tex = v.texture(from: g) else { return nil }
+        let stamp = { let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"; return f.string(from: Date()) }()
+        let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
+        let path = pictures.appendingPathComponent("field-command-\(stamp).png").path
+        write(tex.cgImage(), to: path)
+        let note = "Field Command \(appVersion) macOS\nview \(Int(v.bounds.width))x\(Int(v.bounds.height)) points, scale \(v.window?.backingScaleFactor ?? 1)\n"
+        try? note.write(toFile: path.replacingOccurrences(of: ".png", with: ".txt"), atomically: true, encoding: .utf8)
+        print("screenshot: \(path)")
+        return path
+    }
+
     private static func snapshot(_ g: GameScene, dir: String, name: String) {
         log(g, dir: dir)
         guard let v = g.view, shots < 40 else { return }

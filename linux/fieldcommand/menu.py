@@ -186,8 +186,11 @@ class MenuScene:
             (f"Sound: {'On' if settings.sound else 'Off'}", lambda: settings.toggle("sound")),
             (f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives")),
             (f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.app.toggle_fullscreen),
+            (f"UI scale: {'Auto' if not settings.ui_scale else f'{settings.ui_scale:g}x'}"
+             + (f" ({self.app.ui_scale:g}x)" if not settings.ui_scale else ""),
+             lambda: (settings.cycle_ui_scale(), self.app._window_changed())),
         ]
-        tw, th, tg = 150, 34, 12
+        tw, th, tg = 138, 34, 10
         tt = len(rows) * tw + (len(rows) - 1) * tg
         ty = cy + ch / 2 + 86
         self.toggles = []

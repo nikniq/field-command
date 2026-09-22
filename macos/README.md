@@ -117,6 +117,11 @@ Linux edition — see `../linux/README.md`.
 Same as the Linux edition (see `../linux/README.md`), with **⌃⌘F** for full screen and **⌘Q** to quit.
 Preferences (game speed, edge scrolling, sound, objectives, map, opponents) are stored in `UserDefaults`.
 
+## Screenshots
+
+**F12** in a game saves the view to `~/Pictures/field-command-<time>.png` with a `.txt` note of the version and
+display scale — attach both to a bug report.
+
 ## Developer options
 
 ```sh

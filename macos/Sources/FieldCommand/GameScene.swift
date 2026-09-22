@@ -972,6 +972,10 @@ final class GameScene: SKScene {
             return
         }
         if code == 120 || chars == "`" { selectArmy(); return } // F2 or backtick
+        if code == 111 {                                             // F12: screenshot to ~/Pictures
+            if let path = Debug.saveScreenshot(self) { hud.flash("Screenshot saved to \(path)", color: Palette.text) }
+            return
+        }
         if chars.count == 1, let d = Int(chars) {
             let mods = event.modifierFlags
             if mods.contains(.control) || mods.contains(.command) {

@@ -41,7 +41,7 @@ def game():
     w._add(tank)
     eng = next(u for u in w.units if u.team == 0 and u.kind == "worker")
     yield app, g, {"hq": hq, "eng": eng, "tank": tank, **built}
-    pygame.quit()
+    # No pygame.quit() here: cached art surfaces belong to this display, and other test modules reuse it.
 
 
 def icon_ink(screen, r, btn):
