@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.7.0"
+let appVersion = "1.7.1"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -320,6 +320,7 @@ struct UpgradeStats {
     let time: Double
     let hotkey: String
     let appliesTo: [BuildingKind]      // empty means every building
+    let button: String                 // the label on the 64-point command-card button; `name` is for tooltips
 }
 
 enum UpgradeKind: Int, CaseIterable {
@@ -328,15 +329,15 @@ enum UpgradeKind: Int, CaseIterable {
     var stats: UpgradeStats {
         switch self {
         case .hp: return UpgradeStats(name: "Reinforce", short: "Reinforced", desc: "Doubles the building's hit points.",
-                                      cost: 0.6, flat: false, time: 30, hotkey: "V", appliesTo: [])
+                                      cost: 0.6, flat: false, time: 30, hotkey: "V", appliesTo: [], button: "Reinforce")
         case .armor: return UpgradeStats(name: "Armour plating", short: "Armoured", desc: "The building takes 30% less damage.",
-                                         cost: 0.6, flat: false, time: 30, hotkey: "X", appliesTo: [])
+                                         cost: 0.6, flat: false, time: 30, hotkey: "X", appliesTo: [], button: "Armour")
         case .prod: return UpgradeStats(name: "Assembly line", short: "Assembly line", desc: "Trains units twice as fast.",
-                                        cost: 0.8, flat: false, time: 40, hotkey: "U", appliesTo: [.hq, .barracks, .factory])
+                                        cost: 0.8, flat: false, time: 40, hotkey: "U", appliesTo: [.hq, .barracks, .factory], button: "Assembly")
         case .supply: return UpgradeStats(name: "Expanded storage", short: "Expanded", desc: "+8 supply from this depot.",
-                                          cost: 75, flat: true, time: 20, hotkey: "U", appliesTo: [.depot])
+                                          cost: 75, flat: true, time: 20, hotkey: "U", appliesTo: [.depot], button: "Storage")
         case .guns: return UpgradeStats(name: "Twin cannon", short: "Twin cannon", desc: "Damage 11 to 20 and range 210 to 260.",
-                                        cost: 0.9, flat: false, time: 35, hotkey: "U", appliesTo: [.turret])
+                                        cost: 0.9, flat: false, time: 35, hotkey: "U", appliesTo: [.turret], button: "Twin gun")
         }
     }
 

@@ -107,12 +107,14 @@ def test_upgrade_catalogue_agrees():
     assert [n.strip().strip('"') for n in names.split(",")] == UPGRADE_KINDS
     for k in UPGRADE_KINDS:
         p = UPGRADES[k]
-        m = re.search(r'case \.%s: return UpgradeStats\((.*?)appliesTo: \[(.*?)\]\)' % k, src, re.S)
+        m = re.search(r'case \.%s: return UpgradeStats\((.*?)appliesTo: \[(.*?)\], button: ("[^"]*")\)' % k, src, re.S)
         assert m, f"upgrade {k} missing from Defs.swift"
         f = dict(re.findall(r'(\w+): ("[^"]*"|[\d.]+|true|false)', m.group(1)))
+        f["button"] = m.group(3)
         assert f["name"].strip('"') == p.name and f["short"].strip('"') == p.short and f["desc"].strip('"') == p.desc
         assert float(f["cost"]) == p.cost and (f["flat"] == "true") == p.flat, k
         assert float(f["time"]) == p.time and f["hotkey"].strip('"') == p.hotkey, k
+        assert f["button"].strip('"') == p.button, k
         applies = tuple(x.strip().lstrip(".") for x in m.group(2).split(",") if x.strip())
         assert applies == p.applies_to, k
     def const(name):

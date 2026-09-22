@@ -1031,14 +1031,14 @@ class GameScene:
                 installed = all(k in b.upgrades for b in targets)
                 busy = any(b.upgrading is not None for b in targets) and not installed
                 ok = not installed and any(b.can_upgrade(k) for b in targets)
-                tip = f"{u.desc}\n{int(u.time)}s to research; this building only."
+                tip = f"{u.name}: {u.desc}\n{int(u.time)}s to research; this building only."
                 if len(targets) > 1:
                     tip += f"\nApplies to {len(targets)} selected buildings, one price each."
                 if installed:
                     tip += "\nAlready installed."
                 elif busy:
                     tip += "\nAlready researching something."
-                out.append(CommandButton(("upgrade", k), u.name, u.hotkey, None if installed else cost, ok, tip,
+                out.append(CommandButton(("upgrade", k), u.button, u.hotkey, None if installed else cost, ok, tip,
                                          lambda k=k: self.upgrade(k)))
             return out
         return []

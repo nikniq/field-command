@@ -504,7 +504,11 @@ class HUD:
             screen.blit(img, (r.centerx - img.get_width() / 2, r.centery - 5 - img.get_height() / 2))
             pygame.draw.rect(screen, (0, 0, 0), (r.x + 3, r.y + 3, 16, 16))
             ui.blit_text(screen, b.hotkey, 11, AMBER, (r.x + 11, r.y + 11), align="center", bold=True)
-            ui.blit_text(screen, b.title, 10, TEXT if b.enabled else DIM, (r.centerx, r.bottom - 10), align="center", bold=True)
+            # The title shrinks until it fits the button, so a long name never runs into its neighbour.
+            size = 10
+            while size > 7 and ui.font(size, True).size(b.title)[0] > BTN - 6:
+                size -= 1
+            ui.blit_text(screen, b.title, size, TEXT if b.enabled else DIM, (r.centerx, r.bottom - 10), align="center", bold=True)
             if b.cost is not None:
                 ok = g.s.resources >= b.cost
                 ui.blit_text(screen, str(b.cost), 10, CRYSTAL if ok else BAD, (r.right - 5, r.y + 11), align="right", mono=True)

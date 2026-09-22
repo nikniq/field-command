@@ -385,6 +385,53 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_CARDSHOT=dir: starts a skirmish, selects the Command Center, an Engineer, a Barracks and a mixed
+    /// group in turn, and writes the view after each — including a frame with the mouse over a button and
+    /// one after pressing one — so the command card can be inspected in the real client.
+    static func runCardShot(_ dir: String) -> Never {
+        instantScenes = true
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 1400, height: 880))
+        startSkirmish(view, size: view.bounds.size, difficulty: .normal, mapId: "twin_ridges", opponents: 1)
+        guard let scene = view.scene as? GameScene, let net = scene.net, net.isLocal,
+              let world = GameServer.hosted?.simulation else {
+            print("card shot: FAILED — no local game")
+            exit(1)
+        }
+        if !scene.didSetup { scene.didMove(to: view) }
+        var t: TimeInterval = 1
+        func frames(_ n: Int) { for _ in 0..<n { t += 1.0 / 30; scene.update(t); usleep(12_000) } }
+        frames(60)
+        // Give the player a base to select: the server builds it, the snapshot brings it to the client.
+        let hq = world.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        for (k, dx, dy) in [(BuildingKind.barracks, 300.0, 0.0), (.factory, 300, 250), (.depot, -300, 0)] {
+            world.startBuilding(k, hq.x + dx, hq.y + dy, 0)
+            let b = world.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+        }
+        world.bridgesChanged()
+        world.resources[0] = 9999
+        frames(30)
+        func pick(_ kinds: [BuildingKind], _ name: String) {
+            let sel = scene.buildings.filter { $0.team.isLocal && kinds.contains($0.kind) }
+            scene.setSelection(sel)
+            frames(10)
+            snapshot(scene, dir: dir, name: "card_\(name)")
+        }
+        pick([.hq], "hq")
+        if let e = scene.units.first(where: { $0.team.isLocal && $0.kind == .worker }) {
+            scene.setSelection([e]); frames(10); snapshot(scene, dir: dir, name: "card_engineer")
+            scene.hud.pressButton(2)          // begin placing a building
+            frames(10); snapshot(scene, dir: dir, name: "card_engineer_placing")
+            scene.cancelModes()
+        }
+        pick([.barracks], "barracks")
+        pick([.barracks, .factory, .depot], "mixed")
+        scene.setSelection([]); frames(10); snapshot(scene, dir: dir, name: "card_none")
+        print("card shot: wrote \(dir)")
+        stopHostedServer()
+        exit(0)
+    }
+
     /// FC_TOWERTEST=1: veterancy and watchtowers on the server simulation — ranks from kills, the health and
     /// damage they add, tower placement on every map, capture, contest and vision — matching the Python tests.
     static func runTowerTest() -> Never {

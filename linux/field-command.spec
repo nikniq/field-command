@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.7.0
+Version:        1.7.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,9 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.7.1-1
+- Command-card titles no longer overflow their buttons; upgrades get short button labels
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.7.0-1
 - Veterancy: units earn ranks at 2, 5 and 10 kills, each adding 10% damage and health
 - Watchtowers: three neutral control points per map; hold one for 8 seconds to see 700 around it

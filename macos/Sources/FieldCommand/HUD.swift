@@ -748,6 +748,8 @@ final class HUD: SKNode {
             let key = makeLabel(b.hotkey, size: 11, color: Palette.amber, font: Fonts.bold, align: .center, valign: .center)
             bg.addChild(at(key, -bs / 2 + 11, bs / 2 - 11))
             let title = makeLabel(b.title, size: 9.5, color: b.enabled ? Palette.text : Palette.dim, font: Fonts.demi, align: .center, valign: .center)
+            // The title shrinks until it fits the button, so a long name never runs into its neighbour.
+            while title.frame.width > bs - 6 && title.fontSize > 7 { title.fontSize -= 0.5 }
             bg.addChild(at(title, 0, -bs / 2 + 10))
             if let c = b.cost {
                 let cl = makeLabel("\(c)", size: 10, color: afford ? Palette.crystal : Palette.bad, font: Fonts.mono, align: .right, valign: .center)

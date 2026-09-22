@@ -127,4 +127,5 @@ FC_TEAMSTEST=1 .build/release/FieldCommand                    # single-player te
 FC_SIEGETEST=1 .build/release/FieldCommand                    # siege mode: transition, reach, blind spot
 FC_UPGRADETEST=1 .build/release/FieldCommand                  # building upgrades: each effect and the rules
 FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks and watchtower capture
+FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

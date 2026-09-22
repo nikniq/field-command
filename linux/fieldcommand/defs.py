@@ -172,16 +172,20 @@ class Upgrade:
     time: float
     hotkey: str
     applies_to: tuple       # building kinds, or () for every building
+    button: str = ""        # the label on the 64-pixel command-card button; `name` is for tooltips and messages
 
 
 UPGRADES = {
-    "hp": Upgrade("Reinforce", "Reinforced", "Doubles the building's hit points.", 0.6, False, 30, "V", ()),
-    "armor": Upgrade("Armour plating", "Armoured", "The building takes 30% less damage.", 0.6, False, 30, "X", ()),
+    "hp": Upgrade("Reinforce", "Reinforced", "Doubles the building's hit points.", 0.6, False, 30, "V", (),
+                  button="Reinforce"),
+    "armor": Upgrade("Armour plating", "Armoured", "The building takes 30% less damage.", 0.6, False, 30, "X", (),
+                     button="Armour"),
     "prod": Upgrade("Assembly line", "Assembly line", "Trains units twice as fast.", 0.8, False, 40, "U",
-                    ("hq", "barracks", "factory")),
-    "supply": Upgrade("Expanded storage", "Expanded", "+8 supply from this depot.", 75, True, 20, "U", ("depot",)),
+                    ("hq", "barracks", "factory"), button="Assembly"),
+    "supply": Upgrade("Expanded storage", "Expanded", "+8 supply from this depot.", 75, True, 20, "U", ("depot",),
+                      button="Storage"),
     "guns": Upgrade("Twin cannon", "Twin cannon", "Damage 11 to 20 and range 210 to 260.", 0.9, False, 35, "U",
-                    ("turret",)),
+                    ("turret",), button="Twin gun"),
 }
 # Order matters: an installed set travels as a bitmask over this list, an upgrade in progress as its index.
 UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns"]

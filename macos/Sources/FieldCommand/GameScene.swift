@@ -1677,10 +1677,10 @@ final class GameScene: SKScene {
                 let installed = targets.allSatisfy { $0.upgrades.contains(k) }
                 let busy = targets.contains { $0.upgrading != nil } && !installed
                 let ok = !installed && targets.contains { $0.canUpgrade(k) }
-                var tip = "\(u.desc)\n\(Int(u.time))s to research; this building only."
+                var tip = "\(u.name): \(u.desc)\n\(Int(u.time))s to research; this building only."
                 if targets.count > 1 { tip += "\nApplies to \(targets.count) selected buildings, one price each." }
                 if installed { tip += "\nAlready installed." } else if busy { tip += "\nAlready researching something." }
-                list.append(CommandButton(icon: .upgrade(k), title: u.name, hotkey: u.hotkey,
+                list.append(CommandButton(icon: .upgrade(k), title: u.button, hotkey: u.hotkey,
                                           cost: installed ? nil : k.cost(for: target.kind), enabled: ok, tip: tip) { [weak self] in
                     guard let self else { return }
                     let ids = self.selectedOwnBuildings.filter { $0.canUpgrade(k) }.map { $0.netId }
