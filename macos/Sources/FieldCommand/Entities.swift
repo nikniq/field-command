@@ -294,6 +294,7 @@ final class Unit: Entity {
             case 6: return "Heading to build"
             case 7: return "Rebuilding a bridge"
             case 8: return "Repairing"
+            case 9: return "Treating a casualty"
             default: return "Idle"
             }
         }
@@ -346,7 +347,7 @@ final class Unit: Entity {
             c.isHidden = true
             body.addChild(c)
             cargoNode = c
-        case .marine, .sniper:
+        case .marine, .sniper, .medic:
             break
         }
         body.zRotation = CGFloat.random(in: 0...(2 * .pi))
@@ -657,11 +658,13 @@ final class Unit: Entity {
         case .worker:
             t.takeDamage(stats.damage, from: self)
             if visible { game.spark(at: position + dir * (radius + 5), color: Palette.amber) }
+        case .medic:
+            break                       // unarmed
         }
     }
 
     override func onDamaged(by attacker: Entity?) {
-        guard let a = attacker, !a.dead, a.team != team, kind != .worker else { return }
+        guard let a = attacker, !a.dead, a.team != team, kind != .worker, kind != .medic else { return }
         if order.isIdle && queued.isEmpty { order = .attack(a) }
     }
 

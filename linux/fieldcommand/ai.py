@@ -177,12 +177,15 @@ class AI:
             g.buy_kit(self.team, options[0].id)
 
     def _repair(self, bases, workers):
-        """Send one Engineer to the worst-hit building below 70%, if there is crystal to spare. One at a time,
-        so the economy keeps running while the base is patched up."""
+        """Send one Engineer to the worst-hit building below 70% — or a tank below 60% resting at home — if there
+        is crystal to spare. One at a time, so the economy keeps running while the base is patched up."""
         g = self.game
         if g.resources[self.team] < 150 or any(w.order[0] == "repair" for w in workers):
             return
         hurt = [b for b in bases if b.built and not b.dead and b.hp < b.max_hp * 0.7]
+        hurt += [u for u in g.units if u.team == self.team and u.kind == "tank" and not u.dead
+                 and u.hp < u.max_hp * 0.6 and u.order[0] == "idle"
+                 and any(math.hypot(b.x - u.x, b.y - u.y) < 400 for b in bases)]
         if not hurt:
             return
         b = min(hurt, key=lambda b: b.hp / b.max_hp)
@@ -285,7 +288,11 @@ class AI:
             army = [u for u in g.units if u.team == self.team and u.kind != "worker" and not u.dead]
             want = self._wanted(army)
             if b.kind == "barracks":
-                if want == "sniper" and money() >= 125 and g.has_built("factory", self.team):
+                foot = sum(1 for u in army if u.kind in ("marine", "sniper"))
+                medics = sum(1 for u in army if u.kind == "medic")
+                if foot >= 4 and medics * 4 < foot and money() >= 75:
+                    g.train("medic", [b], self.team)      # one Medic for every four on foot
+                elif want == "sniper" and money() >= 125 and g.has_built("factory", self.team):
                     g.train("sniper", [b], self.team)
                 elif money() >= 50 and (want != "tank" or not g.has_built("factory", self.team) or money() >= 200):
                     g.train("marine", [b], self.team)
@@ -307,14 +314,16 @@ class AI:
             if u.order[0] in ("idle", "move"):
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
 
+    STANDOFF = {"sniper": 200.0, "medic": 120.0}
+
     def _standoff(self, u, tx, ty):
         """Where a unit should go for a target: Snipers stop 200 short so they fight at their range, and never
-        walk into the line; everyone else goes to the target."""
-        if u.kind != "sniper":
+        walk into the line; Medics 120 short, behind it; everyone else goes to the target."""
+        if u.kind not in self.STANDOFF:
             return tx, ty
         dx, dy = u.x - tx, u.y - ty
         d = math.hypot(dx, dy) or 1.0
-        back = min(200.0, max(0.0, d - 60.0))
+        back = min(self.STANDOFF[u.kind], max(0.0, d - 60.0))
         return tx + dx / d * back, ty + dy / d * back
 
     def _attack(self, hq, home):

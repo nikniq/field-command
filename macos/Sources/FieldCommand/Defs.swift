@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.10.0"
+let appVersion = "1.11.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -187,7 +187,7 @@ struct UnitStats {
 }
 
 enum UnitKind: CaseIterable {
-    case worker, marine, tank, sniper
+    case worker, marine, tank, sniper, medic
 
     var stats: UnitStats {
         switch self {
@@ -208,6 +208,10 @@ enum UnitKind: CaseIterable {
                              damage: 55, cooldown: 3.2, radius: 10, buildTime: 24, sight: 360, splash: 0, hotkey: "N",
                              desc: "Outranges tanks and turrets, one heavy shot at a time. Helpless up close.",
                              requires: .factory)
+        case .medic:
+            return UnitStats(name: "Medic", glyph: "MD", cost: 75, supply: 1, hp: 50, speed: 90, range: 0,
+                             damage: 0, cooldown: 0.0, radius: 10, buildTime: 14, sight: 240, splash: 0, hotkey: "M",
+                             desc: "Heals wounded infantry nearby. Unarmed: keep it behind the line.")
         }
     }
 }
@@ -249,9 +253,9 @@ enum BuildingKind: CaseIterable {
                                  cooldown: 0, sight: 200, hotkey: "E", desc: "Provides +8 supply.")
         case .barracks:
             return BuildingStats(name: "Barracks", short: "Barracks", glyph: "BK", cost: 150, hp: 900, half: 64,
-                                 buildTime: 35, supply: 0, produces: [.marine, .sniper], requires: .hq, range: 0, damage: 0,
+                                 buildTime: 35, supply: 0, produces: [.marine, .sniper, .medic], requires: .hq, range: 0, damage: 0,
                                  cooldown: 0, sight: 240, hotkey: "B",
-                                 desc: "Trains Rangers, and Snipers once a Factory is up.")
+                                 desc: "Trains Rangers and Medics, and Snipers once a Factory is up.")
         case .factory:
             return BuildingStats(name: "Factory", short: "Factory", glyph: "FC", cost: 200, hp: 1100, half: 70,
                                  buildTime: 45, supply: 0, produces: [.tank], requires: .barracks, range: 0,
@@ -291,9 +295,15 @@ let bridgeCost = 75
 let bridgeRebuildTime: Double = 25
 
 // Repair: one Engineer restores a building's full health in `repairTime` seconds (more Engineers stack), and a
-// full bar costs `repairCostRatio` of the building's price, charged as the health goes back on.
+// full bar costs `repairCostRatio` of the building's price, charged as the health goes back on. Engineers also
+// repair Siege Tanks, at the same rate and the same share of the tank's price.
 let repairTime: Double = 30
 let repairCostRatio: Double = 0.35
+
+// Healing: a Medic restores `healRate` hit points a second to one wounded ally on foot (Engineers, Rangers,
+// Snipers, other Medics) within `healRange`, and looks for the wounded as far as it can see.
+let healRate: Double = 6
+let healRange: Double = 60
 
 // Siege mode. A Siege Tank can dig in: it stops moving and takes `siegeTransition` seconds to switch either
 // way, and while sieged it fires further and harder but cannot hit anything closer than `siegeMinRange`.
@@ -379,6 +389,9 @@ let kits: [Kit] = [
     Kit(id: "reactive", unit: .tank, name: "Reactive armour", cost: 300, desc: "+25% hit points for every Siege Tank.", effect: [("hp", 0.25)]),
     Kit(id: "barrel", unit: .tank, name: "Extended barrel", cost: 300, desc: "+20 range, mobile and dug in.", effect: [("range", 20)]),
     Kit(id: "autoloader", unit: .tank, name: "Autoloader", cost: 350, desc: "Tanks reload 20% faster.", effect: [("cooldown", 0.2)]),
+    Kit(id: "trauma", unit: .medic, name: "Trauma kit", cost: 200, desc: "Medics heal 50% faster.", effect: [("heal", 0.5)]),
+    Kit(id: "plates", unit: .medic, name: "Ceramic plates", cost: 150, desc: "+30% hit points for every Medic.", effect: [("hp", 0.3)]),
+    Kit(id: "litter", unit: .medic, name: "Field litter", cost: 150, desc: "Medics move 15% faster.", effect: [("speed", 0.15)]),
 ]
 let kitIds = kits.map { $0.id }
 let carryCap = 8            // crystal an Engineer carries per trip without a Cargo rig

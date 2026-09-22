@@ -4,7 +4,7 @@
 
 Orders are tuples:
     ("idle",) ("move", x, y) ("amove", x, y) ("attack", entity) ("gather", crystal) ("return",) ("build", kind, x, y)
-    ("rebuild", bridge) ("repair", building)
+    ("rebuild", bridge) ("repair", building or tank) ("heal", unit)
 """
 import math
 import random
@@ -14,6 +14,7 @@ from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWE
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
+                   HEAL_RANGE, HEAL_RATE,
                    MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
                    SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_lerp,
                    rect_distance, square_rect)
@@ -352,6 +353,8 @@ class Unit(Entity):
             return "Rebuilding a bridge"
         if o == "repair":
             return f"Repairing {self.order[1].name}"
+        if o == "heal":
+            return f"Treating {self.order[1].name}"
         if o == "build":
             return f"Heading to build {BUILDINGS[self.order[1]].name}"
         return "Busy"
@@ -410,6 +413,15 @@ class Unit(Entity):
         else:
             self.order = IDLE
 
+    def order_heal(self, unit, queue=False):
+        if queue and not (self.order[0] == "idle" and not self.queued):
+            self.queued.append(("heal", unit))
+            return
+        self.command(("heal", unit))
+
+    def _finish_heal(self):
+        self._finish_attack()       # back to the attack-move it was on, or idle
+
     def order_repair(self, building, queue=False):
         if queue and not (self.order[0] == "idle" and not self.queued):
             self.queued.append(("repair", building))
@@ -455,7 +467,13 @@ class Unit(Entity):
         kind = o[0]
 
         if kind == "idle":
-            if self.kind != "worker" and self.scan <= 0 and not self.queued:
+            if self.kind == "medic":
+                if self.scan <= 0 and not self.queued:
+                    self.scan = 0.3
+                    w = g.find_wounded(self, self.sight)
+                    if w:
+                        self.order = ("heal", w)
+            elif self.kind != "worker" and self.scan <= 0 and not self.queued:
                 self.scan = 0.3
                 t = g.find_target(self, self.sight, min_range=self.min_range)
                 if t:
@@ -472,11 +490,19 @@ class Unit(Entity):
             engaged = False
             if self.scan <= 0:
                 self.scan = 0.25
-                t = g.find_target(self, self.sight, min_range=self.min_range)
-                if t:
-                    self.resume_point = (o[1], o[2])
-                    self.order = ("attack", t)
-                    engaged = True
+                if self.kind == "medic":
+                    # A Medic on attack-move advances with the line and stops for anyone wounded on the way.
+                    w = g.find_wounded(self, self.sight)
+                    if w:
+                        self.resume_point = (o[1], o[2])
+                        self.order = ("heal", w)
+                        engaged = True
+                else:
+                    t = g.find_target(self, self.sight, min_range=self.min_range)
+                    if t:
+                        self.resume_point = (o[1], o[2])
+                        self.order = ("attack", t)
+                        engaged = True
             if not engaged:
                 if self._close_enough(o[1], o[2], 8):
                     self.order = IDLE
@@ -484,9 +510,28 @@ class Unit(Entity):
                 else:
                     target = (o[1], o[2])
 
+        elif kind == "heal":
+            w = o[1]
+            if w.dead or w.hp >= w.max_hp or not g.allied(w.team, self.team):
+                self._finish_heal()
+            elif self.stuck > 3:
+                self._finish_heal()
+            elif self.distance_to(w) - w.radius - self.radius > HEAL_RANGE:
+                target = (w.x, w.y)       # keeps up with a patient on the move
+            else:
+                self._aim(w.x, w.y, dt)
+                w.hp = min(w.max_hp, w.hp + HEAL_RATE * (1 + self._kit("heal")) * dt)
+                self.mine_timer += dt
+                if self.mine_timer > 0.45:
+                    self.mine_timer = 0.0
+                    g.emit("pulse", self.id)
+                    g.emit("sparks", w.x, w.y, 3, 30, "heal")
+                if w.hp >= w.max_hp:
+                    self._finish_heal()
+
         elif kind == "attack":
             t = o[1]
-            if t.dead or not t.targetable_by(self.team):
+            if t.dead or not t.targetable_by(self.team) or self.kind == "medic":
                 self._finish_attack()
             else:
                 switched = False
@@ -618,12 +663,12 @@ class Unit(Entity):
                     self.build_timer = 0.0
 
         elif kind == "repair":
-            b = o[1]
+            b = o[1]                      # a building, or a Siege Tank
             if b.dead or b.hp >= b.max_hp or not g.allied(b.team, self.team):
                 self._after_work()
             elif self.stuck > 3:
                 self._after_work()
-                g.emit("msg", self.team, "An Engineer couldn't reach the building", "bad")
+                g.emit("msg", self.team, "An Engineer couldn't reach the " + ("tank" if not b.is_building else "building"), "bad")
             elif b.surface_distance(self.x, self.y) - self.radius > 12:
                 target = (b.x, b.y)
             else:
@@ -666,7 +711,9 @@ class Unit(Entity):
         if k == "rebuild":
             return 40
         if k == "repair":
-            return self.order[1].half + 30
+            return getattr(self.order[1], "half", 0) + 30
+        if k == "heal":
+            return 30
         if k == "gather":
             return 40
         if k == "return":
@@ -786,7 +833,7 @@ class Unit(Entity):
             g.emit("sparks", self.x + ux * (self.radius + 5), self.y + uy * (self.radius + 5), 3, 35, "amber")
 
     def on_damaged(self, attacker):
-        if attacker is None or attacker.dead or attacker.team == self.team or self.kind == "worker":
+        if attacker is None or attacker.dead or attacker.team == self.team or self.kind in ("worker", "medic"):
             return
         if self.order[0] == "idle" and not self.queued:
             self.order = ("attack", attacker)

@@ -27,6 +27,7 @@ enum SaveGame {
         case .build(let k, let x, let y): return ["build", NetProtocol.name(k), x, y]
         case .rebuild(let b): return ["rebuild", b.id]
         case .repair(let b): return ["repair", b.id]
+        case .heal(let u): return ["heal", u.id]
         }
     }
 
@@ -40,7 +41,8 @@ enum SaveGame {
         case "return": return .ret
         case "build" where d.count >= 4: return NetProtocol.buildingKind(jStr(d[1])).map { .build($0, Double(jNum(d[2])), Double(jNum(d[3]))) } ?? .idle
         case "rebuild" where d.count >= 2: return (w.byId[jInt(d[1])] as? SBridge).map { .rebuild($0) } ?? .idle
-        case "repair" where d.count >= 2: return (w.byId[jInt(d[1])] as? SBuilding).map { .repair($0) } ?? .idle
+        case "repair" where d.count >= 2: return (w.byId[jInt(d[1])] as? SEntity).map { .repair($0) } ?? .idle
+        case "heal" where d.count >= 2: return (w.byId[jInt(d[1])] as? SUnit).map { .heal($0) } ?? .idle
         default: return .idle
         }
     }

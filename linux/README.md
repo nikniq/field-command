@@ -43,6 +43,7 @@ sudo dnf install rpmbuild/RPMS/noarch/field-command-1.0.0-1.*.noarch.rpm
 | Ranger | 50 | Barracks | Rifle infantry, 150 range |
 | Sniper | 125 | Barracks (needs a Factory) | 330 range, 55 damage a shot, one shot every 3.2s; 55 HP |
 | Siege Tank | 150 | Factory | 230 range, splash damage; can dig in (see below) |
+| Medic | 75 | Barracks | Unarmed; heals anyone on foot, 6 HP a second (see below) |
 
 The **Sniper** outranges everything that can shoot back — Siege Tanks reach 230 and Gun Turrets 210 — so a
 few of them behind your line pick apart tanks and turrets before those can answer. They reload slowly and
@@ -55,6 +56,13 @@ sees as far as it shoots, and cannot move or hit anything closer than 90. Press 
 it outranges the Sniper — so tanks want to be set up before the Snipers arrive, and something up close to
 handle what slips inside the ring. Computer players dig in when an enemy building is in reach and pack up
 when nothing is.
+
+The **Medic** (75 crystal, 50 HP, no weapon) heals Engineers, Rangers, Snipers and other Medics at 6 hit
+points a second, one patient at a time, within 60 units. Left to itself it looks for the wounded as far as it
+can see and walks over; on an attack-move (**A** then click) it advances with the line and stops for anyone
+hurt on the way, then carries on. Right-click a wounded friendly with a Medic selected to send it there. An
+attack order becomes an attack-move — it goes along, it never shoots. Vehicles are not its business: Siege
+Tanks are repaired by Engineers (see *Repair*). The computer fields one Medic for every four troops on foot.
 
 The **Radar Station** (175 crystal, needs a Barracks) sees 900 units in every direction, roughly three times
 a Command Center, and its dish sweeps while it works. It carries no weapons and 520 HP, so put it behind
@@ -73,7 +81,7 @@ matters more than it did: what it sees of you is what it builds against.
 
 Press **Y** (or the *Armory* button in the top bar) to open the store. Kit is bought once with crystal and worn
 by every unit of that type for the rest of the match — including the ones already in the field, which get the
-extra health on the spot. Twelve pieces, three per unit type:
+extra health on the spot. Fifteen pieces, three per unit type:
 
 | Unit | Kit | Cost | Effect |
 | --- | --- | --- | --- |
@@ -89,6 +97,9 @@ extra health on the spot. Twelve pieces, three per unit type:
 | Siege Tank | Reactive armour | 300 | +25% hit points |
 | | Extended barrel | 300 | +20 range, mobile and dug in |
 | | Autoloader | 350 | reloads 20% faster |
+| Medic | Trauma kit | 200 | heals 50% faster |
+| | Ceramic plates | 150 | +30% hit points |
+| | Field litter | 150 | +15% speed |
 
 Kit stacks with veterancy and with building upgrades, so the mix you buy shapes your army: Long scope lets
 Snipers out-reach sieged tanks again, Extended barrel gives tanks it back, and a Cargo rig is the cheapest
@@ -139,12 +150,13 @@ Command Center, then guns.
 
 ## Repair
 
-Select Engineers and right-click a damaged building of yours or an ally's to repair it. One Engineer restores
-a full health bar in 30 seconds, and more Engineers work proportionally faster. A full bar costs 35% of the
-building's price, charged as the health goes back on, so patching a half-wrecked Command Center costs 70
-crystal. If the crystal runs out, repair stops rather than going into debt. When the job is done each
-Engineer goes back to what it was doing. Buildings still under construction finish on their own and cannot
-be repaired.
+Select Engineers and right-click a damaged building of yours or an ally's — or a damaged **Siege Tank** — to
+repair it. One Engineer restores a full health bar in 30 seconds, and more Engineers work proportionally
+faster. A full bar costs 35% of the building's or tank's price, charged as the health goes back on, so
+patching a half-wrecked Command Center costs 70 crystal and a half-dead tank 26. If the crystal runs out,
+repair stops rather than going into debt. When the job is done each Engineer goes back to what it was doing.
+An Engineer follows a tank that moves off mid-repair. Buildings still under construction finish on their own
+and cannot be repaired; infantry is healed by Medics, not repaired.
 
 Computer players send an Engineer to their worst-damaged building once it drops below 70%, one at a time,
 when they have crystal to spare.

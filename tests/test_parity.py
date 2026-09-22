@@ -146,6 +146,13 @@ def test_armory_catalogue_agrees():
     assert int(re.search(r"let carryCap = (\d+)", src).group(1)) == CARRY_CAP
 
 
+def test_healing_constants_agree():
+    from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
+    src = swift("Defs.swift")
+    assert float(re.search(r"let healRate: Double = ([\d.]+)", src).group(1)) == HEAL_RATE
+    assert float(re.search(r"let healRange: Double = ([\d.]+)", src).group(1)) == HEAL_RANGE
+
+
 def test_save_format_agrees():
     from fieldcommand.save import SAVE_FORMAT
     assert int(re.search(r"static let format = (\d+)", swift("SaveGame.swift")).group(1)) == SAVE_FORMAT

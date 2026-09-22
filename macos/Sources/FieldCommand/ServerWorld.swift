@@ -355,7 +355,8 @@ enum SOrder {
     case ret
     case build(BuildingKind, Double, Double)
     case rebuild(SBridge)
-    case repair(SBuilding)
+    case repair(SEntity)          // a building, or a Siege Tank
+    case heal(SUnit)
 
     var code: Int {
         switch self {
@@ -368,6 +369,7 @@ enum SOrder {
         case .build: return 6
         case .rebuild: return 7
         case .repair: return 8
+        case .heal: return 9
         }
     }
     var isIdle: Bool { if case .idle = self { return true }; return false }
@@ -627,7 +629,15 @@ final class SUnit: SEntity {
         if order.isIdle && queued.isEmpty { command(o) } else { queued.append(o) }
     }
 
-    func orderRepair(_ b: SBuilding, queue: Bool) {
+    func orderHeal(_ u: SUnit, queue: Bool) {
+        if queue && !(order.isIdle && queued.isEmpty) {
+            queued.append(.heal(u))
+            return
+        }
+        command(.heal(u))
+    }
+
+    func orderRepair(_ b: SEntity, queue: Bool) {
         if queue && !(order.isIdle && queued.isEmpty) {
             queued.append(.repair(b))
             return
@@ -746,7 +756,12 @@ final class SUnit: SEntity {
 
         switch order {
         case .idle:
-            if kind != .worker && scan <= 0 && queued.isEmpty {
+            if kind == .medic {
+                if scan <= 0 && queued.isEmpty {
+                    scan = 0.3
+                    if let w = g.findWounded(self, sight) { order = .heal(w) }
+                }
+            } else if kind != .worker && scan <= 0 && queued.isEmpty {
                 scan = 0.3
                 if let t = g.findTarget(self, sight, minRange: minRange) { order = .attack(t) }
             }
@@ -761,7 +776,14 @@ final class SUnit: SEntity {
             var engaged = false
             if scan <= 0 {
                 scan = 0.25
-                if let t = g.findTarget(self, sight, minRange: minRange) {
+                if kind == .medic {
+                    // A Medic on attack-move advances with the line and stops for anyone wounded on the way.
+                    if let w = g.findWounded(self, sight) {
+                        resumePoint = (px, py)
+                        order = .heal(w)
+                        engaged = true
+                    }
+                } else if let t = g.findTarget(self, sight, minRange: minRange) {
                     resumePoint = (px, py)
                     order = .attack(t)
                     engaged = true
@@ -775,8 +797,24 @@ final class SUnit: SEntity {
                     target = (px, py)
                 }
             }
+        case .heal(let w):
+            if w.dead || w.hp >= w.maxHp || !g.allied(w.team, team) || stuck > 3 {
+                finishAttack()      // back to the attack-move it was on, or idle
+            } else if distanceTo(w) - w.radius - radius > healRange {
+                target = (w.x, w.y)       // keeps up with a patient on the move
+            } else {
+                aim(w.x, w.y, dt)
+                w.hp = min(w.maxHp, w.hp + healRate * (1 + kit("heal")) * dt)
+                mineTimer += dt
+                if mineTimer > 0.45 {
+                    mineTimer = 0
+                    g.emit(["pulse", id])
+                    g.emit(["sparks", w.x, w.y, 3, 30, "heal"])
+                }
+                if w.hp >= w.maxHp { finishAttack() }
+            }
         case .attack(let t):
-            if t.dead || !t.targetable(by: team) {
+            if t.dead || !t.targetable(by: team) || kind == .medic {
                 finishAttack()
                 break
             }
@@ -904,17 +942,18 @@ final class SUnit: SEntity {
                     buildTimer = 0
                 }
             }
-        case .repair(let b):
+        case .repair(let b):                    // a building, or a Siege Tank
             if b.dead || b.hp >= b.maxHp || !g.allied(b.team, team) {
                 afterWork()
             } else if stuck > 3 {
                 afterWork()
-                g.emit(["msg", team, "An Engineer couldn't reach the building", "bad"])
+                g.emit(["msg", team, "An Engineer couldn't reach the \(b.isBuilding ? "building" : "tank")", "bad"])
             } else if b.surfaceDistance(x, y) - radius > 12 {
                 target = (b.x, b.y)
             } else {
+                let cost = (b as? SBuilding).map { Double($0.stats.cost) } ?? (b as? SUnit).map { Double($0.stats.cost) } ?? 0
                 let heal = min(b.maxHp - b.hp, b.maxHp * dt * workMult / repairTime)
-                let price = heal / b.maxHp * Double(b.stats.cost) * repairCostRatio
+                let price = heal / b.maxHp * cost * repairCostRatio
                 if (g.resources[team] ?? 0) < price {
                     // Out of crystal: stop rather than repair on credit.
                     afterWork()
@@ -951,7 +990,8 @@ final class SUnit: SEntity {
         case .attack(let t): return (t as? SBuilding).map { $0.half + 30 } ?? 30
         case .gather: return 40
         case .rebuild: return 40
-        case .repair(let b): return b.half + 30
+        case .repair(let b): return ((b as? SBuilding)?.half ?? 0) + 30
+        case .heal: return 30
         case .ret: return 120
         default: return 0
         }
@@ -1064,11 +1104,13 @@ final class SUnit: SEntity {
         case .worker:
             t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["sparks", x + ux * (radius + 5), y + uy * (radius + 5), 3, 35, "amber"])
+        case .medic:
+            break                       // unarmed
         }
     }
 
     override func onDamaged(_ attacker: SEntity?) {
-        guard let a = attacker, !a.dead, a.team != team, kind != .worker else { return }
+        guard let a = attacker, !a.dead, a.team != team, kind != .worker, kind != .medic else { return }
         if order.isIdle && queued.isEmpty { order = .attack(a) }
     }
 }
@@ -1655,7 +1697,7 @@ final class SWorld {
                 let neutral = (t as? SBridge)?.intact ?? false      // anyone may bring a crossing down
                 if neutral || enemies(t.team, slot) {
                     for u in ownUnits(slot, ids(cmd[1])) where !(neutral && u.kind == .worker) {
-                        give(u, .attack(t), flag(3))
+                        give(u, u.kind == .medic ? .amove(t.x, t.y) : .attack(t), flag(3))   // a Medic goes along to treat
                     }
                 }
             }
@@ -1670,9 +1712,15 @@ final class SWorld {
         case "siege" where cmd.count >= 3:
             for u in ownUnits(slot, ids(cmd[1])) { u.setSiege(flag(2)) }
         case "repair" where cmd.count >= 3:
-            if let b = byId[jInt(cmd[2])] as? SBuilding, !b.dead, b.built, allied(b.team, slot) {
+            // Engineers mend a finished building or a Siege Tank; Medics treat anyone on foot.
+            if let b = byId[jInt(cmd[2])] as? SEntity, !b.dead, allied(b.team, slot) {
                 let queue = cmd.count > 3 && flag(3)
-                for u in ownUnits(slot, ids(cmd[1])) where u.kind == .worker { u.orderRepair(b, queue: queue) }
+                let mendable = ((b as? SBuilding)?.built ?? false) || (b as? SUnit)?.kind == .tank
+                let treatable = (b as? SUnit).map { $0.kind != .tank } ?? false
+                for u in ownUnits(slot, ids(cmd[1])) {
+                    if u.kind == .worker && mendable { u.orderRepair(b, queue: queue) }
+                    else if u.kind == .medic && treatable && u !== b, let w = b as? SUnit { u.orderHeal(w, queue: queue) }
+                }
             }
         case "rebuild" where cmd.count >= 3:
             rebuildBridge(slot, jInt(cmd[1]), jInt(cmd[2]), queue: cmd.count > 3 && flag(3))
@@ -1898,6 +1946,24 @@ final class SWorld {
     }
 
     /// The best enemy within `radius` of `e` — and, for a sieged tank, no closer than `minRange`.
+    /// The ally on foot most worth a Medic's attention within `radius`: near and badly hurt.
+    func findWounded(_ e: SUnit, _ radius: Double) -> SUnit? {
+        var best: SUnit?
+        var bestScore = 1e9
+        let lim = radius + 40
+        for u in units where u !== e && !u.dead && u.kind != .tank && u.hp < u.maxHp && allied(u.team, e.team)
+            && abs(u.x - e.x) <= lim && abs(u.y - e.y) <= lim {
+            let d = e.distanceTo(u)
+            if d > radius { continue }
+            let score = d * (0.4 + 0.6 * u.hp / u.maxHp)
+            if score < bestScore {
+                best = u
+                bestScore = score
+            }
+        }
+        return best
+    }
+
     func findTarget(_ e: SEntity, _ radius: Double, minRange: Double = 0) -> SEntity? {
         var best: SEntity?
         var bestScore = 1e9
@@ -2044,12 +2110,14 @@ final class SAI {
     }
 
     /// Where a unit should go for a target: Snipers stop 200 short so they fight at their range and never
-    /// walk into the line; everyone else goes to the target.
+    /// walk into the line; Medics 120 short, behind it; everyone else goes to the target.
+    static let standoffs: [UnitKind: Double] = [.sniper: 200, .medic: 120]
+
     func standoff(_ u: SUnit, _ tx: Double, _ ty: Double) -> (Double, Double) {
-        guard u.kind == .sniper else { return (tx, ty) }
+        guard let short = SAI.standoffs[u.kind] else { return (tx, ty) }
         let dx = u.x - tx, dy = u.y - ty
         let d = max(1, hyp(dx, dy))
-        let back = min(200, max(0, d - 60))
+        let back = min(short, max(0, d - 60))
         return (tx + dx / d * back, ty + dy / d * back)
     }
 
@@ -2180,7 +2248,10 @@ final class SAI {
         let g = world
         guard (g.resources[team] ?? 0) >= 150 else { return }
         if workers.contains(where: { if case .repair = $0.order { return true }; return false }) { return }
-        let hurt = bases.filter { $0.built && !$0.dead && $0.hp < $0.maxHp * 0.7 }
+        // The worst-hit building below 70%, or a tank below 60% resting at home.
+        var hurt: [SEntity] = bases.filter { $0.built && !$0.dead && $0.hp < $0.maxHp * 0.7 }
+        hurt += g.units.filter { u in u.team == team && u.kind == .tank && !u.dead && u.hp < u.maxHp * 0.6
+            && u.order.isIdle && bases.contains { hyp($0.x - u.x, $0.y - u.y) < 400 } }
         guard let b = hurt.min(by: { $0.hp / $0.maxHp < $1.hp / $1.maxHp }) else { return }
         let free = workers.filter { $0.order.isIdle || { if case .gather = $0.order { return true }; return false }($0) }
         free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) })?.orderRepair(b, queue: false)
@@ -2244,7 +2315,11 @@ final class SAI {
             let army = g.units.filter { $0.team == team && $0.kind != .worker && !$0.dead }
             let want = wanted(army)
             if b.kind == .barracks {
-                if want == .sniper && money() >= 125 && g.hasBuilt(.factory, team) {
+                let foot = army.filter { $0.kind == .marine || $0.kind == .sniper }.count
+                let medics = army.filter { $0.kind == .medic }.count
+                if foot >= 4 && medics * 4 < foot && money() >= 75 {
+                    _ = g.train(.medic, [b], team)      // one Medic for every four on foot
+                } else if want == .sniper && money() >= 125 && g.hasBuilt(.factory, team) {
                     _ = g.train(.sniper, [b], team)
                 } else if money() >= 50 && (want != .tank || !g.hasBuilt(.factory, team) || money() >= 200) {
                     _ = g.train(.marine, [b], team)

@@ -18,7 +18,8 @@ from .fogview import FogView
 from .net import STATUS
 from .settings import settings
 
-SPARK_COLORS = {"hit": (255, 204, 102), "crystal": (102, 235, 255), "amber": (255, 194, 77)}
+SPARK_COLORS = {"hit": (255, 204, 102), "crystal": (102, 235, 255), "amber": (255, 194, 77),
+                "heal": (140, 255, 170)}
 TRACER_COLORS = {0: (1, 0.88, 0.5, 1), 1: (1, 0.75, 0.4, 1), 2: (0.78, 0.95, 1.0, 1)}
 SOUND_GAPS = {"rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08, "snipe": 0.05}
 ORDER_COLORS = {STATUS["move"]: GOOD, STATUS["amove"]: BAD, STATUS["attack"]: BAD, STATUS["gather"]: CRYSTAL,
@@ -733,8 +734,9 @@ class GameScene:
         if mouse and target:
             color = TEXT if self.mine(target) else (TEAM_LIGHT[target.team] if self.friendly(target) else BAD)
             label = f"{target.name}  {math.ceil(target.hp)}/{int(target.max_hp)}"
-            if self._repairable(target) and any(u.kind == "worker" for u in self.selected_own_units()):
-                label += "    right-click to repair"
+            menders = self._menders(self.selected_own_units(), target)
+            if menders:
+                label += "    right-click to repair" if menders[0].kind == "worker" else "    right-click to treat"
             self.hud.set_hover(label, color, mouse)
         elif mouse and crystal:
             self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
@@ -768,8 +770,8 @@ class GameScene:
                     kind = "attack"
                 elif crystal and any(u.kind == "worker" for u in own):
                     kind = "gather"
-                elif target and self._repairable(target) and any(u.kind == "worker" for u in own):
-                    kind = "gather"      # the work cursor: this Engineer can mend it
+                elif target and self._menders(own, target):
+                    kind = "gather"      # the work cursor: this Engineer can mend it, or this Medic treat it
                 elif bridge is not None and not bridge.intact and any(u.kind == "worker" for u in own):
                     kind = "gather"      # the build cursor: this Engineer can put the crossing back
         if kind != self._cursor:
@@ -848,7 +850,23 @@ class GameScene:
         return [e for e in self.selection if e.is_building and self.mine(e) and not e.dead]
 
     def _repairable(self, e):
-        return e.is_building and not e.dead and e.built and e.hp < e.max_hp and self.friendly(e)
+        """An Engineer can mend it: a finished friendly building, or a friendly Siege Tank, below full health."""
+        if e.dead or e.hp >= e.max_hp or not self.friendly(e):
+            return False
+        return e.built if e.is_building else e.kind == "tank"
+
+    def _treatable(self, e):
+        """A Medic can treat it: a friendly unit on foot below full health."""
+        return not e.is_building and not e.dead and e.kind != "tank" and e.hp < e.max_hp and self.friendly(e)
+
+    def _menders(self, us, target):
+        """The selected units that can mend `target` (Engineers) or treat it (Medics)."""
+        out = []
+        if self._repairable(target):
+            out += [u for u in us if u.kind == "worker"]
+        if self._treatable(target):
+            out += [u for u in us if u.kind == "medic" and u is not target]
+        return out
 
     def tower_at(self, x, y):
         for t in getattr(self.s, "towers", ()):
@@ -915,12 +933,12 @@ class GameScene:
                 send(["gather", self._ids(us), c.id, queue])
                 self.fx.ring(c.x, c.y, 26, 6, CRYSTAL)
                 return
-            if t is not None and self._repairable(t):
-                workers = [u for u in us if u.kind == "worker"]
-                if workers:
-                    send(["repair", self._ids(workers), t.id, queue])
-                    self.fx.ring(t.x, t.y, t.half + 10, 8, AMBER)
-                    rest = [u for u in us if u.kind != "worker"]
+            if t is not None:
+                menders = self._menders(us, t)
+                if menders:
+                    send(["repair", self._ids(menders), t.id, queue])
+                    self.fx.ring(t.x, t.y, (t.half if t.is_building else t.radius) + 10, 8, AMBER)
+                    rest = [u for u in us if u not in menders]
                     if rest:
                         send(["move", self._ids(rest), x, y, queue, False])
                     return

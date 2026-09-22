@@ -20,7 +20,7 @@ CONCRETE = rgb(0.47, 0.48, 0.46)
 STEEL = rgb(0.36, 0.38, 0.41)
 GUNMETAL = rgb(0.22, 0.23, 0.25)
 
-UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42), "sniper": (44, 36)}
+UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42), "sniper": (44, 36), "medic": (38, 36)}
 TURRET_SIZE = (68, 30)
 CHIMNEYS = [(0.58, 0.55), (0.28, 0.62)]
 
@@ -239,7 +239,7 @@ def square_ring():
 
 def unit(kind, team):
     def d(c):
-        {"worker": _worker, "marine": _marine, "tank": _tank_hull, "sniper": _sniper}[kind](c, team)
+        {"worker": _worker, "marine": _marine, "tank": _tank_hull, "sniper": _sniper, "medic": _medic}[kind](c, team)
     return texture(("unit", kind, team), UNIT_SIZE[kind], d)
 
 
@@ -279,6 +279,35 @@ def _marine(c, team):
     stroke(c, helm, rgb(0, 0, 0, 0.6), 0.8)
     fill(c, rr(2.2, -2.8, 3, 5.6, 1.2), rgb(0.45, 0.95, 1.0))
     fill(c, ellipse(-3, 0.8, 3.2, 2), alpha(WHITE, 0.45))
+
+
+def _medic(c, team):
+    """A Ranger's build without the rifle: a white aid pack with a red cross on the back, a bag in hand."""
+    col = TEAM_COLOR[team]
+    pack = rr(-13, -6.5, 9, 13, 2.5)
+    lit(c, pack, rgb(0.93, 0.93, 0.9))
+    stroke(c, pack, rgb(0, 0, 0, 0.45), 0.8)
+    fill(c, rr(-10, -1.2, 3.4, 2.4, 0.4), rgb(0.85, 0.15, 0.15))     # the cross
+    fill(c, rr(-9.5, -3.2, 2.4, 6.4, 0.4), rgb(0.85, 0.15, 0.15))
+    bag = rr(3, 3.5, 8, 5.5, 1.2)
+    lit(c, bag, rgb(0.9, 0.9, 0.88))
+    stroke(c, bag, rgb(0, 0, 0, 0.45), 0.7)
+    fill(c, rr(6.2, 5.2, 1.6, 2.2, 0.3), rgb(0.85, 0.15, 0.15))
+    body = ellipse(-7, -10.5, 14, 21)
+    lit(c, body, col)
+    rim(c, body)
+    stroke(c, body, mix(col, BLACK, 0.55), 1)
+    for y in (7.8, -7.8):
+        pad = circle(-0.5, y, 3.4)
+        lit(c, pad, mix(col, BLACK, 0.3))
+        stroke(c, pad, mix(col, BLACK, 0.6), 0.7)
+    lit(c, ellipse(3, -7, 6, 4.5), mix(col, BLACK, 0.15))
+    helm = circle(0, 0, 5.4)
+    lit(c, helm, rgb(0.93, 0.93, 0.9))
+    stroke(c, helm, rgb(0, 0, 0, 0.6), 0.8)
+    fill(c, rr(-1.1, -3.2, 2.2, 6.4, 0.3), rgb(0.85, 0.15, 0.15))      # cross on the helmet
+    fill(c, rr(-3.2, -1.1, 6.4, 2.2, 0.3), rgb(0.85, 0.15, 0.15))
+    fill(c, ellipse(-3, 0.8, 3.2, 2), alpha(WHITE, 0.35))
 
 
 def _sniper(c, team):

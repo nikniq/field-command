@@ -50,6 +50,7 @@ def signature(w):
 
 def test_round_trip_keeps_the_whole_game():
     w = busy_world()
+    w.update_visibility()          # the sight pass is throttled; loading runs it at once, so settle it here too
     before = signature(w)
     data = json.loads(json.dumps(save.world_to_dict(w, "test")))     # through real JSON, as the file would be
     assert data["format"] == save.SAVE_FORMAT and data["game"] == "field-command"

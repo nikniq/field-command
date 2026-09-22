@@ -1060,8 +1060,9 @@ final class GameScene: SKScene {
         if let m = mouse {
             if let t = target {
                 var label = "\(t.displayName)  \(Int(ceil(t.hp)))/\(Int(t.maxHp))"
-                if let b = t as? Building, isRepairable(b), selectedOwnUnits.contains(where: { $0.kind == .worker }) {
-                    label += "    right-click to repair"
+                let menders = menders(selectedOwnUnits, for: t)
+                if let first = menders.first {
+                    label += first.kind == .worker ? "    right-click to repair" : "    right-click to treat"
                 }
                 hud.setHover(label, color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
             } else if let c = crystal {
@@ -1097,8 +1098,8 @@ final class GameScene: SKScene {
             } else if !own.isEmpty && placing == nil {
                 if let t = target, !t.team.isFriendly { kind = .attack }
                 else if crystal != nil && own.contains(where: { $0.kind == .worker }) { kind = .gather }
-                else if let b = target as? Building, isRepairable(b), own.contains(where: { $0.kind == .worker }) {
-                    kind = .gather      // the work cursor: this Engineer can mend it
+                else if let t = target, !menders(own, for: t).isEmpty {
+                    kind = .gather      // the work cursor: this Engineer can mend it, or this Medic treat it
                 }
                 else if let br = hoveredBridge, !br.intact, own.contains(where: { $0.kind == .worker }) {
                     kind = .gather      // the build cursor: this Engineer can put the crossing back
@@ -1263,8 +1264,25 @@ final class GameScene: SKScene {
         if queue { u.enqueue(o) } else { u.command(o) }
     }
 
-    func isRepairable(_ b: Building) -> Bool {
-        !b.dead && b.built && b.hp < b.maxHp && b.team.isFriendly
+    /// An Engineer can mend it: a finished friendly building, or a friendly Siege Tank, below full health.
+    func isRepairable(_ e: Entity) -> Bool {
+        guard !e.dead, e.hp < e.maxHp, e.team.isFriendly else { return false }
+        if let b = e as? Building { return b.built }
+        return (e as? Unit)?.kind == .tank
+    }
+
+    /// A Medic can treat it: a friendly unit on foot below full health.
+    func isTreatable(_ e: Entity) -> Bool {
+        guard let u = e as? Unit, !u.dead, u.kind != .tank, u.hp < u.maxHp, u.team.isFriendly else { return false }
+        return true
+    }
+
+    /// The selected units that can mend `target` (Engineers) or treat it (Medics).
+    func menders(_ us: [Unit], for target: Entity) -> [Unit] {
+        var out: [Unit] = []
+        if isRepairable(target) { out += us.filter { $0.kind == .worker } }
+        if isTreatable(target) { out += us.filter { $0.kind == .medic && $0 !== target } }
+        return out
     }
 
     func tower(at p: CGPoint) -> TowerNode? { towerNodes.first { $0.contains(world: p) } }

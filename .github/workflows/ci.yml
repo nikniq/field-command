@@ -78,6 +78,7 @@ jobs:
           FC_STORETEST=1 "$BIN" | tee /dev/stderr | grep -q "STORE TEST PASSED"
           FC_AITEST=1 "$BIN" | tee /dev/stderr | grep -q "AI TEST PASSED"
           FC_AUDIOTEST=1 "$BIN" | tee /dev/stderr | grep -q "AUDIO TEST PASSED"
+          FC_MEDICTEST=1 "$BIN" | tee /dev/stderr | grep -q "MEDIC TEST PASSED"
           FC_BRIDGETEST=river_crossing "$BIN" | tee /dev/stderr | grep -q "BRIDGE TEST PASSED"
           FC_SAVETEST=1 FC_SAVE_FIXTURE="$GITHUB_WORKSPACE/tests/fixtures/save_python.json" "$BIN" | tee /dev/stderr | grep -q "SAVE TEST PASSED"
       - name: App bundle

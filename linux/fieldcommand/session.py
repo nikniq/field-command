@@ -329,7 +329,7 @@ class _ProxyUnit:
         return {"idle": "Idle", "move": "Moving", "amove": "Attack-moving", "attack": "Engaging target",
                 "gather": "Returning cargo" if self.carrying else "Mining crystal", "return": "Returning cargo",
                 "build": "Heading to build", "rebuild": "Rebuilding a bridge",
-                "repair": "Repairing"}.get(k, "Busy")
+                "repair": "Repairing", "heal": "Treating a casualty"}.get(k, "Busy")
 
     def surface_distance(self, px, py):
         return math.hypot(px - self.x, py - self.y) - self.radius

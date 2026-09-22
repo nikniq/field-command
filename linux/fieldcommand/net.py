@@ -26,7 +26,7 @@ from .defs import BUILDING_KINDS, DIFFICULTIES, KIT_IDS, MAX_PLAYERS, UNIT_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 8
+PROTOCOL_VERSION = 9
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -38,7 +38,7 @@ UNIT_INDEX = {k: i for i, k in enumerate(UNIT_KINDS)}
 UPGRADE_INDEX = {k: i for i, k in enumerate(UPGRADE_KINDS)}
 BUILDING_INDEX = {k: i for i, k in enumerate(BUILDING_KINDS)}
 STATUS = {"idle": 0, "move": 1, "amove": 2, "attack": 3, "gather": 4, "return": 5, "build": 6,
-          "rebuild": 7, "repair": 8}
+          "rebuild": 7, "repair": 8, "heal": 9}
 
 
 # ---------------------------------------------------------------- framing
@@ -102,7 +102,7 @@ def order_points(u):
         k = o[0]
         if k in ("move", "amove"):
             pts.append((STATUS[k], o[1], o[2]))
-        elif k in ("attack", "gather"):
+        elif k in ("attack", "gather", "heal"):
             t = o[1]
             if not t.dead:
                 pts.append((STATUS[k], t.x, t.y))

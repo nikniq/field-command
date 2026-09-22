@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.10.0
+Version:        1.11.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.11.0-1
+- Medics: an unarmed Barracks unit (M, 75 crystal) that heals anyone on foot and follows the line
+- Engineers repair Siege Tanks, at the repair rate and 35% of the tank's price
+- Three Medic kits in the Armory; protocol 9 (older clients are refused)
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.10.0-1
 - Save and load single-player games: F5/F9, the pause menu, Load Game on the title screen, autosave every 5 min
 - Saves are one JSON document shared with the macOS edition, so a game saved on one loads on the other

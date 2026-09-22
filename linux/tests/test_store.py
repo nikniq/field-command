@@ -13,7 +13,7 @@ def setup(bank=5000.0):
 
 
 def test_catalogue_is_sane():
-    assert len(KITS) == 12 and len(set(KIT_IDS)) == 12
+    assert len(KITS) == 15 and len(set(KIT_IDS)) == 15
     assert all(k.unit in UNITS and k.cost > 0 for k in KITS)
     assert {k.unit for k in KITS} == set(UNITS)
 

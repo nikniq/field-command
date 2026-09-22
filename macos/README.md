@@ -67,9 +67,10 @@ UDP 47778 carries LAN discovery; forward the TCP port for internet play.
 
 The catalogue matches the Linux edition exactly — including the **Sniper** (125 crystal at the Barracks once a
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
-Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
+Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
+the numbers.
 
-Both editions speak protocol 8, so a 1.10.0 Mac and a 1.10.0 Linux client play together; neither accepts an
+Both editions speak protocol 9, so a 1.11.0 Mac and a 1.11.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -79,7 +80,7 @@ waves on Normal and Hard. Same reasoning as the Linux edition (`FC_AITEST`).
 
 ## The Armory
 
-**Y** opens the store: twelve pieces of kit, three per unit type, bought once with crystal and worn by every
+**Y** opens the store: fifteen pieces of kit, three per unit type, bought once with crystal and worn by every
 unit of that type all match. The catalogue and effects match the Linux edition (`FC_STORETEST`).
 
 ## Attackers reveal themselves
@@ -108,9 +109,15 @@ edition (`FC_SIEGETEST` checks them).
 
 ## Repair
 
-Select Engineers and right-click a damaged friendly building to repair it: 30 seconds for a full bar with one
-Engineer (more stack), at 35% of the building's price for a full bar, charged as it heals. The rules and
-numbers match the Linux edition exactly — `FC_REPAIRTEST` checks them.
+Select Engineers and right-click a damaged friendly building — or Siege Tank — to repair it: 30 seconds for a
+full bar with one Engineer (more stack), at 35% of the building's or tank's price for a full bar, charged as it
+heals. The rules and numbers match the Linux edition exactly — `FC_REPAIRTEST` and `FC_MEDICTEST` check them.
+
+## Medics
+
+**M** at the Barracks trains a Medic (75 crystal): unarmed, it heals anyone on foot at 6 HP a second within
+60 units, finds the wounded by itself, and on an attack-move stops for casualties and carries on. Right-click
+a wounded friendly to send one. Same rules as the Linux edition (`FC_MEDICTEST`).
 
 ## Bridges
 
@@ -155,6 +162,7 @@ FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks 
 FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: every kit effect and the rules
 FC_AITEST=1 .build/release/FieldCommand                       # the opponent: observation, counters, standoff
 FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesised effect, length and loudness
+FC_MEDICTEST=1 .build/release/FieldCommand                    # Medics healing, Engineers repairing tanks
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

@@ -398,6 +398,120 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_MEDICTEST=1: Medics heal infantry at the advertised rate, find the wounded themselves, never shoot,
+    /// and stop for casualties on an attack-move; Engineers repair Siege Tanks at the repair price.
+    static func runMedicTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func field(_ bank: Double = 1000) -> (SWorld, SBuilding) {
+            let w = SWorld(map: SMapGen.generate("twin_ridges"),
+                           players: [SPlayer(slot: 0, name: "P0", team: 1, isAI: false, start: 0),
+                                     SPlayer(slot: 1, name: "P1", team: 2, isAI: false, start: 1)], difficulty: .normal)
+            for u in w.units where u.team == 0 { u.command(.idle) }
+            w.resources[0] = bank
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y); w.add(u); return u
+        }
+        func run(_ w: SWorld, _ seconds: Double, until: () -> Bool) -> Bool {
+            var t = 0.0
+            while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if until() { return true } }
+            return until()
+        }
+        do {
+            let (w, hq) = field()
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let r = unit(w, .marine, 0, hq.x + 200 + healRange - 5, hq.y)
+            r.hp = r.maxHp - 30
+            w.apply(0, ["repair", [m.id], r.id, false])
+            check({ if case .heal = m.order { return true }; return false }(), "a Medic takes a heal order from the repair command")
+            let t0 = w.elapsed
+            let healed = run(w, 20) { r.hp >= r.maxHp }
+            check(healed && abs((w.elapsed - t0) - 30 / healRate) < 1, String(format: "and treats 30 HP in %.1fs (expected %.1f)", w.elapsed - t0, 30 / healRate))
+            check(m.order.isIdle, "then stands down")
+        }
+        do {
+            let (w, hq) = field()
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let far = unit(w, .sniper, 0, hq.x + 200, hq.y + 180)
+            far.hp = 10
+            check(run(w, 20) { far.hp >= far.maxHp }, "an idle Medic finds the wounded by itself and walks over")
+        }
+        do {
+            let (w, hq) = field()
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let enemy = unit(w, .marine, 1, hq.x + 260, hq.y)
+            w.apply(0, ["attack", [m.id], enemy.id, false])
+            check({ if case .amove = m.order { return true }; return false }(), "an attack order becomes an attack-move: Medics never shoot")
+            _ = run(w, 3) { false }
+            check(enemy.hp == enemy.maxHp, "and the enemy is untouched")
+            let t = unit(w, .tank, 0, hq.x + 200, hq.y + 40)
+            t.hp = 100
+            w.apply(0, ["repair", [m.id], t.id, false])
+            check({ if case .heal = m.order { return false }; return true }(), "tanks are not a Medic's business")
+        }
+        do {
+            let (w, hq) = field()
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let r = unit(w, .marine, 0, hq.x + 300, hq.y + 30)
+            r.hp = r.maxHp - 12
+            w.apply(0, ["move", [m.id], hq.x + 600, hq.y, false, true])
+            let stopped = run(w, 10) { if case .heal = m.order { return true }; return false }
+            let done = run(w, 20) { r.hp >= r.maxHp }
+            check(stopped && done && { if case .amove = m.order { return true }; return false }(), "on attack-move it stops for the wounded, then carries on")
+        }
+        do {
+            let (w, hq) = field()
+            _ = w.buyKit(0, "trauma")
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let r = unit(w, .marine, 0, hq.x + 230, hq.y)
+            r.hp = r.maxHp - 30
+            w.apply(0, ["repair", [m.id], r.id, false])
+            let t0 = w.elapsed
+            _ = run(w, 20) { r.hp >= r.maxHp }
+            check(abs((w.elapsed - t0) - 30 / (healRate * 1.5)) < 1, "the trauma kit speeds healing by half")
+        }
+        do {
+            let (w, hq) = field()
+            let e = unit(w, .worker, 0, hq.x + 200, hq.y)
+            let t = unit(w, .tank, 0, hq.x + 260, hq.y)
+            t.hp = t.maxHp * 0.5
+            w.apply(0, ["repair", [e.id], t.id, false])
+            check({ if case .repair = e.order { return true }; return false }(), "an Engineer takes a repair order for a tank")
+            let t0 = w.elapsed
+            let done = run(w, 40) { t.hp >= t.maxHp }
+            let spent = 1000 - (w.resources[0] ?? 0)
+            check(done && abs((w.elapsed - t0) - repairTime * 0.5) < 2, String(format: "half a tank takes %.1fs", w.elapsed - t0))
+            check(abs(spent - 0.5 * Double(UnitKind.tank.stats.cost) * repairCostRatio) < 0.5, String(format: "and costs %.1f crystal", spent))
+            let enemy = unit(w, .tank, 1, hq.x + 300, hq.y + 200)
+            enemy.hp = 50
+            w.apply(0, ["repair", [e.id], enemy.id, false])
+            check({ if case .repair = e.order { return false }; return true }(), "refuses an enemy tank")
+            let r = unit(w, .marine, 0, hq.x + 200, hq.y + 60)
+            r.hp = 10
+            w.apply(0, ["repair", [e.id], r.id, false])
+            check({ if case .repair = e.order { return false }; return true }(), "and infantry, which is a Medic's job")
+        }
+        do {
+            let (w, hq) = field()
+            let m = unit(w, .medic, 0, hq.x + 200, hq.y)
+            let r = unit(w, .marine, 0, hq.x + 230, hq.y); r.hp = 20
+            let e = unit(w, .worker, 0, hq.x + 200, hq.y + 60)
+            let t = unit(w, .tank, 0, hq.x + 260, hq.y + 60); t.hp = 100
+            w.apply(0, ["repair", [m.id], r.id, false])
+            w.apply(0, ["repair", [e.id], t.id, false])
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            let m2 = w2.byId[m.id] as! SUnit, e2 = w2.byId[e.id] as! SUnit
+            var okOrders = false
+            if case .heal(let p) = m2.order, p.id == r.id, case .repair(let q) = e2.order, q.id == t.id { okOrders = true }
+            check(okOrders, "heal and tank-repair orders survive a save")
+        }
+        print(ok ? "MEDIC TEST PASSED" : "MEDIC TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_SAVETEST=1: a mid-game world survives a save round trip and plays on; and a save written by the
     /// Python edition (tests/fixtures/save_python.json, path in FC_SAVE_FIXTURE) loads here and plays on too.
     static func runSaveTest() -> Never {
@@ -533,7 +647,7 @@ enum Debug {
             w.resources[0] = bank
             return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
         }
-        check(kits.count == 12 && Set(kitIds).count == 12, "twelve distinct kits")
+        check(kits.count == 15 && Set(kitIds).count == 15, "fifteen distinct kits")
 
         var (w, hq) = fresh()
         let vet = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 100, y: hq.y)

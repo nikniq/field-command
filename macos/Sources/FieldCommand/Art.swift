@@ -182,6 +182,7 @@ enum Art {
         case .marine: return CGSize(width: 38, height: 36)
         case .tank: return CGSize(width: 54, height: 42)
         case .sniper: return CGSize(width: 44, height: 36)
+        case .medic: return CGSize(width: 38, height: 36)
         }
     }
 
@@ -192,6 +193,7 @@ enum Art {
             case .marine: drawMarine(ctx, team)
             case .tank: drawTankHull(ctx, team)
             case .sniper: drawSniper(ctx, team)
+            case .medic: drawMedic(ctx, team)
             }
         }
     }
@@ -238,6 +240,37 @@ enum Art {
         stroke(ctx, helm, NSColor(white: 0, alpha: 0.6), 0.8)
         fill(ctx, rr(box(2.2, -2.8, 3, 5.6), 1.2), .rgb(0.45, 0.95, 1.0))
         fill(ctx, ellipse(box(-3, 0.8, 3.2, 2)), NSColor(white: 1, alpha: 0.45))
+    }
+
+    /// A Ranger's build without the rifle: a white aid pack with a red cross on the back, a bag in hand.
+    private static func drawMedic(_ ctx: CGContext, _ team: Team) {
+        let c = team.color
+        let white = NSColor.rgb(0.93, 0.93, 0.9), red = NSColor.rgb(0.85, 0.15, 0.15)
+        let pack = rr(box(-13, -6.5, 9, 13), 2.5)
+        lit(ctx, pack, white)
+        stroke(ctx, pack, NSColor(white: 0, alpha: 0.45), 0.8)
+        fill(ctx, rr(box(-10, -1.2, 3.4, 2.4), 0.4), red)          // the cross
+        fill(ctx, rr(box(-9.5, -3.2, 2.4, 6.4), 0.4), red)
+        let bag = rr(box(3, 3.5, 8, 5.5), 1.2)
+        lit(ctx, bag, NSColor.rgb(0.9, 0.9, 0.88))
+        stroke(ctx, bag, NSColor(white: 0, alpha: 0.45), 0.7)
+        fill(ctx, rr(box(6.2, 5.2, 1.6, 2.2), 0.3), red)
+        let body = ellipse(box(-7, -10.5, 14, 21))
+        lit(ctx, body, c)
+        rim(ctx, body)
+        stroke(ctx, body, c.mix(.black, 0.55), 1)
+        for y: CGFloat in [7.8, -7.8] {
+            let pad = circle(CGPoint(x: -0.5, y: y), 3.4)
+            lit(ctx, pad, c.mix(.black, 0.3))
+            stroke(ctx, pad, c.mix(.black, 0.6), 0.7)
+        }
+        lit(ctx, ellipse(box(3, -7, 6, 4.5)), c.mix(.black, 0.15))
+        let helm = circle(.zero, 5.4)
+        lit(ctx, helm, white)
+        stroke(ctx, helm, NSColor(white: 0, alpha: 0.6), 0.8)
+        fill(ctx, rr(box(-1.1, -3.2, 2.2, 6.4), 0.3), red)          // cross on the helmet
+        fill(ctx, rr(box(-3.2, -1.1, 6.4, 2.2), 0.3), red)
+        fill(ctx, ellipse(box(-3, 0.8, 3.2, 2)), NSColor(white: 1, alpha: 0.35))
     }
 
     /// Lankier than a Ranger, with a long barrel, a bipod and a cold scope glint.

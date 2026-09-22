@@ -257,7 +257,8 @@ extension GameScene {
             }
         case "muzzle": muzzleFlash(at: p(1), angle: jNum(e[3]), size: jNum(e[4]))
         case "sparks":
-            let colors: [String: NSColor] = ["hit": .rgb(1, 0.8, 0.4), "crystal": Palette.crystal, "amber": Palette.amber]
+            let colors: [String: NSColor] = ["hit": .rgb(1, 0.8, 0.4), "crystal": Palette.crystal, "amber": Palette.amber,
+                                             "heal": .rgb(0.55, 1, 0.67)]
             emit(FX.sparks(count: jInt(e[3]), speed: jNum(e[4]), color: colors[jStr(e[5])] ?? Palette.amber), at: p(1), life: 0.6)
         case "smoke": emit(FX.smokeBurst(size: jNum(e[3])), at: p(1), life: 3)
         case "explode":
@@ -403,14 +404,15 @@ extension GameScene {
                 marker(at: c.position, color: Palette.crystal, size: 26)
                 return
             }
-            // Engineers mend a damaged friendly building. Ahead of the HQ branch, so an Engineer carrying
-            // crystal to a damaged Command Center repairs it rather than only dropping off.
-            if let b = target as? Building, isRepairable(b) {
-                let workers = us.filter { $0.kind == .worker }
-                if !workers.isEmpty {
-                    sendNet(["repair", netIds(workers), b.netId, queue])
-                    marker(at: b.position, color: Palette.amber, size: b.half + 10)
-                    let rest = us.filter { $0.kind != .worker }
+            // Engineers mend a damaged friendly building or tank, Medics treat the wounded on foot. Ahead of the
+            // HQ branch, so an Engineer carrying crystal to a damaged Command Center repairs it rather than only
+            // dropping off.
+            if let t = target {
+                let menders = menders(us, for: t)
+                if !menders.isEmpty {
+                    sendNet(["repair", netIds(menders), t.netId, queue])
+                    marker(at: t.position, color: Palette.amber, size: ((t as? Building)?.half ?? (t as? Unit)?.radius ?? 10) + 10)
+                    let rest = us.filter { u in !menders.contains { $0 === u } }
                     if !rest.isEmpty { sendNet(["move", netIds(rest), p.x, p.y, queue, false]) }
                     return
                 }

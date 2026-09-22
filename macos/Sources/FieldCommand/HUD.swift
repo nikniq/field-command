@@ -888,6 +888,7 @@ final class HUD: SKNode {
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
                                 "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
                                 "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",
+                                "Medics (M at the Barracks) heal anyone on foot · Engineers repair buildings and Siege Tanks",
                                 "P or Esc — pause & settings · O — toggle objectives",
                              ],
                              rows: [[("Close", { [unowned self] in self.game.toggleHelp() })]])

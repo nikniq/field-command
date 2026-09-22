@@ -423,7 +423,8 @@ class World:
             ["move", ids, x, y, queue, attack]      ["attack", ids, target_id, queue]
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
             ["build", worker_id, kind, x, y, queue] ["train", building_ids, kind]
-            ["rebuild", worker_id, bridge_id, queue]  ["repair", worker_ids, building_id, queue]
+            ["rebuild", worker_id, bridge_id, queue]  ["repair", unit_ids, target_id, queue]
+            (repair: Engineers mend a building or a Siege Tank, Medics treat anyone on foot)
             ["siege", ids, on]                      ["upgrade", building_ids, kind]  ["cancelup", building_id]
             ["buy", kit_id]
             ["cancel", building_id, index]          ["rally", building_ids, x, y]
@@ -442,7 +443,9 @@ class World:
                 if t is not None and not isinstance(t, Crystal) and not t.dead \
                         and (neutral or self.enemies(t.team, slot)):
                     for u in self._own_units(slot, cmd[1]):
-                        if u.kind != "worker" or not neutral:
+                        if u.kind == "medic":
+                            self._give(u, ("amove", t.x, t.y), bool(cmd[3]))     # unarmed: it goes along to treat
+                        elif u.kind != "worker" or not neutral:
                             self._give(u, ("attack", t), bool(cmd[3]))
             elif op == "gather":
                 c = self.by_id.get(cmd[2])
@@ -476,11 +479,15 @@ class World:
                     u.set_siege(bool(cmd[2]))
             elif op == "repair":
                 b = self.by_id.get(cmd[2])
-                if isinstance(b, Building) and not b.dead and b.built and self.allied(b.team, slot):
-                    queue = bool(cmd[3]) if len(cmd) > 3 else False
+                queue = bool(cmd[3]) if len(cmd) > 3 else False
+                if b is not None and not b.dead and self.allied(b.team, slot):
+                    mendable = (isinstance(b, Building) and b.built) or (isinstance(b, Unit) and b.kind == "tank")
+                    treatable = isinstance(b, Unit) and b.kind != "tank"
                     for u in self._own_units(slot, cmd[1]):
-                        if u.kind == "worker":
+                        if u.kind == "worker" and mendable:
                             u.order_repair(b, queue)
+                        elif u.kind == "medic" and treatable and u is not b:
+                            u.order_heal(b, queue)
             elif op == "rebuild":
                 self._rebuild_bridge(slot, cmd[1], cmd[2], bool(cmd[3]) if len(cmd) > 3 else False)
             elif op == "train":
@@ -709,6 +716,22 @@ class World:
     def nearest_dropoff(self, team, x, y):
         hqs = [b for b in self.buildings if b.team == team and b.kind == "hq" and b.built and not b.dead]
         return min(hqs, key=lambda b: math.hypot(b.x - x, b.y - y)) if hqs else None
+
+    def find_wounded(self, e, radius):
+        """The ally on foot most worth a Medic's attention within `radius`: near and badly hurt."""
+        best, best_score = None, 1e9
+        lim = radius + 40
+        for u in self.units:
+            if u is e or u.dead or u.kind == "tank" or u.hp >= u.max_hp or not self.allied(u.team, e.team) \
+                    or abs(u.x - e.x) > lim or abs(u.y - e.y) > lim:
+                continue
+            d = e.distance_to(u)
+            if d > radius:
+                continue
+            score = d * (0.4 + 0.6 * u.hp / u.max_hp)
+            if score < best_score:
+                best, best_score = u, score
+        return best
 
     def find_target(self, e, radius, min_range=0.0):
         """The best enemy within `radius` of `e` — and, for a sieged tank, no closer than `min_range`."""

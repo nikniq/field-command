@@ -39,7 +39,7 @@ def _order_out(o):
     k = o[0]
     if k in ("move", "amove"):
         return [k, o[1], o[2]]
-    if k in ("attack", "gather", "rebuild", "repair"):
+    if k in ("attack", "gather", "rebuild", "repair", "heal"):
         return [k, o[1].id]
     if k == "build":
         return [k, o[1], o[2], o[3]]
@@ -50,7 +50,7 @@ def _order_in(d, by_id):
     k = d[0]
     if k in ("move", "amove"):
         return (k, float(d[1]), float(d[2]))
-    if k in ("attack", "gather", "rebuild", "repair"):
+    if k in ("attack", "gather", "rebuild", "repair", "heal"):
         t = by_id.get(d[1])
         return (k, t) if t is not None else IDLE
     if k == "build":
