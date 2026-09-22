@@ -252,11 +252,24 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Idle engineer / army | I · \` or F2 |
 | Camera | Arrows, screen edges, middle-drag, minimap; wheel or +/− to zoom; Space jumps to alerts |
 | Pause & settings / help | P or Esc / H or F1 (online: the game keeps running) |
+| Quick save / quick load (single player) | F5 / F9 |
 | Chat (multiplayer) | Enter |
 | Fullscreen | F11 or Alt+Enter |
 
 Settings (game speed, edge scrolling, sound, objectives, fullscreen) are saved to
 `~/.config/fieldcommand/settings.json`.
+
+## Saving and loading
+
+Single-player games can be saved and resumed: **F5** quick-saves and **F9** loads it back, the pause menu
+(**P**) has *Save Game* and *Load Game*, and the title screen's **Load Game (L)** button resumes the newest
+save. The game also autosaves every five minutes. Multiplayer games cannot be saved (the server owns them).
+
+A save is one JSON document holding the whole simulation — every unit and its orders, buildings and their
+queues and upgrades, crystals, bridges, watchtowers, kit, the computer opponents' plans and each side's
+explored ground. Files live in `~/.local/share/fieldcommand/saves/` (Windows: `%APPDATA%\FieldCommand\saves`).
+The macOS edition writes and reads exactly the same document, so a game saved on one platform loads on the
+other; `tests/fixtures/` holds a save from each edition and both suites load the other's.
 
 ## Screen size and UI scale
 

@@ -864,9 +864,13 @@ final class HUD: SKNode {
             return
         }
         present { [unowned self] in
-            self.drawOverlay(title: "PAUSED", color: Palette.text, subtitle: "Settings are saved automatically.", lines: [],
-                             rows: self.settingsRows() + [[("Resume", { [unowned self] in self.game.togglePause() }),
-                                                           ("Main Menu", { [unowned self] in self.game.toMenu() })]])
+            self.drawOverlay(title: "PAUSED", color: Palette.text,
+                             subtitle: "Settings are saved automatically.  F5 quick-saves, F9 loads it.", lines: [],
+                             rows: self.settingsRows()
+                                 + [[("Save Game", { [unowned self] in self.game.saveGame("save", label: "Saved game"); self.game.togglePause() }),
+                                     ("Load Game", { [unowned self] in self.game.loadGame("save") })]]
+                                 + [[("Resume", { [unowned self] in self.game.togglePause() }),
+                                     ("Main Menu", { [unowned self] in self.game.toMenu() })]])
         }
     }
 
@@ -883,6 +887,7 @@ final class HUD: SKNode {
                                 "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
                                 "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
+                                "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",
                                 "P or Esc — pause & settings · O — toggle objectives",
                              ],
                              rows: [[("Close", { [unowned self] in self.game.toggleHelp() })]])

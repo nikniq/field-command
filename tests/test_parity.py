@@ -146,6 +146,11 @@ def test_armory_catalogue_agrees():
     assert int(re.search(r"let carryCap = (\d+)", src).group(1)) == CARRY_CAP
 
 
+def test_save_format_agrees():
+    from fieldcommand.save import SAVE_FORMAT
+    assert int(re.search(r"static let format = (\d+)", swift("SaveGame.swift")).group(1)) == SAVE_FORMAT
+
+
 def test_app_versions_agree():
     swift_v = re.search(r'let appVersion = "([^"]+)"', swift("Defs.swift")).group(1)
     with open(os.path.join(ROOT, "linux", "fieldcommand", "__init__.py")) as f:

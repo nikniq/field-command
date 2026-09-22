@@ -69,7 +69,7 @@ The catalogue matches the Linux edition exactly — including the **Sniper** (12
 Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only 55 HP) and the **Radar
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed). See `../linux/README.md` for the numbers.
 
-Both editions speak protocol 8, so a 1.8.0 Mac and a 1.8.0 Linux client play together; neither accepts an
+Both editions speak protocol 8, so a 1.10.0 Mac and a 1.10.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -124,6 +124,14 @@ Linux edition — see `../linux/README.md`.
 Same as the Linux edition (see `../linux/README.md`), with **⌃⌘F** for full screen and **⌘Q** to quit.
 Preferences (game speed, edge scrolling, sound, objectives, map, opponents) are stored in `UserDefaults`.
 
+## Saving and loading
+
+**F5** quick-saves a single-player game and **F9** loads it back; the pause menu has *Save Game* and *Load
+Game*, the title screen's **Load Game (L)** resumes the newest save, and the game autosaves every five
+minutes. Saves are the same JSON document the Linux edition writes, kept in `~/Library/Application
+Support/FieldCommand/saves/`, so a game saved on either platform loads on the other (`FC_SAVETEST` loads a
+Linux-written save and plays it on).
+
 ## Screenshots
 
 **F12** in a game saves the view to `~/Pictures/field-command-<time>.png` with a `.txt` note of the version and
@@ -147,5 +155,6 @@ FC_TOWERTEST=1 .build/release/FieldCommand                    # veterancy ranks 
 FC_STORETEST=1 .build/release/FieldCommand                    # the Armory: every kit effect and the rules
 FC_AITEST=1 .build/release/FieldCommand                       # the opponent: observation, counters, standoff
 FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesised effect, length and loudness
+FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

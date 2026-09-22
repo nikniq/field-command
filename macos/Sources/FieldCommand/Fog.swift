@@ -8,6 +8,8 @@ final class FogOfWar {
     let rows: Int
     private var visible: [Bool]
     private var explored: [Bool]
+    var cellCount: Int { explored.count }
+    func restore(explored bits: [Bool]) { if bits.count == explored.count { explored = bits; dirty = true } }
     private var shade: [Float]
     private var pixels: [UInt8]
     private var blurred: [Float]

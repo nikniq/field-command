@@ -398,6 +398,64 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_SAVETEST=1: a mid-game world survives a save round trip and plays on; and a save written by the
+    /// Python edition (tests/fixtures/save_python.json, path in FC_SAVE_FIXTURE) loads here and plays on too.
+    static func runSaveTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func signature(_ w: SWorld) -> String {
+            let units = w.units.filter { !$0.dead }.map { "\($0.id):\(NetProtocol.name($0.kind)):\($0.team):\(Int($0.x)):\(Int($0.y)):\(Int($0.hp)):\($0.mode.rawValue):\($0.rank):\($0.order.code)" }.sorted()
+            let bld = w.buildings.filter { !$0.dead }.map { "\($0.id):\(NetProtocol.name($0.kind)):\($0.built):\(Int($0.hp)):\($0.upgrades.count):\($0.queue.count)" }.sorted()
+            let fog = w.fog.map { "\($0.key):\($0.value.explored.filter { $0 }.count)" }.sorted()
+            let res = w.resources.keys.sorted().map { "\($0)=\(Int(w.resources[$0]!))" }
+            return "\(Int(w.elapsed))|\(units)|\(bld)|\(w.bridges.map { $0.intact })|\(w.towers.map { $0.owner ?? -1 })|\(fog)|\(w.playerKits.keys.sorted().map { "\($0)=\(w.playerKits[$0]!.sorted())" })|\(res)"
+        }
+        let map = SMapGen.generate("river_crossing")
+        let players = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: true, start: $0) }
+        let w = SWorld(map: map, players: players, difficulty: .hard)
+        var t = 0.0
+        while t < 240 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+        let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        w.resources[0] = 3000
+        _ = w.buyKit(0, "flak")
+        w.apply(0, ["upgrade", [hq.id], "armor"])
+        let tank = SUnit(world: w, kind: .tank, team: 0, x: hq.x + 200, y: hq.y)
+        w.add(tank); tank.kills = 5; tank.rank = 2; tank.mode = .sieged
+        w.bridges[0].takeDamage(bridgeHP, from: nil)
+        w.towers[0].owner = 1
+        for _ in 0..<90 { w.step(1.0 / 30); w.events.removeAll() }
+        w.updateVisibility()      // the sight pass is throttled; loading runs it at once, so settle it here too
+        let before = signature(w)
+        var doc = SaveGame.encode(w, label: "macOS fixture")
+        doc["saved_at"] = 0
+        let json = try! JSONSerialization.data(withJSONObject: doc)
+        if let out = env["FC_SAVE_OUT"] { try! json.write(to: URL(fileURLWithPath: out)) }
+        let back = try! JSONSerialization.jsonObject(with: json) as! [String: Any]
+        guard let w2 = try? SaveGame.decode(back) else { print("  FAIL decode"); exit(1) }
+        let after = signature(w2)
+        check(after == before, "a save round trip keeps the whole game")
+        if after != before { print("  before: \(before)\n  after:  \(after)") }
+        while !w2.gameOver && w2.elapsed < 1500 { w2.step(1.0 / 30); w2.events.removeAll() }
+        check(w2.gameOver, "and the loaded game plays on to a result")
+        check((try? SaveGame.decode(["game": "field-command", "format": 99])) == nil, "unknown formats are refused")
+
+        if let path = env["FC_SAVE_FIXTURE"], let data = FileManager.default.contents(atPath: path),
+           let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            do {
+                let w3 = try SaveGame.decode(d)
+                let n = w3.units.count, b = w3.buildings.count
+                let kits = w3.playerKits[0] ?? []
+                while !w3.gameOver && w3.elapsed < 1500 { w3.step(1.0 / 30); w3.events.removeAll() }
+                check(n == jArr(d["units"]).count && b == jArr(d["buildings"]).count && kits.contains("flak") && w3.gameOver,
+                      "a save written by the Python edition loads (\(n) units, \(b) buildings, kit \(kits.sorted())) and plays on")
+            } catch {
+                check(false, "a save written by the Python edition loads: \(error)")
+            }
+        }
+        print(ok ? "SAVE TEST PASSED" : "SAVE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_AUDIOTEST=1: synthesises every effect and checks each has the length and loudness the recipe implies —
     /// no audio device needed, so it runs in CI.
     static func runAudioTest() -> Never {

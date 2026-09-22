@@ -37,6 +37,7 @@ final class SFogGrid {
     let cols: Int, rows: Int
     private(set) var visible: [Bool]
     private(set) var explored: [Bool]
+    func restoreExplored(_ bits: [Bool]) { if bits.count == explored.count { explored = bits } }
     private var disks: [Int: [Bool]] = [:]
 
     init() {
@@ -1368,6 +1369,25 @@ final class SWorld {
 
     /// A fallen bridge blocks its span exactly like the water it crossed; a rebuilt one opens it again.
     /// Everything that consults `walls` — navigation, collision and building placement — follows from this.
+    // MARK: Saving
+
+    var nextIdForSave: Int { idCounter }
+    func setNextId(_ n: Int) { idCounter = n }
+    var revealsForSave: [Int: [Int: Double]] { reveals }
+    func restoreReveals(_ d: [String: Any]) {
+        for (t, m) in d { guard let alliance = Int(t) else { continue }; var r: [Int: Double] = [:]
+            for (i, u) in jDict(m) { if let id = Int(i) { r[id] = Double(jNum(u)) } }; reveals[alliance] = r }
+    }
+    /// Clears the opening base so a save can be rebuilt from nothing but the map. Bridges and towers stay:
+    /// both editions create them first, in map order, so their ids are the ones in the save.
+    func beginRestore() {
+        units = []; buildings = []; crystals = []
+        byId = [:]
+        for b in bridges { byId[b.id] = b }
+        for t in towers { byId[t.id] = t }
+        for p in players.values { p.ai = nil }
+    }
+
     // MARK: The Armory
 
     /// The summed effect `key` of every kit `slot` has bought for `kind`.
@@ -1971,6 +1991,21 @@ final class SAI {
         self.team = team
         waveSize = world.difficulty.initialWave
         nextWave = Double(world.difficulty.firstAttack)
+    }
+
+    // MARK: Saving
+
+    func saveState() -> [String: Any] {
+        var seenOut: [String: Double] = [:]
+        for (k, v) in seen { seenOut[NetProtocol.name(k)] = v }
+        return ["wave_size": waveSize, "next_wave": nextWave, "attackers": attackers.filter { !$0.dead }.map { $0.id },
+                "seen": seenOut, "next_raid": nextRaid]
+    }
+
+    func restore(_ d: [String: Any], _ w: SWorld) {
+        waveSize = jInt(d["wave_size"]); nextWave = Double(jNum(d["next_wave"])); nextRaid = Double(jNum(d["next_raid"]))
+        attackers = jArr(d["attackers"]).compactMap { w.byId[jInt($0)] as? SUnit }
+        for (k, v) in jDict(d["seen"]) { if let kind = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == k }) { seen[kind] = Double(jNum(v)) } }
     }
 
     // MARK: Intelligence

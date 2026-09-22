@@ -115,22 +115,45 @@ class _Base:
 class LocalSession(_Base):
     can_pause = True
 
-    def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0):
+    def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
+                 world=None):
         self.difficulty = difficulty
         self.slot = slot
-        spec = mapgen.resolve(map_id or "auto", 1 + opponents)
-        opponents = min(opponents, spec["players"] - 1)
+        if world is not None:
+            # A loaded game: the world is already built, and its map says what "Play again" should restart.
+            spec = world.map
+            opponents = len(world.players) - 1
+        else:
+            spec = mapgen.resolve(map_id or "auto", 1 + opponents)
+            opponents = min(opponents, spec["players"] - 1)
         # Remember the setup so "Play again" starts the same game, not a default one.
-        self.skirmish = (map_id, opponents, teams)
-        if players is None:
+        self.skirmish = (spec["id"] if world is not None else map_id, opponents, teams)
+        if world is None and players is None:
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
-        self.world = World(spec, players, difficulty)
+        self.world = world if world is not None else World(spec, players, difficulty)
+        self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
         self.obstacles = self.world.obstacles
         self.fog = self.world.fog_for(slot)
         self.time_scale = 1
+
+    # saving
+    def save(self, name, label=""):
+        from .save import write_save
+        return write_save(self.world, name, label)
+
+    @classmethod
+    def load(cls, name, autoplay=False):
+        from .save import read_save
+        w = read_save(name)
+        me = w.players[0]
+        me.is_ai = autoplay
+        if autoplay and me.ai is None:
+            from .ai import AI
+            me.ai = AI(w, 0)
+        return cls(w.difficulty, world=w)
 
     # view
     units = property(lambda self: self.world.units)

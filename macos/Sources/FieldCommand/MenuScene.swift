@@ -236,7 +236,7 @@ final class MenuScene: SKScene {
         ]
         let tw: CGFloat = 150, th: CGFloat = 34, tg: CGFloat = 12
         let tt = CGFloat(rows.count) * tw + CGFloat(rows.count - 1) * tg
-        let mr = CGRect(x: -160, y: cy - ch / 2 - 66, width: 320, height: 44)
+        let mr = CGRect(x: -270, y: cy - ch / 2 - 66, width: 320, height: 44)
         let mbg = SKSpriteNode(texture: Art.button(mr.size, .active, accent: Palette.amber))
         mbg.size = mr.size
         mbg.name = "accent"
@@ -246,6 +246,22 @@ final class MenuScene: SKScene {
         ml.position = mbg.position
         content.addChild(ml)
         toggles.append((mr, mbg, { [unowned self] in self.multiplayer() }))
+        let latest = SaveGame.list().first
+        let lr = CGRect(x: 62, y: cy - ch / 2 - 66, width: 208, height: 44)
+        let lbg = SKSpriteNode(texture: Art.button(lr.size, latest == nil ? .disabled : .normal))
+        lbg.size = lr.size
+        lbg.position = CGPoint(x: lr.midX, y: lr.midY)
+        content.addChild(lbg)
+        let ll = makeLabel("LOAD GAME  (L)", size: 16, color: latest == nil ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
+        ll.position = lbg.position
+        content.addChild(ll)
+        if let (name, label, _, elapsed) = latest {
+            let sub = makeLabel("\(label.isEmpty ? name : label) · \(Int(elapsed) / 60):\(String(format: "%02d", Int(elapsed) % 60)) in",
+                                size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+            sub.position = CGPoint(x: lr.midX, y: lr.minY - 11)
+            content.addChild(sub)
+            toggles.append((lr, lbg, { [unowned self] in self.loadLatest() }))
+        }
         let ty = cy - ch / 2 - 112
         for (i, (label, action)) in rows.enumerated() {
             let r = CGRect(x: -tt / 2 + CGFloat(i) * (tw + tg), y: ty - th / 2, width: tw, height: th)
@@ -325,12 +341,18 @@ final class MenuScene: SKScene {
     override func keyDown(with event: NSEvent) {
         switch event.charactersIgnoringModifiers {
         case "m", "M": multiplayer()
+        case "l", "L": loadLatest()
         case "1": start(.easy)
         case "2": start(.normal)
         case "3": start(.hard)
         case "\r": start(Difficulty(rawValue: Settings.lastDifficulty) ?? .normal)
         default: break
         }
+    }
+
+    private func loadLatest() {
+        guard let latest = SaveGame.list().first, let w = try? SaveGame.read(latest.0) else { return }
+        resumeSkirmish(view, size: size, world: w)
     }
 
     private func multiplayer() {

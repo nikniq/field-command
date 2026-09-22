@@ -225,6 +225,8 @@ target_test() {
             done
             step "macOS: FC_BRIDGETEST"
             run env FC_BRIDGETEST=river_crossing "$bin" 2>&1 | grep -E "PASSED|FAILED" || failed=1
+            step "macOS: FC_SAVETEST (round trip, and a save written by the Python edition)"
+            run env FC_SAVETEST=1 FC_SAVE_FIXTURE="$ROOT/tests/fixtures/save_python.json" "$bin" 2>&1 | grep -E "PASSED|FAILED|ok  |FAIL" || failed=1
         else
             warn "skipping the macOS tests: build first (./cx.sh mac)"
         fi

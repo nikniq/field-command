@@ -58,7 +58,9 @@ New-NetFirewallRule -DisplayName "Field Command (discovery)" -Direction Inbound 
 ## Where things are kept
 
 Settings live in `%APPDATA%\FieldCommand\settings.json` (game speed, edge scrolling, sound, objectives,
-fullscreen, last map and opponent count). Deleting that file resets the game to defaults.
+fullscreen, last map and opponent count). Deleting that file resets the game to defaults. Saved games
+(F5/F9, the pause menu, *Load Game* on the title screen, and the five-minute autosave) are JSON files in
+`%APPDATA%\FieldCommand\saves\`, the same format as the Linux and macOS editions.
 
 ## Controls and gameplay
 

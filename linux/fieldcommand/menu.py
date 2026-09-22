@@ -69,6 +69,10 @@ class MenuScene:
             if mp and mp[0].collidepoint(e.pos):
                 mp[1]()
                 return
+            ld = getattr(self, "toggles_load", None)
+            if ld and ld[0].collidepoint(e.pos):
+                ld[1]()
+                return
             for r, action in self.toggles:
                 if r.collidepoint(e.pos):
                     audio.play("click")
@@ -85,6 +89,8 @@ class MenuScene:
                 self.start(DIFFICULTIES[settings.last_difficulty % 3])
             elif e.key == pygame.K_m:
                 self.multiplayer()
+            elif e.key == pygame.K_l:
+                self.load_latest()
             elif e.key == pygame.K_ESCAPE:
                 self.app.quit()
 
@@ -93,6 +99,23 @@ class MenuScene:
         audio.play("click")
         session = LocalSession(d, autoplay=self.app.autoplay, map_id=settings.map_id,
                                opponents=min(settings.opponents, settings.max_opponents), teams=settings.team_count)
+        self.app.set_scene(GameScene(self.app, session))
+
+    def _latest_save(self):
+        from .save import list_saves
+        saves = list_saves()
+        return saves[0] if saves else None
+
+    def load_latest(self):
+        latest = self._latest_save()
+        if not latest:
+            return
+        from .session import LocalSession
+        try:
+            session = LocalSession.load(latest[0], autoplay=self.app.autoplay)
+        except (OSError, ValueError, KeyError):
+            return
+        audio.play("click")
         self.app.set_scene(GameScene(self.app, session))
 
     def multiplayer(self):
@@ -180,6 +203,16 @@ class MenuScene:
         screen.blit(art.button(mr.w, mr.h, "hover" if hover else "active", AMBER), mr.topleft)
         ui.blit_text(screen, "MULTIPLAYER  (M)", 16, TEXT, mr.center, align="center", bold=True)
         self.toggles_mp = (mr, self.multiplayer)
+        latest = self._latest_save()
+        lr = pygame.Rect(int(w / 2 + 170), int(cy + ch / 2 + 22), 190, 44)
+        hover = mouse is not None and lr.collidepoint(mouse)
+        screen.blit(art.button(lr.w, lr.h, "hover" if hover and latest else ("normal" if latest else "disabled")), lr.topleft)
+        ui.blit_text(screen, "LOAD GAME  (L)", 14, TEXT if latest else DIM, lr.center, align="center", bold=True)
+        if latest:
+            name, label, _at, elapsed = latest
+            ui.blit_text(screen, f"{label or name} · {int(elapsed) // 60:02d}:{int(elapsed) % 60:02d} in",
+                         11, DIM, (lr.centerx, lr.bottom + 12), align="center")
+        self.toggles_load = (lr, self.load_latest) if latest else None
         rows = [
             (f"Speed: {settings.speed_name}", settings.cycle_speed),
             (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll")),

@@ -717,8 +717,11 @@ class HUD:
     def show_pause(self):
         g = self.game
         if g.s.can_pause:
-            self.overlay = lambda: ("PAUSED", TEXT, "Settings are saved automatically.", [],
-                                    self._settings_rows() + [[("Resume", g.toggle_pause), ("Main Menu", g.to_menu)]])
+            self.overlay = lambda: ("PAUSED", TEXT, "Settings are saved automatically.  F5 quick-saves, F9 loads it.", [],
+                                    self._settings_rows()
+                                    + [[("Save Game", lambda: (g.save_game("save", "Saved game"), g.toggle_pause())),
+                                        ("Load Game", lambda: g.load_game("save"))]]
+                                    + [[("Resume", g.toggle_pause), ("Main Menu", g.to_menu)]])
         else:
             rows = self._settings_rows()
             rows[0] = [rows[0][1]]  # game speed is controlled by the server
@@ -737,6 +740,7 @@ class HUD:
             "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
             "Arrows / screen edge / middle-drag — pan · Wheel or +/− — zoom",
             "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
+            "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",
             "P or Esc — menu & settings · O — objectives · F11 — fullscreen"
             + ("" if g.s.can_pause else " · Enter — chat"),
         ]

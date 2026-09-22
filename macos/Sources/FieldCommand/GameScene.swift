@@ -728,6 +728,39 @@ final class GameScene: SKScene {
         }
     }
 
+    // MARK: - Saving
+
+    /// Only a private single-player server can be saved: its whole simulation is in this process.
+    var canSave: Bool { !gameOver && (net?.isLocal ?? false) && GameServer.hosted?.simulation != nil }
+    private var nextAutosave: CGFloat = 300
+
+    func saveGame(_ name: String, label: String = "") {
+        guard let w = GameServer.hosted?.simulation else { return }
+        do {
+            try SaveGame.write(w, name: name, label: label)
+            hud.flash("Game saved (\(label.isEmpty ? name : label))", color: Palette.good)
+            Audio.play("complete")
+        } catch {
+            hud.flash("Could not save: \(error)", color: Palette.bad)
+        }
+    }
+
+    func loadGame(_ name: String) {
+        do {
+            let w = try SaveGame.read(name)
+            leaveNetGame()
+            resumeSkirmish(view, size: size, world: w)
+        } catch {
+            hud.flash("Could not load: \(error)", color: Palette.bad)
+        }
+    }
+
+    func autosaveIfDue() {
+        guard canSave, let t = net?.serverTime, t >= nextAutosave else { return }
+        nextAutosave = t + 300
+        if let w = GameServer.hosted?.simulation { try? SaveGame.write(w, name: "autosave", label: "Autosave") }
+    }
+
     /// My kit this match: from the server in a network game, none in the fallback local game.
     var myKits: Set<String> { net?.kits ?? [] }
 
@@ -972,6 +1005,8 @@ final class GameScene: SKScene {
             return
         }
         if code == 120 || chars == "`" { selectArmy(); return } // F2 or backtick
+        if code == 96 && canSave { saveGame("quicksave", label: "Quick save"); return }     // F5
+        if code == 101 && canSave { loadGame("quicksave"); return }                          // F9
         if code == 111 {                                             // F12: screenshot to ~/Pictures
             if let path = Debug.saveScreenshot(self) { hud.flash("Screenshot saved to \(path)", color: Palette.text) }
             return

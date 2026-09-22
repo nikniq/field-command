@@ -10,6 +10,7 @@ extension GameScene {
         let map = net.map
         setWorldSize(map: map)
         fog = FogOfWar()  // sized from the map just loaded
+        if let bits = net.explored { fog.restore(explored: SaveGame.bitsIn(bits, count: fog.cellCount)) }
         clearings = jArr(map["clearings"]).map { a in
             let v = jArr(a)
             return (CGPoint(x: jNum(v[0]), y: jNum(v[1])), jNum(v[2]))
@@ -232,6 +233,7 @@ extension GameScene {
         selection.removeAll { $0.dead }
         if selection.count != before { hud.selectionChanged() }
         for e in jArr(m["e"]) { netEvent(jArr(e), net) }
+        autosaveIfDue()
     }
 
     // MARK: Events
@@ -479,10 +481,20 @@ struct NetShell {
 /// Starts a single-player skirmish. The game runs on a private loopback server with the same simulation as
 /// multiplayer (maps, pathfinding, AI), so single player and multiplayer always behave the same. Falls back to
 /// the built-in SpriteKit simulation if the local server cannot be started.
-func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0) {
+/// Resumes a saved single-player game on a private server, like `startSkirmish` but from a loaded world.
+func resumeSkirmish(_ view: SKView?, size: CGSize, world w: SWorld) {
+    let alliances = Set(w.players.values.map { $0.team })
+    let teams = alliances.count < w.players.count ? alliances.count : 0
+    startSkirmish(view, size: size, difficulty: w.difficulty, mapId: jStr(w.map["id"]), opponents: w.players.count - 1,
+                  teams: teams, restoring: w)
+}
+
+func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0,
+                   restoring: SWorld? = nil) {
     func fallback() { showScene(view, GameScene(size: size, difficulty: difficulty), fade: 0.6) }
     stopHostedServer()
-    let server = GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
+    let server = restoring.map { GameServer.singlePlayer(restoring: $0) }
+        ?? GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
     server.log = { _ in }
     server.timeScale = Double(Settings.gameSpeed)
     do { try server.start() } catch { return fallback() }

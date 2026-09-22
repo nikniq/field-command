@@ -103,6 +103,9 @@ setvbuf(stdout, nil, _IOLBF, 0)
 if let m = Debug.env["FC_SKIRMISHTEST"] {
     Debug.runSkirmishTest(m)
 }
+if Debug.env["FC_SAVETEST"] != nil {
+    Debug.runSaveTest()
+}
 if Debug.env["FC_AUDIOTEST"] != nil {
     Debug.runAudioTest()
 }

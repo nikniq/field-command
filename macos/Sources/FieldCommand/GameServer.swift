@@ -46,6 +46,8 @@ final class GameServer {
     private var mapId = "auto"
     private var paused = false
     private var world: SWorld?
+    /// A loaded game to start from instead of a fresh one.
+    private var restoredWorld: SWorld?
     /// The live simulation, for the automated tests in Debug.swift.
     var simulation: SWorld? { world }
     /// Each slot's alliance, for the automated tests in Debug.swift.
@@ -67,6 +69,25 @@ final class GameServer {
 
     /// A private server for a single-player skirmish: slot 0 is the local player, followed by `opponents`
     /// computer players on their own teams. Listens on an ephemeral loopback port (see `port` after `start`).
+    /// A private server that resumes a saved single-player game.
+    static func singlePlayer(restoring w: SWorld) -> GameServer {
+        let s = GameServer(name: "Skirmish", port: 0)
+        s.localOnly = true
+        s.difficulty = w.difficulty.rawValue
+        s.mapId = jStr(w.map["id"])
+        s.restoredWorld = w
+        for slot in s.slots {
+            if let p = w.players[slot.index] {
+                slot.kind = slot.index == 0 ? "open" : "ai"
+                slot.name = p.name
+                slot.team = p.team
+            } else {
+                slot.kind = "closed"
+            }
+        }
+        return s
+    }
+
     static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0) -> GameServer {
         let s = GameServer(name: "Skirmish", port: 0)
         s.localOnly = true
@@ -424,11 +445,21 @@ final class GameServer {
 
     private func startGame() {
         let active = slots.filter { $0.kind == "human" || $0.kind == "ai" }
-        let map = SMapGen.resolve(mapId, players: active.count)
-        let players = active.enumerated().map { i, s in
-            SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team, isAI: s.kind == "ai", start: i)
+        let w: SWorld
+        let map: [String: Any]
+        let players: [SPlayer]
+        if let restored = restoredWorld {
+            w = restored
+            map = restored.map
+            players = restored.players.values.sorted { $0.slot < $1.slot }
+            restoredWorld = nil
+        } else {
+            map = SMapGen.resolve(mapId, players: active.count)
+            players = active.enumerated().map { i, s in
+                SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team, isAI: s.kind == "ai", start: i)
+            }
+            w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal)
         }
-        let w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal)
         world = w
         pending = []
         state = "game"
@@ -437,7 +468,10 @@ final class GameServer {
         let crystals = w.crystals.map { [$0.id, $0.x, $0.y, $0.amount, $0.variant] as [Any] }
         for c in clients {
             guard let s = c.slot else { continue }
-            send(c, ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals])
+            var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals]
+            // A resumed game: the client gets back the ground its side had explored.
+            if w.elapsed > 0, let alliance = w.players[s]?.team, let g = w.fog[alliance] { msg["explored"] = SaveGame.bitsOut(g.explored) }
+            send(c, msg)
         }
         log("Game started: \(active.count) players on \(jStr(map["name"]))")
     }

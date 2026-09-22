@@ -286,6 +286,8 @@ final class NetSession {
     let difficulty: Difficulty
     var players: [Int: NetPlayer] = [:]
     var resources = 250
+    /// Base64 fog bits from a resumed game, applied once the scene's fog exists.
+    let explored: String?
     /// Kit bought from the Armory this match.
     var kits: Set<String> = []
     var supplyUsed = 0
@@ -312,6 +314,7 @@ final class NetSession {
         self.conn = conn
         slot = jInt(start["slot"])
         map = jDict(start["map"])
+        explored = start["explored"] as? String
         difficulty = Difficulty(rawValue: jInt(start["difficulty"])) ?? .normal
         for p in jArr(start["players"]) {
             let d = jDict(p)

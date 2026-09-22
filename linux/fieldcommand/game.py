@@ -190,6 +190,7 @@ class GameScene:
             self.fx.update(dt * (settings.game_speed if self.s.can_pause else 1.0))
             self._update_client_fx(dt)
         self.hud.update(dt, mouse)
+        self._autosave()
         if self.fog_view.update(dt):
             self.hud.fog_changed()
         self.selection = [e for e in self.selection if not e.dead]
@@ -408,6 +409,38 @@ class GameScene:
         else:
             self.paused = True
             self.hud.show_pause()
+
+    # ------------------------------------------------------------ saving
+
+    def can_save(self):
+        return self.s.can_pause and not self.s.game_over and hasattr(self.s, "world")
+
+    def save_game(self, name, label=""):
+        try:
+            path = self.s.save(name, label)
+        except OSError as e:
+            self.hud.flash(f"Could not save: {e}", BAD)
+            return
+        self.hud.flash(f"Game saved ({label or name})", GOOD)
+        audio.play("complete")
+        return path
+
+    def load_game(self, name):
+        from .session import LocalSession
+        try:
+            session = LocalSession.load(name, autoplay=self.app.autoplay)
+        except (OSError, ValueError, KeyError) as e:
+            self.hud.flash(f"Could not load: {e}", BAD)
+            return
+        self.app.set_scene(GameScene(self.app, session))
+
+    def _autosave(self):
+        if self.can_save() and self.s.elapsed >= self.s.autosave_at:
+            self.s.autosave_at = self.s.elapsed + 300
+            try:
+                self.s.save("autosave", "Autosave")
+            except OSError:
+                pass
 
     def toggle_store(self):
         if self.hud.store_open:
@@ -635,6 +668,12 @@ class GameScene:
             return
         if name == "y" and not self.s.game_over:
             self.toggle_store()
+            return
+        if key == pygame.K_F5 and self.can_save():
+            self.save_game("quicksave", "Quick save")
+            return
+        if key == pygame.K_F9 and self.can_save():
+            self.load_game("quicksave")
             return
         if self._blocked():
             return
