@@ -184,7 +184,7 @@ extension GameScene {
             self.emit(FX.fireBurst(size: size), at: p)
             self.emit(FX.smokeBurst(size: size), at: p, life: 3)
             self.emit(FX.sparks(count: Int(6 + size / 3), speed: size * 4, color: .rgb(1, 0.85, 0.5)), at: p, life: 1)
-            if scorch { self.decal(Art.scorch, at: p, size: size * 2.2, life: 25) }
+            if scorch { self.decal(Art.scorch, at: p, size: size * 2.2, life: 90) }      // craters stay a good while
             if size > 25 && self.visibleWorldRect().contains(p) { self.shake(min(10, size * 0.18)) }
         }
         if delay > 0 { effectLayer.run(.sequence([.wait(forDuration: delay), .run(run)])) } else { run() }

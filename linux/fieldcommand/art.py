@@ -1015,6 +1015,43 @@ def _value_noise(n, base_period, octaves, seed):
     return total / norm
 
 
+def map_tint(w, h, seed):
+    """A small RGB image that multiplies the whole ground: a sun from the upper left (bright there, a cooler
+    shade toward the lower right) and low-frequency biome tints — dry straw, dark forest floor, pale scrub —
+    so a map is not one uniform green. Scaled up to the world at bake time."""
+    n = 256
+    a = _value_noise(n, 2, 3, 40 + seed)
+    b = _value_noise(n, 3, 2, 80 + seed)
+    ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) / (n - 1)
+    sun = 1.10 - 0.16 * (xs + ys) / 2                      # upper-left to lower-right
+    dry = np.clip((a - 0.58) / 0.16, 0, 1)                 # straw-coloured patches
+    dark = np.clip((0.42 - a) / 0.14, 0, 1)                # forest-floor shade
+    scrub = np.clip((b - 0.62) / 0.14, 0, 1) * (1 - dry)   # pale, greyish scrub
+    r = 1 + 0.14 * dry - 0.16 * dark + 0.04 * scrub
+    g = 1 + 0.06 * dry - 0.10 * dark + 0.00 * scrub
+    bl = 1 - 0.14 * dry - 0.06 * dark + 0.06 * scrub
+    img = np.stack([r * sun, g * sun, bl * (sun * 0.96 + 0.04)], axis=-1)
+    img = (np.clip(img, 0, 1.0) * 255).astype(np.uint8)    # multiply never brightens past the base colour
+    surf = pygame.surfarray.make_surface(np.transpose(img, (1, 0, 2)))
+    return pygame.transform.smoothscale(surf, (w, h))
+
+
+def cloud_layer():
+    """A seamless 1024-unit tile of soft cloud shadow (alpha only) that drifts over the map."""
+    t = _cache.get("clouds")
+    if t is not None:
+        return t
+    n = 1024
+    a = _value_noise(n, 2, 3, 9)
+    alpha = np.clip((a - 0.52) / 0.30, 0, 1) * 0.26
+    img = np.zeros((n, n, 4), np.uint8)
+    img[..., 3] = (alpha * 255).astype(np.uint8)
+    surf = pygame.image.frombuffer(np.transpose(img, (1, 0, 2)).tobytes(), (n, n), "RGBA")
+    surf = surf.convert_alpha() if pygame.display.get_surface() else surf
+    _cache["clouds"] = surf
+    return surf
+
+
 def ground_tile():
     """Seamless 1024x1024 grass/dirt tile (1 pixel per world unit)."""
     t = _cache.get("ground")

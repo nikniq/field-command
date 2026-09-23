@@ -928,6 +928,71 @@ enum Art {
     // MARK: - Terrain
 
     /// Seamless tiling grass/dirt texture built from layered value noise.
+    /// A small RGB image that multiplies the whole ground: a sun from the upper left (bright there, a cooler
+    /// shade toward the lower right) and low-frequency biome tints — dry straw, dark forest floor, pale scrub —
+    /// so a map is not one uniform green. Stretched over the world with linear filtering.
+    static func mapTint(seed: Int) -> SKTexture {
+        let key = "maptint-\(seed)"
+        if let t = cache[key] { return t }
+        let n = 256
+        var noiseA = ValueNoise(seed: UInt64(40 + seed)), noiseB = ValueNoise(seed: UInt64(80 + seed))
+        var px = [UInt8](repeating: 255, count: n * n * 4)
+        let inv = 1 / Float(n - 1)
+        for y in 0..<n {
+            for x in 0..<n {
+                let u = Float(x) * inv, v = Float(y) * inv
+                let a = noiseA.fbm(u, v, basePeriod: 2, octaves: 3)
+                let b = noiseB.fbm(u, v, basePeriod: 3, octaves: 2)
+                // The image is top-down; SpriteKit's y is up, so the sun's bright corner is (0, n).
+                let sun = 1.10 - 0.16 * (u + (1 - v)) / 2
+                let dry = max(0, min(1, (a - 0.58) / 0.16))
+                let dark = max(0, min(1, (0.42 - a) / 0.14))
+                let scrub = max(0, min(1, (b - 0.62) / 0.14)) * (1 - dry)
+                let r = (1 + 0.14 * dry - 0.16 * dark + 0.04 * scrub) * sun
+                let g = (1 + 0.06 * dry - 0.10 * dark) * sun
+                let bl = (1 - 0.14 * dry - 0.06 * dark + 0.06 * scrub) * (sun * 0.96 + 0.04)
+                let o = (y * n + x) * 4
+                px[o] = UInt8(max(0, min(255, r * 255)))
+                px[o + 1] = UInt8(max(0, min(255, g * 255)))
+                px[o + 2] = UInt8(max(0, min(255, bl * 255)))
+            }
+        }
+        let data = Data(px)
+        guard let provider = CGDataProvider(data: data as CFData),
+              let img = CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4, space: srgb,
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider,
+                                decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return SKTexture() }
+        let t = SKTexture(cgImage: img)
+        t.filteringMode = .linear
+        cache[key] = t
+        return t
+    }
+
+    /// A seamless 1024-unit tile of soft cloud shadow (alpha only) that drifts over the map.
+    static var cloudLayer: SKTexture {
+        if let t = cache["clouds"] { return t }
+        let n = 512
+        var noise = ValueNoise(seed: 9)
+        var px = [UInt8](repeating: 0, count: n * n * 4)
+        let inv = 1 / Float(n)
+        for y in 0..<n {
+            for x in 0..<n {
+                let a = noise.fbm(Float(x) * inv, Float(y) * inv, basePeriod: 2, octaves: 3)
+                let alpha = max(0, min(1, (a - 0.52) / 0.30)) * 0.26
+                px[(y * n + x) * 4 + 3] = UInt8(alpha * 255)
+            }
+        }
+        let data = Data(px)
+        guard let provider = CGDataProvider(data: data as CFData),
+              let img = CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4, space: srgb,
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider,
+                                decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return SKTexture() }
+        let t = SKTexture(cgImage: img)
+        t.filteringMode = .linear
+        cache["clouds"] = t
+        return t
+    }
+
     static func ground() -> SKTexture {
         if let t = cache["ground"] { return t }
         let n = 1024

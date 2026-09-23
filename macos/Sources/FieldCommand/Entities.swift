@@ -182,6 +182,15 @@ class Entity: SKNode {
 
     func onDamaged(by attacker: Entity?) {}
 
+    /// Just hit: whiten the sprite for a few frames.
+    func flashHit() {
+        guard let body = hitFlashNode else { return }
+        body.removeAction(forKey: "hit")
+        body.run(.sequence([.colorize(with: .white, colorBlendFactor: 0.55, duration: 0.03),
+                            .colorize(withColorBlendFactor: 0, duration: 0.12)]), withKey: "hit")
+    }
+    var hitFlashNode: SKSpriteNode? { nil }
+
     func updateHPBar() {
         let frac = max(0, min(1, hp / maxHp))
         let show = isSelected || isHovered || frac < 0.999
@@ -214,6 +223,7 @@ final class Unit: Entity {
     var slideSign: CGFloat = 0
     let body = SKNode()
     let bodySprite: SKSpriteNode
+    override var hitFlashNode: SKSpriteNode? { bodySprite }
     var gun: SKSpriteNode?
     var cargoNode: SKNode?
 
@@ -901,9 +911,12 @@ final class Building: Entity {
         if kind == .shield, let d = dome, built, d.alpha == 0 { d.alpha = 0.7 }
     }
 
+    override var hitFlashNode: SKSpriteNode? { body }
+
     func applyNet(hp newHp: CGFloat, built nowBuilt: Bool, progress p: CGFloat, queueProgress qp: CGFloat,
                   gunAngle: CGFloat, queue q: [UnitKind], rally r: CGPoint?) {
         if newHp != hp {
+            if newHp < hp { flashHit() }
             hp = newHp
             updateHPBar()
         }

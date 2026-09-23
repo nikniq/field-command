@@ -34,6 +34,8 @@ final class GameScene: SKScene {
 
     let world = SKNode()
     let decalLayer = SKNode()
+    /// Cloud shadows: a grid of soft tiles above the ground layers that drifts and wraps (see update).
+    let cloudLayer = SKNode()
     let entityLayer = SKNode()
     let effectLayer = SKNode()
     let cam = SKCameraNode()
@@ -326,6 +328,27 @@ final class GameScene: SKScene {
             world.addChild(s)
         }
 
+        // One sun for the whole map and low-frequency biome tints: a multiply layer over the ground and terrain.
+        let tint = SKSpriteNode(texture: Art.mapTint(seed: net.map { jInt($0.map["seed"]) } ?? 42))
+        tint.anchorPoint = .zero
+        tint.size = worldSize
+        tint.blendMode = .multiply
+        tint.zPosition = -7.5
+        world.addChild(tint)
+        // Cloud shadows drifting over everything on the ground; the layer wraps every 1024 units.
+        let cloudTile: CGFloat = 1024
+        for cx in stride(from: -cloudTile, to: worldSize.width + cloudTile, by: cloudTile) {
+            for cy in stride(from: -cloudTile, to: worldSize.height + cloudTile, by: cloudTile) {
+                let c = SKSpriteNode(texture: Art.cloudLayer)
+                c.anchorPoint = .zero
+                c.size = CGSize(width: cloudTile, height: cloudTile)
+                c.position = CGPoint(x: cx, y: cy)
+                cloudLayer.addChild(c)
+            }
+        }
+        cloudLayer.zPosition = 25
+        world.addChild(cloudLayer)
+
         var rng = SeededRNG(42)
         let dirt = NSColor.rgb(0.42, 0.34, 0.22)
         func stamp(_ p: CGPoint, _ size: CGFloat, _ alpha: CGFloat) {
@@ -356,6 +379,43 @@ final class GameScene: SKScene {
                     stamp(p, CGFloat.random(in: 110...150, using: &rng), 0.42)
                 }
             }
+        }
+        // Wheel ruts: two worn lines either side of each road's centre, wobbling like real tracks.
+        let ruts = CGMutablePath()
+        for road in roads {
+            for i in 0..<(road.count - 1) {
+                let a = road[i], b = road[i + 1]
+                let length = a.distance(to: b)
+                guard length >= 30 else { continue }
+                let u = CGPoint(x: (b.x - a.x) / length, y: (b.y - a.y) / length), nrm = CGPoint(x: -u.y, y: u.x)
+                for side: CGFloat in [-9, 9] {
+                    var d: CGFloat = 0
+                    var first = true
+                    while d <= length {
+                        let wob = sin(d / 37 + side) * 3
+                        let p = a + u * d + nrm * (side + wob)
+                        if first { ruts.move(to: p); first = false } else { ruts.addLine(to: p) }
+                        d += 24
+                    }
+                }
+            }
+        }
+        let rutNode = SKShapeNode(path: ruts)
+        rutNode.strokeColor = NSColor.rgb(0.23, 0.17, 0.11, 0.28)
+        rutNode.lineWidth = 3
+        rutNode.lineCap = .round
+        rutNode.zPosition = -8.8
+        world.addChild(rutNode)
+        for i in 0..<Int(worldSize.width * worldSize.height / 40000) {      // pebbles: the rocks again, tiny
+            let p = CGPoint(x: CGFloat.random(in: 0...worldSize.width, using: &rng), y: CGFloat.random(in: 0...worldSize.height, using: &rng))
+            if onTerrain(p) { continue }
+            let r = SKSpriteNode(texture: Art.rock(i % 4))
+            let s = CGFloat.random(in: 0.12...0.26, using: &rng)
+            r.size = CGSize(width: 44 * s, height: 36 * s)
+            r.position = p
+            r.zRotation = CGFloat.random(in: 0...(2 * .pi), using: &rng)
+            r.zPosition = -8.6
+            world.addChild(r)
         }
         for _ in 0..<500 {
             let t = SKSpriteNode(texture: Art.tuft)
@@ -433,6 +493,13 @@ final class GameScene: SKScene {
     }
 
     private func addTree(at p: CGPoint, variant: Int, angle: CGFloat, scale s: CGFloat) {
+        // Forest floor: the ground under a stand of trees is darker than open grass.
+        let floor = SKSpriteNode(texture: Art.shadow)
+        floor.size = CGSize(width: 150, height: 130)
+        floor.position = p + CGPoint(x: 6, y: -8)
+        floor.alpha = 0.42
+        floor.zPosition = -8.7
+        world.addChild(floor)
         let shadow = SKSpriteNode(texture: Art.shadow)
         shadow.size = CGSize(width: 90 * s, height: 80 * s)
         shadow.position = p + CGPoint(x: 10, y: -12)
@@ -444,6 +511,21 @@ final class GameScene: SKScene {
         tree.zRotation = angle
         tree.zPosition = 4
         world.addChild(tree)
+    }
+
+    /// Someone on foot died here: the sprite stays, darkened, for a while, with a puff of dust.
+    func addFallen(kind: UnitKind, team: Team, at p: CGPoint, angle: CGFloat) {
+        let body = SKSpriteNode(texture: Art.unit(kind, team))
+        body.size = Art.unitSize(kind)
+        body.color = .rgb(0.1, 0.08, 0.07)
+        body.colorBlendFactor = 0.65
+        body.alpha = 0.85
+        body.zRotation = angle
+        body.position = p
+        decalLayer.addChild(body)
+        body.run(.sequence([.wait(forDuration: 18), .fadeOut(withDuration: 4), .removeFromParent()]))
+        emit(FX.smokeBurst(size: 6), at: p, life: 1.5)
+        if decalLayer.children.count > 160 { decalLayer.children.first?.removeFromParent() }
     }
 
     func addWreck(at p: CGPoint, angle: CGFloat, team: Team) {
@@ -490,6 +572,8 @@ final class GameScene: SKScene {
     // MARK: - Main loop
 
     override func update(_ currentTime: TimeInterval) {
+        cloudLayer.position = CGPoint(x: (elapsed * 22).truncatingRemainder(dividingBy: 1024) - 1024,
+                                      y: (elapsed * 9).truncatingRemainder(dividingBy: 1024) - 1024)
         let rawDt = lastTime == 0 ? 1.0 / 60 : currentTime - lastTime
         lastTime = currentTime
         let realDt = CGFloat(min(rawDt, 1.0 / 15))

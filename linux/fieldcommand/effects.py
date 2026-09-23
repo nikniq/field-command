@@ -135,7 +135,7 @@ class Effects:
         self.smoke_burst(x, y, size)
         self.sparks(x, y, int(6 + size / 3), size * 4, (255, 216, 128))
         if scorch:
-            self.decal("scorch", x, y, size * 2.2, 25)
+            self.decal("scorch", x, y, size * 2.2, 90)      # craters stay for a good while
 
     def decal(self, kind, x, y, size, life, angle=None, team=0):
         self.decals.append([kind, x, y, size, random.uniform(0, 360) if angle is None else angle, 0.0, life, team])
@@ -210,6 +210,11 @@ class Effects:
             if kind == "wreck":
                 base = art.unit("tank", team)
                 img = art.sprites.get(("wreck", team), base, angle, 1 / (art.SCALE * z), tint=(0, 0, 0, 180), fade=fade)
+            elif isinstance(kind, tuple):
+                # ("fallen", unit kind): the fallen, darkened where they dropped
+                base = art.unit(kind[1], team)
+                img = art.sprites.get(("fallen", kind[1], team), base, angle, 1 / (art.SCALE * z), tint=(25, 20, 18, 165),
+                                      fade=min(fade, 190))
             else:
                 base = art.scorch() if kind == "scorch" else art.rubble()
                 s = size / (base.get_width() / (1 if kind == "scorch" else art.SCALE)) / (1 if kind == "scorch" else art.SCALE)

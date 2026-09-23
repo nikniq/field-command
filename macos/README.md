@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 10, so a 1.13.0 Mac and a 1.13.0 Linux client play together; neither accepts an
+Both editions speak protocol 10, so a 1.14.0 Mac and a 1.14.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -165,6 +165,12 @@ Game*, the title screen's **Load Game (L)** resumes the newest save, and the gam
 minutes. Saves are the same JSON document the Linux edition writes, kept in `~/Library/Application
 Support/FieldCommand/saves/`, so a game saved on either platform loads on the other (`FC_SAVETEST` loads a
 Linux-written save and plays it on).
+
+## The look
+
+The same procedural scene as the Linux edition: a sun from the upper left with biome tints (a multiply layer
+over the ground), drifting cloud shadows, wheel ruts along roads, pebbles, darker forest floors, craters that
+stay, wrecks and the fallen, and a white flash on anything hit.
 
 ## Screenshots
 

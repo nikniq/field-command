@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.13.0
+Version:        1.14.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Sep 23 2026 Field Command Developers <noreply@example.invalid> - 1.14.0-1
+- Visuals: one sun for the whole map with biome tints, drifting cloud shadows, wheel ruts along roads,
+  pebbles, darker forest floors, longer-lasting craters, hit flashes, and the fallen left where they dropped
+
 * Tue Sep 22 2026 Field Command Developers <noreply@example.invalid> - 1.13.0-1
 - Artillery emplacement (L): 480 reach beyond its sight, slow high-arcing shells you can watch, blind up close
 - Shield Generator (K): 300 recharging shield points on every building within 320

@@ -64,6 +64,8 @@ def build_ground(map_spec):
         for y in range(0, H, 1024):
             ground.blit(tile, (x, y))
     rnd = random.Random(map_spec.get("seed", 42))
+    # One sun for the whole map and low-frequency biome tints: baked in as a multiply pass.
+    ground.blit(art.map_tint(W, H, map_spec.get("seed", 42)), (0, 0), special_flags=pygame.BLEND_MULT)
     dirt = (107, 87, 56)
     blob = art.blob()
 
@@ -84,6 +86,27 @@ def build_ground(map_spec):
             for k in range(n + 1):
                 t = k / n
                 stamp(ax + (bx - ax) * t + rnd.uniform(-8, 8), ay + (by - ay) * t + rnd.uniform(-8, 8), rnd.uniform(110, 150), 0.42)
+    # Wheel ruts: two worn lines either side of each road's centre, wobbling like real tracks.
+    for road in map_spec["roads"]:
+        for (ax, ay), (bx, by) in zip(road, road[1:]):
+            length = math.hypot(bx - ax, by - ay)
+            if length < 30:
+                continue
+            ux, uy = (bx - ax) / length, (by - ay) / length
+            nx, ny = -uy, ux
+            x0, y0 = min(ax, bx) - 40, min(ay, by) - 40
+            over = pygame.Surface((int(abs(bx - ax)) + 80, int(abs(by - ay)) + 80), pygame.SRCALPHA)
+            for side in (-9, 9):
+                pts = []
+                d = 0.0
+                while d <= length:
+                    wob = math.sin(d / 37 + side) * 3
+                    px, py = ax + ux * d + nx * (side + wob), ay + uy * d + ny * (side + wob)
+                    pts.append((px - x0, (H - py) - (H - y0 - over.get_height())))
+                    d += 24
+                if len(pts) > 1:
+                    pygame.draw.lines(over, (58, 44, 28, 70), False, pts, 3)
+            ground.blit(over, (x0, H - y0 - over.get_height()))
     # Terrain features: water and cliffs are one organic layer. Bridges are drawn per frame instead
     # of being baked in here, because they can be destroyed and rebuilt.
     m = art.TERRAIN_MARGIN
@@ -96,7 +119,15 @@ def build_ground(map_spec):
     for i in range(70):
         img = pygame.transform.rotozoom(art.rock(i % 4), rnd.uniform(-30, 30), rnd.uniform(0.5, 1.1) / art.SCALE)
         ground.blit(img, (rnd.uniform(0, W) - img.get_width() / 2, rnd.uniform(0, H) - img.get_height() / 2))
+    for i in range(int(W * H / 40000)):          # pebbles: the rocks again, tiny
+        img = pygame.transform.rotozoom(art.rock(i % 4), rnd.uniform(0, 360), rnd.uniform(0.12, 0.26) / art.SCALE)
+        ground.blit(img, (rnd.uniform(0, W) - img.get_width() / 2, rnd.uniform(0, H) - img.get_height() / 2))
     shadow = art.shadow()
+    # Forest floor: the ground under a stand of trees is darker than open grass, then each tree's own shadow.
+    floor = pygame.transform.smoothscale(shadow, (150, 130))
+    floor.fill((0, 0, 0, 110), special_flags=pygame.BLEND_RGBA_MULT)
+    for (x, y, _r, _v, _a, s) in map_spec["trees"]:
+        ground.blit(floor, (x + 6 - floor.get_width() / 2, H - (y - 8) - floor.get_height() / 2))
     for (x, y, _r, _v, _a, s) in map_spec["trees"]:
         sh = pygame.transform.smoothscale(shadow, (int(90 * s), int(80 * s)))
         ground.blit(sh, (x + 10 - sh.get_width() / 2, H - (y - 12) - sh.get_height() / 2))
@@ -117,6 +148,8 @@ class GameScene:
         self.clearings = session.map["clearings"]
         self.roads = session.map["roads"]
         self.ground = build_ground(session.map)
+        self.clouds = art.cloud_layer()
+        self._known_units = {}      # id -> (kind, team, x, y, angle): to mark where the fallen dropped
         self.selection = []
         self.paused = False
         self.placing = None
@@ -196,6 +229,7 @@ class GameScene:
         if running:
             self.fx.update(dt * (settings.game_speed if self.s.can_pause else 1.0))
             self._update_client_fx(dt)
+            self._update_hits_and_losses(dt)
         self.hud.update(dt, mouse)
         for b in self.beacons:
             b[3] += dt
@@ -399,6 +433,52 @@ class GameScene:
         self.s.send(["ping", x, y, self.ping_kind])
         self.ping_kind = 0
         audio.play("click")
+
+    def _update_hits_and_losses(self, dt):
+        """Client-side combat feedback: a white flash on anything that just lost health, and the fallen left
+        where they dropped (tanks leave wrecks by server event; everyone on foot leaves a body)."""
+        s = self.s
+        seen = {}
+        for u in s.units:
+            if u.dead:
+                continue
+            last = getattr(u, "_last_hp", None)
+            if last is not None and u.hp < last - 0.5:
+                u._flash = 0.14
+            u._last_hp = u.hp
+            u._flash = max(0.0, getattr(u, "_flash", 0.0) - dt)
+            seen[u.id] = (u.kind, u.team, u.x, u.y, u.angle)
+        for b in s.buildings:
+            if b.dead:
+                continue
+            last = getattr(b, "_last_hp", None)
+            if last is not None and b.hp < last - 0.5:
+                b._flash = 0.12
+            b._last_hp = b.hp
+            b._flash = max(0.0, getattr(b, "_flash", 0.0) - dt)
+        for uid, (kind, team, x, y, angle) in self._known_units.items():
+            if uid not in seen and kind != "tank" and s.fog.is_visible(x, y):
+                self.fx.decal(("fallen", kind), x, y, 30, 18, angle=math.degrees(angle), team=team)
+                self.fx.smoke_puff(x, y, False)
+        self._known_units = seen
+
+    def _draw_clouds(self, screen):
+        """Cloud shadows drifting over everything on the ground (the fog goes on above them)."""
+        cam = self.cam
+        z = cam.zoom
+        tile = art.sprites.get("clouds", self.clouds, 0, 1 / z)
+        tw = max(1, tile.get_width())
+        ox = (self.elapsed * 22) % 1024
+        oy = (self.elapsed * 9) % 1024
+        v = cam.view_rect()
+        x = math.floor((v[0] - ox) / 1024) * 1024 + ox
+        while x < v[2]:
+            y = math.floor((v[1] - oy) / 1024) * 1024 + oy
+            while y < v[3] + 1024:
+                sx, sy = cam.to_screen(x, y + 1024)
+                screen.blit(tile, (sx, sy))
+                y += 1024
+            x += 1024
 
     def _draw_beacons(self, screen):
         """A pulsing marker in the pinger's colour, on top of the fog so it can be seen anywhere."""
@@ -1274,6 +1354,7 @@ class GameScene:
         self.fx.draw(screen, cam, ui.text)
         for e in units + buildings:
             self._draw_bars(screen, e)
+        self._draw_clouds(screen)
         self.fog_view.draw(screen, cam)
         self._draw_beacons(screen)
         self._draw_overlays(screen, mouse)
@@ -1362,6 +1443,9 @@ class GameScene:
         fade = 255 if b.built else int(90 + 140 * b.progress) // 16 * 16
         img = art.sprites.get(("bld", b.kind, b.team), art.building(b.kind, b.team), 0, ts, fade=fade)
         screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
+        if getattr(b, "_flash", 0.0) > 0:
+            hit = art.sprites.get(("bld", b.kind, b.team), art.building(b.kind, b.team), 0, ts, fade=110)
+            screen.blit(hit, (sx - hit.get_width() / 2, sy - hit.get_height() / 2), special_flags=pygame.BLEND_ADD)
         if b.kind == "hq" and b.built:
             d = art.sprites.get("dish", art.dish(), math.degrees(getattr(b, "dish_angle", 0.0)), ts)
             screen.blit(d, (sx - d.get_width() / 2, sy - d.get_height() / 2))
@@ -1401,6 +1485,10 @@ class GameScene:
             screen.blit(legs, (sx - legs.get_width() / 2, sy - legs.get_height() / 2))
         img = art.sprites.get(("unit", u.kind, u.team), art.unit(u.kind, u.team), math.degrees(u.angle), ts)
         screen.blit(img, (bx - img.get_width() / 2, by - img.get_height() / 2))
+        if getattr(u, "_flash", 0.0) > 0:
+            # Just hit: the same sprite added on top whitens it for a few frames
+            hit = art.sprites.get(("unit", u.kind, u.team), art.unit(u.kind, u.team), math.degrees(u.angle), ts, fade=150)
+            screen.blit(hit, (bx - hit.get_width() / 2, by - hit.get_height() / 2), special_flags=pygame.BLEND_ADD)
         if u.kind == "tank":
             rc = -4 * u.recoil
             gx, gy = sx + math.cos(u.gun_angle) * rc / z, sy - math.sin(u.gun_angle) * rc / z

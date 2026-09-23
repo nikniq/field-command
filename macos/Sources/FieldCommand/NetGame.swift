@@ -129,6 +129,7 @@ extension GameScene {
             if v.count > 10 { u.setRank(jInt(v[10])) }
             let hp = jNum(v[7])
             if hp != u.hp {
+                if hp < u.hp { u.flashHit() }
                 u.hp = hp
                 u.updateHPBar()
             }
@@ -143,6 +144,7 @@ extension GameScene {
         }
         for (id, u) in net.units where !seen.contains(id) {
             u.dead = true
+            if u.kind != .tank && fog.isVisible(u.position) { addFallen(kind: u.kind, team: u.team, at: u.position, angle: u.body.zRotation) }
             u.removeFromParent()
             net.units[id] = nil
         }

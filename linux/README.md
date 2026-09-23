@@ -330,6 +330,16 @@ explored ground. Files live in `~/.local/share/fieldcommand/saves/` (Windows: `%
 The macOS edition writes and reads exactly the same document, so a game saved on one platform loads on the
 other; `tests/fixtures/` holds a save from each edition and both suites load the other's.
 
+## The look
+
+Everything is drawn procedurally at launch — there are no image files — and the scene is lit as one place:
+a sun from the upper left brightens that corner of every map and cools the far one, low-frequency biome
+tints break the grass into straw, forest floor and scrub, cloud shadows drift across the ground, roads carry
+wheel ruts, and the ground under a stand of trees is darker than open grass. Combat leaves marks: craters
+stay for a minute and a half, tanks leave wrecks, anyone on foot who falls stays where they dropped for a
+while, and anything hit flashes white for a few frames. Buildings smoke below half health and burn below a
+quarter. The macOS edition draws the same scene from the same recipes.
+
 ## Screen size and UI scale
 
 The interface is drawn at a fixed design size and scaled to the window: **2x** on 4K-class screens, **1.5x**
