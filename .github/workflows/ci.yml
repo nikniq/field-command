@@ -64,25 +64,84 @@ jobs:
       - name: Build
         working-directory: macos
         run: swift build -c release
-      - name: Headless tests
+      # One step per hook, so a failure names itself in the job's step list.
+      - name: Locate binary
+        working-directory: macos
+        run: echo "BIN=$(swift build -c release --show-bin-path)/FieldCommand" >> "$GITHUB_ENV"
+      - name: Headless World
         working-directory: macos
         run: |
-          BIN="$(swift build -c release --show-bin-path)/FieldCommand"
           set -o pipefail
-          FC_WORLDTEST=1  "$BIN" | tee /dev/stderr | grep -q "WORLD TEST PASSED"
+          FC_WORLDTEST=1 "$BIN" | tee /dev/stderr | grep -q "WORLD TEST PASSED"
+      - name: Headless Repair
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_REPAIRTEST=1 "$BIN" | tee /dev/stderr | grep -q "REPAIR TEST PASSED"
-          FC_TEAMSTEST=1  "$BIN" | tee /dev/stderr | grep -q "TEAMS TEST PASSED"
-          FC_SIEGETEST=1  "$BIN" | tee /dev/stderr | grep -q "SIEGE TEST PASSED"
+      - name: Headless Teams
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_TEAMSTEST=1 "$BIN" | tee /dev/stderr | grep -q "TEAMS TEST PASSED"
+      - name: Headless Siege
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_SIEGETEST=1 "$BIN" | tee /dev/stderr | grep -q "SIEGE TEST PASSED"
+      - name: Headless Upgrades
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_UPGRADETEST=1 "$BIN" | tee /dev/stderr | grep -q "UPGRADE TEST PASSED"
+      - name: Headless Towers
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_TOWERTEST=1 "$BIN" | tee /dev/stderr | grep -q "TOWER TEST PASSED"
+      - name: Headless Store
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_STORETEST=1 "$BIN" | tee /dev/stderr | grep -q "STORE TEST PASSED"
+      - name: Headless AI
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_AITEST=1 "$BIN" | tee /dev/stderr | grep -q "AI TEST PASSED"
+      - name: Headless Audio
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_AUDIOTEST=1 "$BIN" | tee /dev/stderr | grep -q "AUDIO TEST PASSED"
+      - name: Headless Medics
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_MEDICTEST=1 "$BIN" | tee /dev/stderr | grep -q "MEDIC TEST PASSED"
+      - name: Headless Pings
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_PINGTEST=1 "$BIN" | tee /dev/stderr | grep -q "PING TEST PASSED"
+      - name: Headless Artillery
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_ARTYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ARTILLERY TEST PASSED"
+      - name: Headless Crates
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_CRATETEST=1 "$BIN" | tee /dev/stderr | grep -q "CRATE TEST PASSED"
+      - name: Headless Bridges
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_BRIDGETEST=river_crossing "$BIN" | tee /dev/stderr | grep -q "BRIDGE TEST PASSED"
+      - name: Headless Save
+        working-directory: macos
+        run: |
+          set -o pipefail
           FC_SAVETEST=1 FC_SAVE_FIXTURE="$GITHUB_WORKSPACE/tests/fixtures/save_python.json" "$BIN" | tee /dev/stderr | grep -q "SAVE TEST PASSED"
       - name: App bundle
         working-directory: macos
