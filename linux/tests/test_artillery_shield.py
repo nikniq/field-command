@@ -25,8 +25,7 @@ def test_artillery_reaches_beyond_its_sight_when_something_else_sees_the_target(
     a = built(w, "artillery", hq.x + 300, hq.y)
     rng = BUILDINGS["artillery"].range
     assert rng > BUILDINGS["artillery"].sight
-    target = Unit(w, "tank", 1, a.x + rng - 30, a.y)
-    w._add(target)
+    target = built(w, "depot", a.x + rng - 30, a.y, team=1)       # stays put, so the shell lands on it
     hp0 = target.hp
     run(w, 6)
     assert target.hp == hp0                    # nobody of ours can see it: the gun stays quiet
@@ -46,8 +45,7 @@ def test_artillery_lobs_a_visible_arcing_shell_with_splash_and_cannot_hit_up_clo
     hp0 = close.hp
     run(w, 6)
     assert close.hp == hp0                     # inside the minimum range: blind
-    far = Unit(w, "marine", 1, a.x + 250, a.y)      # in sight (300), beyond the minimum (150)
-    w._add(far)
+    far = built(w, "depot", a.x + 250, a.y, team=1)      # in sight (300), beyond the minimum (150), and it stays put
     w.update_visibility()
     shells = []
     for _ in range(30 * 8):

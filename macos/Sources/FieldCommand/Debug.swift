@@ -484,7 +484,8 @@ enum Debug {
             let a = built(w, .artillery, hq.x + 300, hq.y)
             let rng = Double(BuildingKind.artillery.stats.range)
             check(rng > Double(BuildingKind.artillery.stats.sight), "artillery reaches further than it sees")
-            let target = SUnit(world: w, kind: .tank, team: 1, x: a.x + rng - 30, y: a.y); w.add(target)
+            // A building: it stays put, so a shell aimed where it stood still lands on it.
+            let target = built(w, .depot, a.x + rng - 30, a.y, team: 1)
             let hp0 = target.hp
             _ = run(w, 6)
             check(target.hp == hp0, "and stays quiet while nobody of ours can see the target")
@@ -500,7 +501,7 @@ enum Debug {
             let hp0 = close.hp
             _ = run(w, 6)
             check(close.hp == hp0, "inside the minimum range it is blind")
-            let far = SUnit(world: w, kind: .marine, team: 1, x: a.x + 250, y: a.y); w.add(far)
+            let far = built(w, .depot, a.x + 250, a.y, team: 1)      // in sight, beyond the minimum, and it stays put
             w.updateVisibility()
             var shell: [Any]?
             var t = 0.0
