@@ -471,7 +471,19 @@ final class HUD: SKNode {
             return true
         }
         if let hit = iconRects.first(where: { $0.0.contains(p) }) {
-            game.setSelection([hit.1])
+            // A portrait in a mixed selection: click keeps only that kind, Shift+click drops that kind,
+            // Command/Control+click picks out just the one.
+            let e = hit.1
+            let mods = NSEvent.modifierFlags
+            let same = game.selection.filter { $0.sameKind(as: e) }
+            if mods.contains(.command) || mods.contains(.control) {
+                game.setSelection([e])
+            } else if mods.contains(.shift) {
+                let rest = game.selection.filter { !$0.sameKind(as: e) }
+                game.setSelection(rest.isEmpty ? [e] : rest)
+            } else {
+                game.setSelection(same)
+            }
             return true
         }
         return true
@@ -867,6 +879,8 @@ final class HUD: SKNode {
              ("Edge scroll: \(Settings.edgeScroll ? "On" : "Off")", { [unowned self] in Settings.edgeScroll.toggle(); self.overlayBuilder?() })],
             [("Sound: \(Settings.sound ? "On" : "Off")", { [unowned self] in Settings.sound.toggle(); self.overlayBuilder?() }),
              ("Objectives: \(Settings.objectives ? "On" : "Off")", { [unowned self] in Settings.objectives.toggle(); self.overlayBuilder?() })],
+            [("Health bars: \(Settings.barsAlways ? "Always" : "When hurt")", { [unowned self] in
+                Settings.barsAlways.toggle(); self.game.refreshBars(); self.overlayBuilder?() })],
         ]
     }
 
@@ -905,6 +919,7 @@ final class HUD: SKNode {
                                 "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
                                 "Z or Option+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
                                 "Tab — satellite view: the whole map on screen; Tab, Space or a minimap click brings you back",
+                                "Click a portrait — keep only that kind · Shift+click — drop that kind · ⌘+click — just the one",
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
                                 "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
                                 "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

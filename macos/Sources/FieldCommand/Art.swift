@@ -1163,6 +1163,23 @@ enum Art {
     }
 
     /// Rank marks drawn above a veteran: one, two or three small chevrons in the owner's light colour.
+    /// A small dark plate with the control group's number, drawn beside a unit that is in one.
+    static func groupBadge(_ n: Int) -> SKTexture {
+        texture("gbadge-\(n)", size: CGSize(width: 16, height: 16)) { ctx in
+            let plate = rr(box(-7, -7, 14, 14), 3)
+            fill(ctx, plate, NSColor.rgb(0.05, 0.06, 0.08, 0.85))
+            stroke(ctx, plate, NSColor(white: 1, alpha: 0.55), 1)
+            // A seven-segment style digit keeps the badge font-free and crisp at any zoom
+            let segs: [Int: String] = [0: "abcdef", 1: "bc", 2: "abged", 3: "abgcd", 4: "fgbc", 5: "afgcd", 6: "afgedc", 7: "abc", 8: "abcdefg", 9: "abfgcd"]
+            let pts: [Character: (CGPoint, CGPoint)] = [
+                "a": (CGPoint(x: -3, y: 4.5), CGPoint(x: 3, y: 4.5)), "b": (CGPoint(x: 3, y: 4.5), CGPoint(x: 3, y: 0)),
+                "c": (CGPoint(x: 3, y: 0), CGPoint(x: 3, y: -4.5)), "d": (CGPoint(x: -3, y: -4.5), CGPoint(x: 3, y: -4.5)),
+                "e": (CGPoint(x: -3, y: 0), CGPoint(x: -3, y: -4.5)), "f": (CGPoint(x: -3, y: 4.5), CGPoint(x: -3, y: 0)),
+                "g": (CGPoint(x: -3, y: 0), CGPoint(x: 3, y: 0))]
+            lines(ctx, (segs[n % 10] ?? "").compactMap { pts[$0] }, .rgb(1, 0.85, 0.4), 1.6)
+        }
+    }
+
     static func chevrons(_ rank: Int, _ team: Team) -> SKTexture {
         texture("chevrons-\(rank)-\(team.rawValue)", size: CGSize(width: 16, height: 20)) { ctx in
             for i in 0..<rank {

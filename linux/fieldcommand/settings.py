@@ -24,6 +24,7 @@ class _Settings:
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
                 "campaign_done": [],   # mission ids completed, in any order
+                "bars_always": False,  # health bars on everything, not only the hurt and the selected
                 "ui_scale": 0}  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
 
     def __init__(self):

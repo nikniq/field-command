@@ -159,6 +159,7 @@ class GameScene:
         self.minimap_dragging = False
         self.keys_down = set()
         self.control_groups = {}
+        self.group_of = {}           # unit id -> control group number, for the badge on the unit
         self._last_group_tap = (None, 0)
         self._last_click = (0, 0, 0)
         self._last_alert = -100.0
@@ -607,6 +608,8 @@ class GameScene:
 
     def to_menu(self):
         from .menu import MenuScene
+        if self.can_save() and not self.s.game_over:
+            self.save_game("autosave", "Autosave")      # so Load Game continues where you left off
         self.leave()
         if getattr(self.app, "server", None) is not None:
             self.app.server.stop()
@@ -943,6 +946,7 @@ class GameScene:
             if mods & pygame.KMOD_CTRL:
                 own = [x for x in self.selection if self.mine(x)]
                 self.control_groups[d] = own
+                self.group_of = {x.id: gn for gn, xs in self.control_groups.items() for x in xs if not x.is_building}
                 self.hud.flash(f"Group {d} assigned ({len(own)})", TEXT)
             elif self.control_groups.get(d):
                 self.set_selection([x for x in self.control_groups[d] if not x.dead])
@@ -1627,6 +1631,11 @@ class GameScene:
         if rank:
             ch = art.sprites.get(("chevrons", rank, u.team), art.chevrons(rank, u.team), 0, 1 / z)
             screen.blit(ch, (sx - ch.get_width() / 2, sy - (u.radius + 16) / z - ch.get_height() / 2))
+        gn = self.group_of.get(u.id)
+        if gn is not None:
+            # The control group's number rides on the unit's shoulder, in a small plate
+            badge = art.sprites.get(("gbadge", gn), art.group_badge(gn), 0, 1 / z)
+            screen.blit(badge, (sx + (u.radius + 4) / z - badge.get_width() / 2, sy + (u.radius + 4) / z - badge.get_height() / 2))
 
     def _draw_bars(self, screen, e):
         cam = self.cam
@@ -1634,7 +1643,7 @@ class GameScene:
         frac = max(0.0, min(1.0, e.hp / e.max_hp))
         building = e.is_building
         width = (max(44, e.half * 1.6) if building else max(22, e.radius * 2.2)) / z
-        if e.selected or e.hovered or frac < 0.999:
+        if e.selected or e.hovered or frac < 0.999 or (settings.bars_always and self.friendly(e)):
             bx, by = cam.to_screen(e.x, e.y + ((e.half + 12) if building else (e.radius + 10)))
             pygame.draw.rect(screen, (0, 0, 0), (bx - width / 2 - 1, by - 2.5, width + 2, 5))
             col = to255(GOOD if frac > 0.6 else AMBER if frac > 0.3 else BAD)

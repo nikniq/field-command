@@ -98,6 +98,12 @@ class Entity: SKNode {
     var isHovered = false { didSet { refreshMarker() } }
 
     var bodyRadius: CGFloat { 0 }
+    /// The same sort of thing: two units of one kind, or two buildings of one kind.
+    func sameKind(as other: Entity) -> Bool {
+        if let a = self as? Unit, let b = other as? Unit { return a.kind == b.kind }
+        if let a = self as? Building, let b = other as? Building { return a.kind == b.kind }
+        return false
+    }
     var displayName: String { "" }
     var glyph: String { "" }
     var portrait: SKTexture { SKTexture() }
@@ -193,7 +199,7 @@ class Entity: SKNode {
 
     func updateHPBar() {
         let frac = max(0, min(1, hp / maxHp))
-        let show = isSelected || isHovered || frac < 0.999
+        let show = isSelected || isHovered || frac < 0.999 || (Settings.barsAlways && team.isFriendly)
         hpBack.isHidden = !show
         hpFill.isHidden = !show
         hpFill.size = CGSize(width: hpBarWidth * frac, height: 3)
@@ -253,6 +259,20 @@ final class Unit: Entity {
     /// Siege mode, from the server. The outriggers fold out under the hull while it is anything but mobile.
     private(set) var mode: SiegeMode = .mobile
     private var outriggers: SKSpriteNode?
+    /// The control group this unit is in, shown as a small numbered plate on its shoulder.
+    private var groupBadge: SKSpriteNode?
+    func setGroup(_ n: Int?) {
+        groupBadge?.removeFromParent()
+        groupBadge = nil
+        guard let n else { return }
+        let b = SKSpriteNode(texture: Art.groupBadge(n))
+        b.size = CGSize(width: 16, height: 16)
+        b.position = CGPoint(x: radius + 4, y: -(radius + 4))
+        b.zPosition = 6
+        addChild(b)
+        groupBadge = b
+    }
+
     /// Veterancy rank, from the server; chevrons above the unit show it.
     private(set) var rank = 0
     private var chevrons: SKSpriteNode?

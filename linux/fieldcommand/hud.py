@@ -176,7 +176,17 @@ class HUD:
                 return True
         for r, e in self.icon_rects:
             if r.collidepoint(pos):
-                g.set_selection([e])
+                # A portrait in a mixed selection: click keeps only that kind, Shift+click drops that kind,
+                # Ctrl+click picks out just the one.
+                mods = pygame.key.get_mods()
+                same = [x for x in g.selection if x.is_building == e.is_building and x.kind == e.kind]
+                if mods & pygame.KMOD_CTRL:
+                    g.set_selection([e])
+                elif mods & pygame.KMOD_SHIFT:
+                    g.set_selection([x for x in g.selection if x not in same] or [e])
+                else:
+                    g.set_selection(same)
+                audio.play("click")
                 return True
         return True
 
@@ -732,7 +742,8 @@ class HUD:
              (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll"))],
             [(f"Sound: {'On' if settings.sound else 'Off'}", lambda: settings.toggle("sound")),
              (f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives"))],
-            [(f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.game.app.toggle_fullscreen)],
+            [(f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.game.app.toggle_fullscreen),
+             (f"Health bars: {'Always' if settings.bars_always else 'When hurt'}", lambda: settings.toggle("bars_always"))],
         ]
 
     def show_pause(self):
@@ -761,6 +772,7 @@ class HUD:
             "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
             "Z or Alt+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
             "Tab — satellite view: the whole map on screen; Tab, Space or a minimap click brings you back",
+            "Click a portrait — keep only that kind · Shift+click — drop that kind · Ctrl+click — just the one",
             "Arrows / screen edge / middle-drag — pan · Wheel or +/− — zoom",
             "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
             "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

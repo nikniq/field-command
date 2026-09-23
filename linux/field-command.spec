@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.16.0
+Version:        1.17.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Sep 23 2026 Field Command Developers <noreply@example.invalid> - 1.17.0-1
+- Click a portrait to keep only that kind of a mixed selection (Shift+click drops it, Ctrl+click picks one)
+- Control-group numbers ride on the units; leaving to the menu autosaves; health bars can be always on
+
 * Wed Sep 23 2026 Field Command Developers <noreply@example.invalid> - 1.16.0-1
 - The campaign: five missions in order — First Light, Hold the Line, The Gold Run, Crossfire, The Long
   March — with survive and hold-the-point objectives, unlocking as they are won

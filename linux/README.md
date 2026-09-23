@@ -321,11 +321,12 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 | Camera | Arrows, screen edges, middle-drag, minimap; wheel or +/− to zoom; Space jumps to alerts |
 | Pause & settings / help | P or Esc / H or F1 (online: the game keeps running) |
 | Attack point / help point for allies | Z then click (or Alt+click) / Shift+Z then click, map or minimap |
+| Refine a mixed selection | Click a portrait: keep only that kind · Shift+click: drop that kind · Ctrl+click: just the one |
 | Quick save / quick load (single player) | F5 / F9 |
 | Chat (multiplayer) | Enter |
 | Fullscreen | F11 or Alt+Enter |
 
-Settings (game speed, edge scrolling, sound, objectives, fullscreen) are saved to
+Settings (game speed, edge scrolling, sound, objectives, fullscreen, health bars always on) are saved to
 `~/.config/fieldcommand/settings.json`.
 
 ## Gold deposits
@@ -348,7 +349,8 @@ push, a defence or a bridge.
 
 ## Saving and loading
 
-Single-player games can be saved and resumed: **F5** quick-saves and **F9** loads it back, the pause menu
+Leaving a single-player game for the main menu writes an autosave first, so **Load Game (L)** on the title
+screen picks up where you left off. Single-player games can be saved and resumed: **F5** quick-saves and **F9** loads it back, the pause menu
 (**P**) has *Save Game* and *Load Game*, and the title screen's **Load Game (L)** button resumes the newest
 save. The game also autosaves every five minutes. Multiplayer games cannot be saved (the server owns them).
 

@@ -24,6 +24,12 @@ enum Settings {
         set { d.set(newValue, forKey: "sound") }
     }
 
+    /// Health bars on everything friendly, not only the hurt and the selected.
+    static var barsAlways: Bool {
+        get { d.object(forKey: "barsAlways") as? Bool ?? false }
+        set { d.set(newValue, forKey: "barsAlways") }
+    }
+
     static var objectives: Bool {
         get { d.object(forKey: "objectives") as? Bool ?? true }
         set { d.set(newValue, forKey: "objectives") }

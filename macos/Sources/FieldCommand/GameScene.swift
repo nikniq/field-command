@@ -819,8 +819,21 @@ final class GameScene: SKScene {
         view?.presentScene(GameScene(size: size, difficulty: difficulty), transition: .fade(withDuration: 0.5))
     }
 
+    /// Every unit shows the number of the control group it is in (the last group assigned wins a tie).
+    func refreshGroupBadges() {
+        var of: [ObjectIdentifier: Int] = [:]
+        for (n, es) in controlGroups.sorted(by: { $0.key < $1.key }) { for e in es where e is Unit { of[ObjectIdentifier(e)] = n } }
+        for u in units { u.setGroup(of[ObjectIdentifier(u)]) }
+    }
+
+    func refreshBars() {
+        for u in units { u.updateHPBar() }
+        for b in buildings { b.updateHPBar() }
+    }
+
     func toMenu() {
         NSCursor.arrow.set()
+        if canSave && !gameOver, let w = GameServer.hosted?.simulation { try? SaveGame.write(w, name: "autosave", label: "Autosave") }
         leaveNetGame()
         view?.presentScene(MenuScene(size: size), transition: .fade(withDuration: 0.5))
     }
@@ -1194,6 +1207,7 @@ final class GameScene: SKScene {
             if mods.contains(.control) || mods.contains(.command) {
                 let own = selection.filter { $0.team.isLocal }
                 controlGroups[d] = own
+                refreshGroupBadges()
                 hud.flash("Group \(d) assigned (\(own.count))", color: Palette.text)
             } else if let g = controlGroups[d], !g.isEmpty {
                 setSelection(g)

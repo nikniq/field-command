@@ -409,6 +409,20 @@ def watchtower(team):
     return texture(("watchtower", team), (84, 84), d)
 
 
+def group_badge(n):
+    """A small dark plate with the control group's number, drawn beside a unit that is in one."""
+    def d(c):
+        plate = rr(-7, -7, 14, 14, 3)
+        fill(c, plate, rgb(0.05, 0.06, 0.08, 0.85))
+        stroke(c, plate, alpha(WHITE, 0.55), 1)
+        # A seven-segment style digit keeps the badge font-free and crisp at any zoom
+        segs = {0: "abcdef", 1: "bc", 2: "abged", 3: "abgcd", 4: "fgbc", 5: "afgcd", 6: "afgedc", 7: "abc", 8: "abcdefg", 9: "abfgcd"}
+        pts = {"a": ((-3, -4.5), (3, -4.5)), "b": ((3, -4.5), (3, 0)), "c": ((3, 0), (3, 4.5)), "d": ((-3, 4.5), (3, 4.5)),
+               "e": ((-3, 0), (-3, 4.5)), "f": ((-3, -4.5), (-3, 0)), "g": ((-3, 0), (3, 0))}
+        lines(c, [pts[k] for k in segs.get(n % 10, "")], rgb(1, 0.85, 0.4), 1.6)
+    return texture(("gbadge", n), (16, 16), d)
+
+
 def chevrons(rank, team):
     """Rank marks drawn above a veteran: one, two or three small chevrons in the owner's light colour."""
     col = TEAM_LIGHT[team]

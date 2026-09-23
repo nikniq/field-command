@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.16.0 Mac and a 1.16.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.17.0 Mac and a 1.17.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -175,7 +175,7 @@ Same rules as the Linux edition (`FC_PINGTEST`).
 
 ## Saving and loading
 
-**F5** quick-saves a single-player game and **F9** loads it back; the pause menu has *Save Game* and *Load
+Leaving a game for the main menu autosaves first, so Load Game continues it. **F5** quick-saves a single-player game and **F9** loads it back; the pause menu has *Save Game* and *Load
 Game*, the title screen's **Load Game (L)** resumes the newest save, and the game autosaves every five
 minutes. Saves are the same JSON document the Linux edition writes, kept in `~/Library/Application
 Support/FieldCommand/saves/`, so a game saved on either platform loads on the other (`FC_SAVETEST` loads a
