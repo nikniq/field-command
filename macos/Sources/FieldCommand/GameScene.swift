@@ -569,6 +569,13 @@ final class GameScene: SKScene {
         entityLayer.addChild(b)
     }
 
+    /// Far to near: what is lower on screen is nearer the camera and draws over what stands behind it.
+    func sortByDepth() {
+        let k = 1 / max(1, worldSize.height)
+        for u in units { u.zPosition = 3 + (1 - u.position.y * k) * 0.9 }
+        for b in buildings { b.zPosition = 2 + (1 - b.position.y * k) * 0.9 }
+    }
+
     func addCrystal(_ c: Crystal) {
         crystals.append(c)
         entityLayer.addChild(c)
@@ -577,6 +584,8 @@ final class GameScene: SKScene {
     // MARK: - Main loop
 
     override func update(_ currentTime: TimeInterval) {
+        if cam.yScale == cam.xScale { setZoom(cam.xScale) }      // the tilt, applied once the camera exists
+        sortByDepth()
         if satellite { updateSatelliteMarkers() }
         cloudLayer.position = CGPoint(x: (elapsed * 22).truncatingRemainder(dividingBy: 1024) - 1024,
                                       y: (elapsed * 9).truncatingRemainder(dividingBy: 1024) - 1024)
@@ -951,10 +960,10 @@ final class GameScene: SKScene {
 
     func clampCamera() {
         if satellite { return }              // parked over the whole map
-        let s = cam.xScale
-        let hw = size.width * s / 2, hh = size.height * s / 2
+        let s = cam.xScale, sy = cam.yScale
+        let hw = size.width * s / 2, hh = size.height * sy / 2
         let minX = hw - 80, maxX = worldSize.width - hw + 80
-        let minY = hh - HUD.panelHeight * s - 40, maxY = worldSize.height - hh + HUD.topHeight * s + 40
+        let minY = hh - HUD.panelHeight * sy - 40, maxY = worldSize.height - hh + HUD.topHeight * sy + 40
         cam.position.x = minX > maxX ? worldSize.width / 2 : clamp(cam.position.x, minX, maxX)
         cam.position.y = minY > maxY ? worldSize.height / 2 : clamp(cam.position.y, minY, maxY)
     }
@@ -963,7 +972,7 @@ final class GameScene: SKScene {
         if satellite {
             satellite = false
             satelliteSaved = nil
-            cam.setScale(1)
+            setZoom(1)
             clearSatelliteMarkers()
         }
         // Offset so the point sits in the middle of the area above the HUD panel.
@@ -977,7 +986,7 @@ final class GameScene: SKScene {
     func toggleSatellite() {
         if satellite {
             satellite = false
-            if let (p, s) = satelliteSaved { cam.position = p; cam.setScale(s) }
+            if let (p, s) = satelliteSaved { cam.position = p; setZoom(s) }
             satelliteSaved = nil
             clampCamera()
             clearSatelliteMarkers()
@@ -985,9 +994,9 @@ final class GameScene: SKScene {
         }
         satelliteSaved = (cam.position, cam.xScale)
         satellite = true
-        let s = max(worldSize.width / size.width, worldSize.height / max(1, size.height - HUD.panelHeight - HUD.topHeight)) * 1.03
-        cam.setScale(s)
-        cam.position = CGPoint(x: worldSize.width / 2, y: worldSize.height / 2 - (HUD.panelHeight - HUD.topHeight) * s / 2)
+        let s = max(worldSize.width / size.width, worldSize.height / tilt / max(1, size.height - HUD.panelHeight - HUD.topHeight)) * 1.03
+        setZoom(s)
+        cam.position = CGPoint(x: worldSize.width / 2, y: worldSize.height / 2 - (HUD.panelHeight - HUD.topHeight) * s / tilt / 2)
         hud.flash("Satellite view: Tab returns to the ground", color: Palette.text)
         hud.selectionChanged()
     }
@@ -1027,6 +1036,12 @@ final class GameScene: SKScene {
         }
     }
 
+    /// The camera's zoom, with the tilt applied: x at the zoom, y stretched so the world is foreshortened.
+    func setZoom(_ s: CGFloat) {
+        cam.xScale = s
+        cam.yScale = s / tilt
+    }
+
     func zoom(by f: CGFloat, anchor: CGPoint? = nil) {
         if satellite {
             if f < 1 { toggleSatellite() }      // zooming in from orbit brings you back down where you were
@@ -1036,14 +1051,14 @@ final class GameScene: SKScene {
         let s = clamp(old * f, 0.55, 1.9)
         guard abs(s - old) > 0.0001 else { return }
         if let a = anchor { cam.position = a + (cam.position - a) * (s / old) }
-        cam.setScale(s)
+        setZoom(s)
         clampCamera()
     }
 
     func visibleWorldRect() -> CGRect {
-        let s = cam.xScale
-        return CGRect(x: cam.position.x - size.width * s / 2, y: cam.position.y - size.height * s / 2,
-                      width: size.width * s, height: size.height * s)
+        let s = cam.xScale, sy = cam.yScale
+        return CGRect(x: cam.position.x - size.width * s / 2, y: cam.position.y - size.height * sy / 2,
+                      width: size.width * s, height: size.height * sy)
     }
 
     func jumpCamera() {

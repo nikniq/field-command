@@ -1287,10 +1287,10 @@ class SpriteCache:
         self.limit = limit
         self.items = OrderedDict()
 
-    def get(self, key, base, angle_deg, scale, tint=None, fade=255):
+    def get(self, key, base, angle_deg, scale, tint=None, fade=255, squash=1.0):
         a = int(round(angle_deg / 5.0)) % 72
         s = round(scale * 40) / 40
-        k = (key, a, s, tint, fade)
+        k = (key, a, s, tint, fade, round(squash, 3))
         surf = self.items.get(k)
         if surf is not None:
             self.items.move_to_end(k)
@@ -1309,6 +1309,9 @@ class SpriteCache:
             surf = pygame.transform.smoothscale(base, (max(1, int(w * s)), max(1, int(h * s))))
         else:
             surf = pygame.transform.rotozoom(base, a * 5.0, s)
+        if abs(squash - 1) > 1e-3:
+            # Ground-flat images (clouds, decals) foreshorten with the tilt
+            surf = pygame.transform.smoothscale(surf, (surf.get_width(), max(1, int(surf.get_height() * squash))))
         if fade < 255:
             surf = surf.copy()
             surf.set_alpha(fade)

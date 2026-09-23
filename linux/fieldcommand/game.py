@@ -33,6 +33,11 @@ class CommandButton:
         self.enabled, self.tip, self.action = enabled, tip, action
 
 
+# The tilt: the camera looks down at an angle, so the world's north-south axis is foreshortened on screen by
+# this factor. Everything positioned through the camera picks it up; buildings show their walls below.
+TILT = 0.8
+
+
 class Camera:
     def __init__(self, w, h):
         self.w, self.h = w, h
@@ -41,13 +46,13 @@ class Camera:
         self.sx = self.sy = 0.0  # shake offset
 
     def to_screen(self, x, y):
-        return ((x - self.x - self.sx) / self.zoom + self.w / 2, self.h / 2 - (y - self.y - self.sy) / self.zoom)
+        return ((x - self.x - self.sx) / self.zoom + self.w / 2, self.h / 2 - (y - self.y - self.sy) * TILT / self.zoom)
 
     def to_world(self, px, py):
-        return (self.x + self.sx + (px - self.w / 2) * self.zoom, self.y + self.sy - (py - self.h / 2) * self.zoom)
+        return (self.x + self.sx + (px - self.w / 2) * self.zoom, self.y + self.sy - (py - self.h / 2) * self.zoom / TILT)
 
     def view_rect(self):
-        hw, hh = self.w * self.zoom / 2, self.h * self.zoom / 2
+        hw, hh = self.w * self.zoom / 2, self.h * self.zoom / TILT / 2
         cx, cy = self.x + self.sx, self.y + self.sy
         return (cx - hw, cy - hh, cx + hw, cy + hh)
 
@@ -507,7 +512,7 @@ class GameScene:
         """Cloud shadows drifting over everything on the ground (the fog goes on above them)."""
         cam = self.cam
         z = cam.zoom
-        tile = art.sprites.get("clouds", self.clouds, 0, 1 / z)
+        tile = art.sprites.get("clouds", self.clouds, 0, 1 / z, squash=TILT)
         tw = max(1, tile.get_width())
         ox = (self.elapsed * 22) % 1024
         oy = (self.elapsed * 9) % 1024
@@ -1444,10 +1449,12 @@ class GameScene:
                 base = art._cache.setdefault(("crystal_flip", c.variant), pygame.transform.flip(base, True, False))
             img = art.sprites.get(("crystal", c.variant, c.flip), base, 0, ts * c.scale)
             screen.blit(img, (sx - img.get_width() / 2, sy - 6 * c.scale / z - img.get_height() / 2))
-        for b in buildings:
-            self._draw_building(screen, b, ts)
-        for u in units:
-            self._draw_unit(screen, u, ts)
+        # Far to near: what is lower on screen is nearer the camera and draws last, over what stands behind it.
+        for e in sorted(buildings + units, key=lambda e: -e.y):
+            if e.is_building:
+                self._draw_building(screen, e, ts)
+            else:
+                self._draw_unit(screen, e, ts)
         for (x, y, r, var, ang, sc) in self.obstacles:
             if visible(x, y):
                 img = art.sprites.get(("tree", var), art.tree(var), ang, ts * sc)
@@ -1485,7 +1492,7 @@ class GameScene:
         if iw <= 0 or ih <= 0:
             return
         sx, sy = cam.to_screen(ix0, defs.WORLD_H - iy0)
-        tw, th = int(round(iw / cam.zoom)), int(round(ih / cam.zoom))
+        tw, th = int(round(iw / cam.zoom)), int(round(ih * TILT / cam.zoom))
         key = (ix0, iy0, iw, ih, tw, th)
         if key != self._ground_key:
             sub = self.ground.subsurface((ix0, iy0, iw, ih))
@@ -1569,6 +1576,14 @@ class GameScene:
         screen.blit(sh, (sx + 8 / z - sh.get_width() / 2, sy + 10 / z - sh.get_height() / 2))
         fade = 255 if b.built else int(90 + 140 * b.progress) // 16 * 16
         img = art.sprites.get(("bld", b.kind, b.team), art.building(b.kind, b.team), 0, ts, fade=fade)
+        # The walls: the tilt shows a building's height as dark slices of its own outline stacked below the roof.
+        if b.built:
+            wall_h = b.half * (0.28 if b.kind in ("turret", "artillery", "shield") else 0.45) * TILT / z
+            slices = max(2, int(wall_h / 3))
+            wall = art.sprites.get(("bldwall", b.kind, b.team), art.building(b.kind, b.team), 0, ts, tint=(14, 16, 20, 200), fade=235)
+            for i in range(slices, 0, -1):
+                dy = wall_h * i / slices
+                screen.blit(wall, (sx + dy * 0.18 - wall.get_width() / 2, sy + dy - wall.get_height() / 2))
         screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
         if getattr(b, "_flash", 0.0) > 0:
             hit = art.sprites.get(("bld", b.kind, b.team), art.building(b.kind, b.team), 0, ts, fade=110)

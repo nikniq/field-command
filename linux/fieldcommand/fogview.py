@@ -46,8 +46,9 @@ class FogView:
         if cx0 >= cx1 or cy0 >= cy1:
             return
         sub = self.surface.subsurface((cx0, self.rows - cy1, cx1 - cx0, cy1 - cy0))
+        from .game import TILT
         w = int(round((cx1 - cx0) * c / cam.zoom))
-        h = int(round((cy1 - cy0) * c / cam.zoom))
+        h = int(round((cy1 - cy0) * c * TILT / cam.zoom))
         img = pygame.transform.smoothscale(sub, (max(1, w), max(1, h)))
         sx, sy = cam.to_screen(cx0 * c, cy1 * c)
         screen.blit(img, (int(sx), int(sy)))

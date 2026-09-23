@@ -376,7 +376,10 @@ with a beacon glow; computer players send a trooper for any they can see near ho
 
 ## The look
 
-Everything is drawn procedurally at launch — there are no image files — and the scene is lit as one place:
+The camera looks down at an angle, not straight down: the ground is foreshortened north to south, every
+building stands on dark walls that show its height, and whatever is nearer the camera draws over what is
+behind it. The simulation is untouched by this — it is the same flat world seen from a tilt — so nothing on
+the wire or in a save changes. Everything is drawn procedurally at launch — there are no image files — and the scene is lit as one place:
 a sun from the upper left brightens that corner of every map and cools the far one, low-frequency biome
 tints break the grass into straw, forest floor and scrub, cloud shadows drift across the ground, roads carry
 wheel ruts, and the ground under a stand of trees is darker than open grass. Combat leaves marks: craters

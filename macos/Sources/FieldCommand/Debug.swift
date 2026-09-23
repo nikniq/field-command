@@ -479,8 +479,14 @@ enum Debug {
         run(crateFirst + 1)
         check(w.crates.count == 1, "the first crate drops at \(Int(crateFirst))s")
         if let c = w.crates.first {
-            let clear = !w.nav.isBlocked(Int(c.x / 40), Int(c.y / 40))
-                && !w.buildings.contains { (($0.x - c.x) * ($0.x - c.x) + ($0.y - c.y) * ($0.y - c.y)).squareRoot() < 600 }
+            // Spelled out in steps: one long expression here defeats older compilers' type checker.
+            let openGround = !w.nav.isBlocked(Int(c.x / 40), Int(c.y / 40))
+            func near(_ b: SBuilding) -> Bool {
+                let dx: Double = b.x - c.x
+                let dy: Double = b.y - c.y
+                return (dx * dx + dy * dy).squareRoot() < 600
+            }
+            let clear = openGround && !w.buildings.contains(where: near)
             check(clear, "on open ground away from every base")
         }
         let cash = w.dropCrate(kind: "crystal")!

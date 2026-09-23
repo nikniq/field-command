@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.17.0"
+let appVersion = "1.18.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -336,6 +336,10 @@ let campaign: [Mission] = [
             brief: "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up."),
 ]
 func missionNamed(_ id: String?) -> Mission? { id.flatMap { i in campaign.first { $0.id == i } } }
+
+// The tilt: the camera looks down at an angle, so the world's north-south axis is foreshortened on screen
+// by this factor (the camera's y scale is the zoom divided by it). Buildings show their walls below.
+let tilt: CGFloat = 0.8
 
 // Every side starts with this much crystal in the bank.
 let startCrystal = 2000

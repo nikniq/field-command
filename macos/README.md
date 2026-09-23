@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.17.0 Mac and a 1.17.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.18.0 Mac and a 1.18.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -183,7 +183,9 @@ Linux-written save and plays it on).
 
 ## The look
 
-The same procedural scene as the Linux edition: a sun from the upper left with biome tints (a multiply layer
+The camera is tilted (its y scale is the zoom over the tilt), buildings stand on walls of their own
+outline, and entities are depth-sorted by their y each frame. Otherwise the same procedural scene as the
+Linux edition: a sun from the upper left with biome tints (a multiply layer
 over the ground), drifting cloud shadows, wheel ruts along roads, pebbles, darker forest floors, craters that
 stay, wrecks and the fallen, and a white flash on anything hit.
 

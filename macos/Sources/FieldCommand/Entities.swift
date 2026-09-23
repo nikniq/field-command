@@ -734,6 +734,7 @@ final class Building: Entity {
     private(set) var upgrading: UpgradeKind?
     private(set) var upgradeProgress: CGFloat = 0
     let body: SKSpriteNode
+    private var walls: [SKSpriteNode] = []
     var gun: SKSpriteNode?
     private var scaffold: SKSpriteNode?
     private var chimneys: [SKEmitterNode] = []
@@ -764,6 +765,21 @@ final class Building: Entity {
         zPosition = 2
         addShadow(size: CGSize(width: h * 2.6, height: h * 2.6), offset: CGPoint(x: 8, y: -10))
         body.size = Art.buildingCanvas(kind)
+        // The walls: the tilt shows a building's height as dark slices of its own outline stacked below the roof.
+        let wallH = h * (kind == .turret || kind == .artillery || kind == .shield ? 0.28 : 0.45) * tilt
+        let slices = max(2, Int(wallH / 3))
+        for i in stride(from: slices, through: 1, by: -1) {
+            let dy = wallH * CGFloat(i) / CGFloat(slices)
+            let w = SKSpriteNode(texture: body.texture)
+            w.size = body.size
+            w.color = .rgb(0.055, 0.063, 0.08)
+            w.colorBlendFactor = 0.82
+            w.alpha = 0.92
+            w.position = CGPoint(x: dy * 0.18, y: -dy)
+            w.zPosition = -0.3
+            addChild(w)
+            walls.append(w)
+        }
         addChild(body)
 
         switch kind {
