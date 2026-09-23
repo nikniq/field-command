@@ -376,6 +376,15 @@ final class HUD: SKNode {
         Objective(text: "Destroy every enemy building") { _ in false },
     ]
 
+    /// The mission's own objective, with its clock where it has one.
+    func missionRow() -> String? {
+        guard let m = game.net?.mission else { return nil }
+        if m.win == "destroy" { return "\(m.title): destroy every enemy building" }
+        let left = max(0, Int(m.seconds) - (game.net?.missionProgress ?? 0))
+        let verb = m.win == "survive" ? "survive" : "hold the gold"
+        return "\(m.title): \(verb) — \(left / 60):\(String(format: "%02d", left % 60)) to go"
+    }
+
     private func rebuildObjectives() {
         objectivesLayer.removeAllChildren()
         if let net = game.net {
@@ -384,6 +393,7 @@ final class HUD: SKNode {
         }
         guard Settings.objectives, !overlayVisible else { return }
         var rows: [(String, Bool)] = []
+        if let mr = missionRow() { rows.append((mr, false)) }
         for (i, o) in objectives.enumerated() {
             let done = o.done(game)
             if done && objectiveDone[i] == nil {
@@ -982,14 +992,20 @@ final class HUD: SKNode {
         let g = game
         present { [unowned self] in
             let online = g.isMultiplayer
+            let mission = g.net?.mission
+            var rows: [[(String, () -> Void)]] = [[(online ? "Back to Lobby" : "Play Again", { [unowned self] in self.game.restart() }),
+                                                    ("Main Menu", { [unowned self] in self.game.toMenu() })]]
+            if let m = mission, won, let i = campaign.firstIndex(where: { $0.id == m.id }), i + 1 < campaign.count {
+                rows = [[("Next Mission", { [unowned self] in self.game.nextMission() })] + rows[0]]
+            }
             self.drawOverlay(
-                title: won ? "VICTORY" : "DEFEAT",
+                title: mission != nil ? (won ? "MISSION COMPLETE" : "MISSION FAILED") : (won ? "VICTORY" : "DEFEAT"),
                 color: won ? Palette.good : Palette.bad,
-                subtitle: won ? (online ? "Your team is victorious." : "The enemy base has fallen.")
-                              : (online ? "Your forces have been defeated." : "Your base has been overrun."),
+                subtitle: mission.map { "\($0.title) — " + (won ? "well fought." : "the field is lost.") }
+                    ?? (won ? (online ? "Your team is victorious." : "The enemy base has fallen.")
+                            : (online ? "Your forces have been defeated." : "Your base has been overrun.")),
                 lines: g.endStatsLines() + [online ? "Return — back to lobby · Esc — main menu" : "Return — play again · Esc — main menu"],
-                rows: [[(online ? "Back to Lobby" : "Play Again", { [unowned self] in self.game.restart() }),
-                        ("Main Menu", { [unowned self] in self.game.toMenu() })]])
+                rows: rows)
         }
     }
 

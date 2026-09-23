@@ -403,6 +403,59 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_CAMPAIGNTEST=1: the mission rules — survive wins when the clock runs out, hold counts only while the
+    /// ring is yours and clear, progress and the mission travel in snapshots and saves.
+    static func runCampaignTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func world(_ id: String) -> (SWorld, Mission) {
+            let m = missionNamed(id)!
+            let spec = SMapGen.resolve(m.map, players: 1 + m.opponents)
+            let ps = (0..<(1 + m.opponents)).map { SPlayer(slot: $0, name: "P\($0)", team: m.teams >= 2 ? $0 % m.teams + 1 : $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: spec, players: ps, difficulty: Difficulty(rawValue: m.difficulty) ?? .normal)
+            w.mission = m
+            for u in w.units { u.command(.idle) }
+            return (w, m)
+        }
+        func run(_ w: SWorld, _ seconds: Double, until: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if until() { return true } }
+            return until()
+        }
+        check(campaign.count == 5 && Set(campaign.map { $0.id }).count == 5, "five missions with distinct ids")
+        check(campaign.allSatisfy { (SMapGen.info($0.map)?.players ?? 0) >= 1 + $0.opponents && (($0.win == "hold") == ($0.hold != nil)) }, "each on a map that fits it")
+        do {
+            let (w, m) = world("hold_the_line")
+            w.elapsed = m.seconds - 2
+            check(run(w, 4) { w.gameOver } && w.winnerTeam == w.players[0]!.team, "survive is won when the clock runs out and you still stand")
+        }
+        do {
+            let (w, m) = world("gold_run")
+            let (hx, hy, hr) = m.hold!
+            check(w.crystals.contains { $0.variant == 3 && abs($0.x - hx) < hr && abs($0.y - hy) < hr }, "the gold is inside the hold ring")
+            let r = SUnit(world: w, kind: .marine, team: 0, x: hx, y: hy); w.add(r); r.command(.idle)
+            _ = run(w, 3)
+            check(w.missionTimer > 2.5 && w.missionTimer < 3.5, "holding the ring runs the clock")
+            let foe = SUnit(world: w, kind: .marine, team: 1, x: hx + 40, y: hy); w.add(foe); foe.command(.idle)
+            r.hp = 9999
+            _ = run(w, 0.5)
+            check(w.missionTimer == 0, "an enemy in the ring resets it")
+            foe.takeDamage(99999, from: nil)
+            w.missionTimer = m.seconds - 1
+            check(run(w, 3) { w.gameOver } && w.winnerTeam == w.players[0]!.team, "and the hold is won once the count is full")
+        }
+        do {
+            let (w, _) = world("hold_the_line")
+            w.elapsed = 100
+            check(Int(w.missionProgress()) == 100, "progress is the clock for a survive mission")
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            check(w2.mission?.id == "hold_the_line", "the mission survives a save")
+        }
+        print(ok ? "CAMPAIGN TEST PASSED" : "CAMPAIGN TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_CRATETEST=1: supply crates drop on open ground, are collected by the first unit to reach them, give
     /// crystal or troops to that side, expire, and survive a save.
     static func runCrateTest() -> Never {

@@ -5,7 +5,7 @@ import random
 import pygame
 
 from . import __version__, art, audio, mapgen, ui
-from .defs import AMBER, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, PLAYER, TEXT, to255
+from .defs import AMBER, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, GOOD, PLAYER, TEXT, to255
 from .effects import Effects
 from .game import Camera, GameScene
 from .session import LocalSession, lineup_text
@@ -20,6 +20,8 @@ class MenuScene:
         self._boom = 0.0
         self.cards = []
         self.toggles = []
+        self.campaign_open = False
+        self.campaign_rows = []      # (rect, Mission) for the missions that can be started
         w, h = app.screen.get_size()
         self.resize(w, h)
 
@@ -60,7 +62,20 @@ class MenuScene:
         self.shade = shade
 
     def handle_event(self, e):
+        if self.campaign_open:
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                for r, m in self.campaign_rows:
+                    if r.collidepoint(e.pos):
+                        self.start_mission(m)
+                        return
+            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_c, pygame.K_ESCAPE):
+                self.campaign_open = False
+            return
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+            cp = getattr(self, "toggles_campaign", None)
+            if cp and cp[0].collidepoint(e.pos):
+                cp[1]()
+                return
             for r, d in self.cards:
                 if r.collidepoint(e.pos):
                     self.start(d)
@@ -89,6 +104,8 @@ class MenuScene:
                 self.start(DIFFICULTIES[settings.last_difficulty % 3])
             elif e.key == pygame.K_m:
                 self.multiplayer()
+            elif e.key == pygame.K_c:
+                self.toggle_campaign()
             elif e.key == pygame.K_l:
                 self.load_latest()
             elif e.key == pygame.K_ESCAPE:
@@ -100,6 +117,52 @@ class MenuScene:
         session = LocalSession(d, autoplay=self.app.autoplay, map_id=settings.map_id,
                                opponents=min(settings.opponents, settings.max_opponents), teams=settings.team_count)
         self.app.set_scene(GameScene(self.app, session))
+
+    def toggle_campaign(self):
+        audio.play("click")
+        self.campaign_open = not self.campaign_open
+
+    def start_mission(self, m):
+        from .defs import DIFFICULTIES
+        audio.play("click")
+        session = LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay, map_id=m.map,
+                               opponents=m.opponents, teams=m.teams, mission=m.id)
+        self.app.set_scene(GameScene(self.app, session))
+
+    def _draw_campaign(self, screen, mouse):
+        """The mission list: each unlocks the next; done ones are ticked."""
+        from .defs import CAMPAIGN, DIFFICULTIES
+        w, h = self.w, self.h
+        done = list(settings.campaign_done)
+        dim = pygame.Surface((w, h), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 150))
+        screen.blit(dim, (0, 0))
+        box_w, row_h = min(w - 40, 640), 78
+        box_h = 120 + row_h * len(CAMPAIGN) + 60
+        bx, by = (w - box_w) // 2, max(10, (h - box_h) // 2)
+        screen.blit(art.panel(box_w, box_h, 16, GOOD), (bx, by))
+        ui.blit_text(screen, "CAMPAIGN", 36, GOOD, (w / 2, by + 44), align="center", bold=True)
+        ui.blit_text(screen, "Five missions, played in order. Each unlocks the next.", 13, TEXT, (w / 2, by + 78), align="center", bold=True)
+        self.campaign_rows = []
+        y = by + 118
+        for i, m in enumerate(CAMPAIGN):
+            unlocked = i == 0 or CAMPAIGN[i - 1].id in done
+            finished = m.id in done
+            r = pygame.Rect(bx + 20, int(y), box_w - 40, row_h - 8)
+            hover = mouse is not None and r.collidepoint(mouse) and unlocked
+            state = "disabled" if not unlocked else ("hover" if hover else ("active" if finished else "normal"))
+            screen.blit(art.button(r.w, r.h, state, GOOD if finished else AMBER), r.topleft)
+            head = f"{i + 1}. {m.title}" + ("  ✓" if finished else ("" if unlocked else "  — locked"))
+            ui.blit_text(screen, head, 16, TEXT if unlocked else DIM, (r.x + 16, r.y + 20), bold=True)
+            meta = mapgen.BY_ID.get(m.map, {"name": m.map})["name"]
+            ui.blit_text(screen, f"{meta} · {m.opponents} opponent{'s' if m.opponents != 1 else ''} · {DIFFICULTIES[m.difficulty].name}",
+                         11, DIM, (r.right - 16, r.y + 20), align="right")
+            for j, line in enumerate(ui.wrap(m.brief, 12, r.w - 32)[:2]):
+                ui.blit_text(screen, line, 12, TEXT if unlocked else DIM, (r.x + 16, r.y + 42 + j * 15))
+            if unlocked:
+                self.campaign_rows.append((r, m))
+            y += row_h
+        ui.blit_text(screen, "Click a mission to deploy · C or Esc closes", 12, DIM, (w / 2, by + box_h - 28), align="center")
 
     def _latest_save(self):
         from .save import list_saves
@@ -198,13 +261,22 @@ class MenuScene:
                 ui.blit_text(screen, "LAST PLAYED", 9, AMBER, (r.right - 12, r.y + 16), align="right", bold=True)
             self.cards.append((r, d))
 
-        mr = pygame.Rect(int(w / 2 - 160), int(cy + ch / 2 + 22), 320, 44)
+        # Campaign, Multiplayer and Load Game in a row under the difficulty cards.
+        from .defs import CAMPAIGN
+        kr = pygame.Rect(int(w / 2 - 380), int(cy + ch / 2 + 22), 230, 44)
+        hover = mouse is not None and kr.collidepoint(mouse)
+        screen.blit(art.button(kr.w, kr.h, "hover" if hover else "active", GOOD), kr.topleft)
+        ui.blit_text(screen, "CAMPAIGN  (C)", 16, TEXT, kr.center, align="center", bold=True)
+        ui.blit_text(screen, f"{len(settings.campaign_done)} of {len(CAMPAIGN)} missions done", 11, DIM,
+                     (kr.centerx, kr.bottom + 12), align="center")
+        self.toggles_campaign = (kr, self.toggle_campaign)
+        mr = pygame.Rect(int(w / 2 - 140), int(cy + ch / 2 + 22), 260, 44)
         hover = mouse is not None and mr.collidepoint(mouse)
         screen.blit(art.button(mr.w, mr.h, "hover" if hover else "active", AMBER), mr.topleft)
         ui.blit_text(screen, "MULTIPLAYER  (M)", 16, TEXT, mr.center, align="center", bold=True)
         self.toggles_mp = (mr, self.multiplayer)
         latest = self._latest_save()
-        lr = pygame.Rect(int(w / 2 + 170), int(cy + ch / 2 + 22), 190, 44)
+        lr = pygame.Rect(int(w / 2 + 130), int(cy + ch / 2 + 22), 250, 44)
         hover = mouse is not None and lr.collidepoint(mouse)
         screen.blit(art.button(lr.w, lr.h, "hover" if hover and latest else ("normal" if latest else "disabled")), lr.topleft)
         ui.blit_text(screen, "LOAD GAME  (L)", 14, TEXT if latest else DIM, lr.center, align="center", bold=True)
@@ -259,5 +331,7 @@ class MenuScene:
                  "Destroy every enemy building to win. Objectives on screen will guide your first minutes."]
         for i, l in enumerate(lines):
             ui.blit_text(screen, l, 14, TEXT, (w / 2, ty + 80 + i * 24), align="center")
-        ui.blit_text(screen, "1 / 2 / 3 or Enter to deploy  ·  M multiplayer  ·  F11 full screen  ·  Esc quit", 12, DIM, (w / 2, h - 26), align="center")
+        ui.blit_text(screen, "1 / 2 / 3 or Enter to deploy  ·  C campaign  ·  M multiplayer  ·  F11 full screen  ·  Esc quit", 12, DIM, (w / 2, h - 26), align="center")
+        if self.campaign_open:
+            self._draw_campaign(screen, mouse)
         ui.blit_text(screen, f"v{__version__}", 12, DIM, (w - 18, h - 26), align="right")

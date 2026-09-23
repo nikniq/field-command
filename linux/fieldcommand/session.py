@@ -10,7 +10,7 @@ import time
 
 from . import mapgen
 from . import defs
-from .defs import CRATE_KINDS, CRATE_RADIUS
+from .defs import CRATE_KINDS, CRATE_RADIUS, START_CRYSTAL
 from .defs import KIT_IDS
 from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, TOWER_HALF, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS,
@@ -75,6 +75,9 @@ class _Base:
     def army(self):
         return [u for u in self.units if u.team == self.slot and u.kind != "worker"]
 
+    def mission_progress(self):
+        return 0.0
+
     def crystal_at(self, x, y):
         for c in self.crystals:
             if not c.dead and math.hypot(c.x - x, c.y - y) < c.radius + 10:
@@ -117,7 +120,7 @@ class LocalSession(_Base):
     can_pause = True
 
     def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
-                 world=None):
+                 world=None, mission=None):
         self.difficulty = difficulty
         self.slot = slot
         if world is not None:
@@ -132,7 +135,7 @@ class LocalSession(_Base):
         if world is None and players is None:
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
-        self.world = world if world is not None else World(spec, players, difficulty)
+        self.world = world if world is not None else World(spec, players, difficulty, mission=mission)
         self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
@@ -161,6 +164,10 @@ class LocalSession(_Base):
     buildings = property(lambda self: self.world.buildings)
     crystals = property(lambda self: self.world.crystals)
     crates = property(lambda self: self.world.crates)
+    mission = property(lambda self: self.world.mission)
+
+    def mission_progress(self):
+        return self.world.mission_progress()
     bridges = property(lambda self: self.world.bridges)
     towers = property(lambda self: self.world.towers)
     kits = property(lambda self: self.world.kits[self.slot])
@@ -415,6 +422,7 @@ class NetSession(_Base):
         self.towers = []
         self._towers_by_id = {}
         self.crates = []
+        self.mission = None
         self.kits = set()
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
@@ -422,7 +430,7 @@ class NetSession(_Base):
         self.fog = FogGrid()
         self._fog_timer = 0.0
         self.elapsed = 0.0
-        self.resources = 250
+        self.resources = START_CRYSTAL
         self.supply_used, self.supply_cap = 0, 10
         self.game_over = False
         self.winner_team = None

@@ -224,9 +224,23 @@ class HUD:
                     self.flash("Objective complete: " + text.split(" —")[0], GOOD)
                     audio.play("pop")
 
+    def mission_row(self):
+        """The mission's own objective, with its clock where it has one."""
+        m = getattr(self.game.s, "mission", None)
+        if m is None:
+            return None
+        if m.win == "destroy":
+            return f"{m.title}: destroy every enemy building"
+        left = max(0, int(m.seconds - self.game.s.mission_progress()))
+        verb = "survive" if m.win == "survive" else "hold the gold"
+        return f"{m.title}: {verb} — {fmt_time(left)} to go"
+
     def _objective_rows(self):
         g = self.game
         rows = []
+        mr = self.mission_row()
+        if mr:
+            rows.append((mr, False))
         for i, (text, _done) in enumerate(self.OBJECTIVES):
             t = self.objective_done.get(i)
             if t is not None and g.elapsed - t > 4:
@@ -770,15 +784,25 @@ class HUD:
     def show_end(self, won):
         g = self.game
         lines = self._stats_lines()
+        mission = getattr(g.s, "mission", None)
         if g.s.can_pause:
             lines.append("Enter — play again · Esc — main menu")
             rows = [[("Play Again", g.restart), ("Main Menu", g.to_menu)]]
+            if mission and won:
+                from .defs import CAMPAIGN
+                i = [m.id for m in CAMPAIGN].index(mission.id)
+                if i + 1 < len(CAMPAIGN):
+                    rows = [[("Next Mission", g.next_mission), ("Play Again", g.restart), ("Main Menu", g.to_menu)]]
         else:
             lines.append("Enter — back to lobby · Esc — main menu")
             rows = [[("Back to Lobby", g.back_to_lobby), ("Main Menu", g.to_menu)]]
-        self.overlay = lambda: ("VICTORY" if won else "DEFEAT", GOOD if won else BAD,
-                                ("Your team is victorious." if not g.s.can_pause else "The enemy base has fallen.") if won
-                                else "Your forces have been defeated.", lines, rows)
+        if mission:
+            self.overlay = lambda: ("MISSION COMPLETE" if won else "MISSION FAILED", GOOD if won else BAD,
+                                    f"{mission.title} — " + ("well fought." if won else "the field is lost."), lines, rows)
+        else:
+            self.overlay = lambda: ("VICTORY" if won else "DEFEAT", GOOD if won else BAD,
+                                    ("Your team is victorious." if not g.s.can_pause else "The enemy base has fallen.") if won
+                                    else "Your forces have been defeated.", lines, rows)
 
     def show_eliminated(self):
         g = self.game

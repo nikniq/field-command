@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.15.0"
+let appVersion = "1.16.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -307,6 +307,39 @@ let bridgeRebuildTime: Double = 25
 // Repair: one Engineer restores a building's full health in `repairTime` seconds (more Engineers stack), and a
 // full bar costs `repairCostRatio` of the building's price, charged as the health goes back on. Engineers also
 // repair Siege Tanks, at the same rate and the same share of the tank's price.
+// The campaign: hand-authored missions played in order against the computer. `win` is "destroy" (the usual
+// rule), "survive" (be standing when `seconds` run out) or "hold" (keep the point at `hold` yours, with no
+// enemy unit inside the ring, for `seconds` in a row). Same list as the Linux edition's defs.CAMPAIGN.
+struct Mission {
+    let id: String
+    let title: String
+    let map: String
+    let opponents: Int
+    let difficulty: Int
+    let teams: Int
+    let win: String
+    let seconds: Double
+    let hold: (Double, Double, Double)?
+    let brief: String
+}
+
+let campaign: [Mission] = [
+    Mission(id: "first_light", title: "First Light", map: "twin_ridges", opponents: 1, difficulty: 0, teams: 0, win: "destroy", seconds: 0, hold: nil,
+            brief: "Mine, build, and take the enemy base. The computer goes easy on you — this once."),
+    Mission(id: "hold_the_line", title: "Hold the Line", map: "river_crossing", opponents: 1, difficulty: 2, teams: 0, win: "survive", seconds: 480, hold: nil,
+            brief: "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must."),
+    Mission(id: "gold_run", title: "The Gold Run", map: "highland_pass", opponents: 1, difficulty: 1, teams: 0, win: "hold", seconds: 180, hold: (2000, 1400, 260),
+            brief: "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring."),
+    Mission(id: "crossfire", title: "Crossfire", map: "four_corners", opponents: 3, difficulty: 1, teams: 2, win: "destroy", seconds: 0, hold: nil,
+            brief: "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight."),
+    Mission(id: "long_march", title: "The Long March", map: "long_march", opponents: 11, difficulty: 2, teams: 2, win: "destroy", seconds: 0, hold: nil,
+            brief: "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up."),
+]
+func missionNamed(_ id: String?) -> Mission? { id.flatMap { i in campaign.first { $0.id == i } } }
+
+// Every side starts with this much crystal in the bank.
+let startCrystal = 2000
+
 // Supply crates: one drops somewhere open every crateInterval seconds (at most crateMax on the field, each
 // gone after crateLife), and the first unit to reach one collects its gift for its side: crystal, a squad
 // of Rangers, or a Siege Tank. crateKinds is the wire order.

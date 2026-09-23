@@ -23,6 +23,7 @@ class _Settings:
                 "last_difficulty": 1, "fullscreen": False,
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
+                "campaign_done": [],   # mission ids completed, in any order
                 "ui_scale": 0}  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
 
     def __init__(self):

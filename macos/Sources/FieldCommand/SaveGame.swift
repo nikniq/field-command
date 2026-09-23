@@ -107,6 +107,7 @@ enum SaveGame {
             "bridges": w.bridges.map { ["id": $0.id, "intact": $0.intact, "hp": $0.hp, "progress": $0.progress] as [String: Any] },
             "crates": w.crates.map { ["id": $0.id, "x": $0.x, "y": $0.y, "kind": $0.kind, "amount": $0.amount, "born": $0.born] as [String: Any] },
             "next_crate": w.nextCrate,
+            "mission": w.mission.map { $0.id as Any } ?? NSNull(), "mission_timer": w.missionTimer,
             "towers": w.towers.map { ["id": $0.id, "owner": $0.owner.map { $0 as Any } ?? NSNull(),
                                       "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
             "reveals": reveals, "ai": ai, "fog": fogOut,
@@ -141,6 +142,8 @@ enum SaveGame {
                            amount: jInt(c["amount"]), born: Double(jNum(c["born"])))
         }
         if d["next_crate"] != nil { w.nextCrate = Double(jNum(d["next_crate"])) }
+        w.mission = missionNamed(d["mission"] as? String)
+        w.missionTimer = Double(jNum(d["mission_timer"]))
         for (s, live) in zip(jArr(d["towers"]).map({ jDict($0) }), w.towers) {
             live.owner = s["owner"] is NSNull || s["owner"] == nil ? nil : jInt(s["owner"])
             live.capturing = s["capturing"] is NSNull || s["capturing"] == nil ? nil : jInt(s["capturing"])

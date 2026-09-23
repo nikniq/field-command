@@ -288,9 +288,12 @@ final class NetSession {
     let map: [String: Any]
     let difficulty: Difficulty
     var players: [Int: NetPlayer] = [:]
-    var resources = 250
+    var resources = startCrystal
     /// Base64 fog bits from a resumed game, applied once the scene's fog exists.
     let explored: String?
+    /// The campaign mission this game is, if any, and the seconds run up toward its timed objective.
+    let mission: Mission?
+    var missionProgress = 0
     /// Kit bought from the Armory this match.
     var kits: Set<String> = []
     var supplyUsed = 0
@@ -318,6 +321,7 @@ final class NetSession {
         slot = jInt(start["slot"])
         map = jDict(start["map"])
         explored = start["explored"] as? String
+        mission = missionNamed(start["mission"] as? String)
         difficulty = Difficulty(rawValue: jInt(start["difficulty"])) ?? .normal
         for p in jArr(start["players"]) {
             let d = jDict(p)

@@ -88,6 +88,7 @@ extension GameScene {
         if let last = net.snapTime { net.interval = max(0.05, min(0.3, 0.8 * net.interval + 0.2 * (now - last))) }
         net.snapTime = now
         net.serverTime = jNum(m["time"])
+        net.missionProgress = jInt(m["ms"])
         net.resources = jInt(m["res"])
         let mask = jInt(m["kit"])
         let owned = Set(kitIds.enumerated().filter { mask & (1 << $0.offset) != 0 }.map { $0.element })
@@ -515,6 +516,12 @@ struct NetShell {
 /// Starts a single-player skirmish. The game runs on a private loopback server with the same simulation as
 /// multiplayer (maps, pathfinding, AI), so single player and multiplayer always behave the same. Falls back to
 /// the built-in SpriteKit simulation if the local server cannot be started.
+/// A campaign mission on a private server.
+func startMissionGame(_ view: SKView?, size: CGSize, mission m: Mission) {
+    startSkirmish(view, size: size, difficulty: Difficulty(rawValue: m.difficulty) ?? .normal, mapId: m.map,
+                  opponents: m.opponents, teams: m.teams, mission: m)
+}
+
 /// Resumes a saved single-player game on a private server, like `startSkirmish` but from a loaded world.
 func resumeSkirmish(_ view: SKView?, size: CGSize, world w: SWorld) {
     let alliances = Set(w.players.values.map { $0.team })
@@ -524,10 +531,11 @@ func resumeSkirmish(_ view: SKView?, size: CGSize, world w: SWorld) {
 }
 
 func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0,
-                   restoring: SWorld? = nil) {
+                   restoring: SWorld? = nil, mission: Mission? = nil) {
     func fallback() { showScene(view, GameScene(size: size, difficulty: difficulty), fade: 0.6) }
     stopHostedServer()
     let server = restoring.map { GameServer.singlePlayer(restoring: $0) }
+        ?? mission.map { GameServer.singlePlayer(mission: $0) }
         ?? GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
     server.log = { _ in }
     server.timeScale = Double(Settings.gameSpeed)

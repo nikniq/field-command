@@ -248,6 +248,9 @@ class GameScene:
             my_team = self.s.my_team()
             won = self.s.winner_team == my_team
             audio.play("victory" if won else "defeat")
+            mission = getattr(self.s, "mission", None)
+            if won and mission and mission.id not in settings.campaign_done:
+                settings.set("campaign_done", list(settings.campaign_done) + [mission.id])
             self.hud.show_end(won)
             self.app.game_ended(self, won)
         disc = getattr(self.s, "disconnected", None)
@@ -569,9 +572,30 @@ class GameScene:
         if self.online:
             self.back_to_lobby()
             return
+        mission = getattr(self.s, "mission", None)
+        if mission:
+            self.start_mission(mission)
+            return
         map_id, opponents, teams = getattr(self.s, "skirmish", (None, 1, 0))
         self.app.set_scene(GameScene(self.app, LocalSession(self.difficulty, autoplay=self.app.autoplay,
                                                             map_id=map_id, opponents=opponents, teams=teams)))
+
+    def start_mission(self, m):
+        from .defs import DIFFICULTIES
+        from .session import LocalSession
+        self.app.set_scene(GameScene(self.app, LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay,
+                                                            map_id=m.map, opponents=m.opponents, teams=m.teams,
+                                                            mission=m.id)))
+
+    def next_mission(self):
+        from .defs import CAMPAIGN
+        mission = getattr(self.s, "mission", None)
+        if not mission:
+            return
+        ids = [m.id for m in CAMPAIGN]
+        i = ids.index(mission.id)
+        if i + 1 < len(CAMPAIGN):
+            self.start_mission(CAMPAIGN[i + 1])
 
     def back_to_lobby(self):
         from .lobby import LobbyScene

@@ -211,6 +211,23 @@ it collapses are pushed clear onto the nearest bank.
 Computer players rebuild a crossing near their base when they have crystal to spare, so cutting a bridge buys
 time rather than winning outright.
 
+## The campaign
+
+**C** on the title screen (or the *Campaign* button) opens five missions played in order, each unlocking the
+next as it is won:
+
+| # | Mission | Map | Objective |
+| --- | --- | --- | --- |
+| 1 | First Light | Twin Ridges, one easy opponent | Destroy the enemy base |
+| 2 | Hold the Line | River Crossing, one hard opponent | Be standing after eight minutes |
+| 3 | The Gold Run | Highland Pass, one opponent | Hold the gold deposit for three minutes without an enemy in the ring |
+| 4 | Crossfire | Four Corners, you and an ally against two | Destroy both enemy bases |
+| 5 | The Long March | The Long March, twelve commanders in two teams | Destroy the other team |
+
+The mission's objective sits at the top of the objectives panel with its clock; a won mission shows *Mission
+complete* with a *Next Mission* button. Progress is kept in the settings file. Every side, in every mode,
+starts with 2000 crystal.
+
 ## Maps
 
 Seven maps ship with the game; pick one on the title screen (**Map:**) along with the number of computer

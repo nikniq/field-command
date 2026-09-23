@@ -69,6 +69,14 @@ final class GameServer {
 
     /// A private server for a single-player skirmish: slot 0 is the local player, followed by `opponents`
     /// computer players on their own teams. Listens on an ephemeral loopback port (see `port` after `start`).
+    /// A campaign mission on a private server: the mission's map, opponents, difficulty and teams.
+    static func singlePlayer(mission m: Mission) -> GameServer {
+        let s = singlePlayer(opponents: m.opponents, difficulty: m.difficulty, mapId: m.map, teams: m.teams)
+        s.mission = m
+        return s
+    }
+    var mission: Mission?
+
     /// A private server that resumes a saved single-player game.
     static func singlePlayer(restoring w: SWorld) -> GameServer {
         let s = GameServer(name: "Skirmish", port: 0)
@@ -459,8 +467,10 @@ final class GameServer {
                 SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team, isAI: s.kind == "ai", start: i)
             }
             w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal)
+            w.mission = mission
         }
         world = w
+        mission = w.mission
         pending = []
         state = "game"
         tick = 0
@@ -469,6 +479,7 @@ final class GameServer {
         for c in clients {
             guard let s = c.slot else { continue }
             var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals]
+            if let m = w.mission { msg["mission"] = m.id }
             // A resumed game: the client gets back the ground its side had explored.
             if w.elapsed > 0, let alliance = w.players[s]?.team, let g = w.fog[alliance] { msg["explored"] = SaveGame.bitsOut(g.explored) }
             send(c, msg)
@@ -572,6 +583,7 @@ final class GameServer {
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
                 "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
+                "ms": w.mission != nil ? Int(w.missionProgress()) : 0,
                 "cr": w.crates.filter { c in w.fog[w.players[slot]?.team ?? -1]?.isVisible(c.x, c.y) == true }
                     .map { [$0.id, r1($0.x), r1($0.y), crateKinds.firstIndex(of: $0.kind) ?? 0, $0.amount] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]

@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.15.0 Mac and a 1.15.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.16.0 Mac and a 1.16.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -127,6 +127,13 @@ heals. The rules and numbers match the Linux edition exactly — `FC_REPAIRTEST`
 finds its targets; slow, high-arcing 45-damage shells with splash every 4 seconds, blind inside 150. **K**
 builds a Shield Generator (225, needs a Barracks): every building of yours within 320 carries 300 shield
 points that soak damage first and recharge. Same numbers as the Linux edition (`FC_ARTYTEST`).
+
+## The campaign
+
+**C** on the title screen opens five missions played in order — First Light, Hold the Line (survive eight
+minutes), The Gold Run (hold the gold for three), Crossfire (2v2) and The Long March — each unlocking the
+next as it is won; progress is kept in `UserDefaults`. Same missions and rules as the Linux edition
+(`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
 
 ## Satellite view, point defence and supply crates
 
@@ -207,6 +214,7 @@ FC_MEDICTEST=1 .build/release/FieldCommand                    # Medics healing, 
 FC_PINGTEST=1 .build/release/FieldCommand                     # alert points: alliance-only, rate limit, AI allies answer
 FC_ARTYTEST=1 .build/release/FieldCommand                     # artillery reach, arc and blind spot; shields soak and recharge
 FC_CRATETEST=1 .build/release/FieldCommand                    # supply crates: drop, pickup, gifts, expiry, save
+FC_CAMPAIGNTEST=1 .build/release/FieldCommand                 # mission rules: survive, hold, progress, save
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

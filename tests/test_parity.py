@@ -210,6 +210,24 @@ def test_hq_gun_and_crate_constants_agree():
     assert tuple(amounts) == defs.CRATE_CRYSTAL
 
 
+def test_campaign_agrees():
+    from fieldcommand.defs import CAMPAIGN
+    src = swift("Defs.swift")
+    rows = re.findall(r'Mission\(id: "(\w+)", title: "([^"]+)", map: "(\w+)", opponents: (\d+), difficulty: (\d+), teams: (\d+), '
+                      r'win: "(\w+)", seconds: (\d+), hold: (nil|\([\d., ]+\)),\s*brief: "([^"]+)"\)', src)
+    assert len(rows) == len(CAMPAIGN)
+    for r, m in zip(rows, CAMPAIGN):
+        assert (r[0], r[1], r[2], int(r[3]), int(r[4]), int(r[5]), r[6], float(r[7]), r[9]) == \
+            (m.id, m.title, m.map, m.opponents, m.difficulty, m.teams, m.win, float(m.seconds), m.brief), m.id
+        hold = () if r[8] == "nil" else tuple(float(v) for v in r[8].strip("()").split(","))
+        assert hold == tuple(float(v) for v in m.hold), m.id
+
+
+def test_starting_crystal_agrees():
+    from fieldcommand.defs import START_CRYSTAL
+    assert int(re.search(r"let startCrystal = (\d+)", swift("Defs.swift")).group(1)) == START_CRYSTAL
+
+
 def test_healing_constants_agree():
     from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
     src = swift("Defs.swift")

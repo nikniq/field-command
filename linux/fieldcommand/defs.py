@@ -203,6 +203,40 @@ UPGRADES = {
 }
 # Order matters: an installed set travels as a bitmask over this list, an upgrade in progress as its index.
 UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns", "defense"]
+# The campaign: hand-authored missions played in order against the computer. `win` is "destroy" (the usual
+# rule), "survive" (be standing when `seconds` run out) or "hold" (keep the point at `hold` = (x, y, radius)
+# yours, with no enemy unit inside the ring, for `seconds` in a row). Same list in the macOS edition.
+@dataclass(frozen=True)
+class Mission:
+    id: str
+    title: str
+    map: str
+    opponents: int
+    difficulty: int         # index into DIFFICULTIES
+    teams: int
+    win: str
+    seconds: float
+    hold: tuple             # (x, y, radius) or ()
+    brief: str
+
+
+CAMPAIGN = [
+    Mission("first_light", "First Light", "twin_ridges", 1, 0, 0, "destroy", 0, (),
+            "Mine, build, and take the enemy base. The computer goes easy on you — this once."),
+    Mission("hold_the_line", "Hold the Line", "river_crossing", 1, 2, 0, "survive", 480, (),
+            "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must."),
+    Mission("gold_run", "The Gold Run", "highland_pass", 1, 1, 0, "hold", 180, (2000, 1400, 260),
+            "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring."),
+    Mission("crossfire", "Crossfire", "four_corners", 3, 1, 2, "destroy", 0, (),
+            "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight."),
+    Mission("long_march", "The Long March", "long_march", 11, 2, 2, "destroy", 0, (),
+            "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up."),
+]
+MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
+
+# Every side starts with this much crystal in the bank.
+START_CRYSTAL = 2000
+
 # Supply crates: one drops somewhere open every CRATE_INTERVAL seconds (at most CRATE_MAX on the field, each
 # gone after CRATE_LIFE), and the first unit to reach one collects its gift for its side: crystal, a squad
 # of Rangers, or a Siege Tank. CRATE_KINDS is the wire order.

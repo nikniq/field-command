@@ -29,6 +29,12 @@ enum Settings {
         set { d.set(newValue, forKey: "objectives") }
     }
 
+    /// Campaign missions completed, by id.
+    static var campaignDone: [String] {
+        get { d.stringArray(forKey: "campaignDone") ?? [] }
+        set { d.set(newValue, forKey: "campaignDone") }
+    }
+
     static var lastDifficulty: Int {
         get { d.object(forKey: "lastDifficulty") as? Int ?? 1 }
         set { d.set(newValue, forKey: "lastDifficulty") }

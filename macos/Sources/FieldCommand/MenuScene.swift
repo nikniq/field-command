@@ -236,7 +236,22 @@ final class MenuScene: SKScene {
         ]
         let tw: CGFloat = 150, th: CGFloat = 34, tg: CGFloat = 12
         let tt = CGFloat(rows.count) * tw + CGFloat(rows.count - 1) * tg
-        let mr = CGRect(x: -270, y: cy - ch / 2 - 66, width: 320, height: 44)
+        // Campaign, Multiplayer and Load Game in a row under the difficulty cards.
+        let kr = CGRect(x: -380, y: cy - ch / 2 - 66, width: 230, height: 44)
+        let kbg = SKSpriteNode(texture: Art.button(kr.size, .active, accent: Palette.good))
+        kbg.name = "accent"
+        kbg.size = kr.size
+        kbg.position = CGPoint(x: kr.midX, y: kr.midY)
+        content.addChild(kbg)
+        let done = Settings.campaignDone.count
+        let kl = makeLabel("CAMPAIGN  (C)", size: 16, font: Fonts.bold, align: .center, valign: .center)
+        kl.position = kbg.position
+        content.addChild(kl)
+        let ksub = makeLabel("\(done) of \(campaign.count) missions done", size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        ksub.position = CGPoint(x: kr.midX, y: kr.minY - 11)
+        content.addChild(ksub)
+        toggles.append((kr, kbg, { [unowned self] in self.toggleCampaign() }))
+        let mr = CGRect(x: -140, y: cy - ch / 2 - 66, width: 260, height: 44)
         let mbg = SKSpriteNode(texture: Art.button(mr.size, .active, accent: Palette.amber))
         mbg.size = mr.size
         mbg.name = "accent"
@@ -247,7 +262,7 @@ final class MenuScene: SKScene {
         content.addChild(ml)
         toggles.append((mr, mbg, { [unowned self] in self.multiplayer() }))
         let latest = SaveGame.list().first
-        let lr = CGRect(x: 62, y: cy - ch / 2 - 66, width: 208, height: 44)
+        let lr = CGRect(x: 130, y: cy - ch / 2 - 66, width: 250, height: 44)
         let lbg = SKSpriteNode(texture: Art.button(lr.size, latest == nil ? .disabled : .normal))
         lbg.size = lr.size
         lbg.position = CGPoint(x: lr.midX, y: lr.midY)
@@ -331,6 +346,10 @@ final class MenuScene: SKScene {
 
     override func mouseDown(with event: NSEvent) {
         let p = event.location(in: self)
+        if campaignOpen {
+            if let hit = campaignRows.first(where: { $0.0.contains(p) }) { startMission(hit.1) }
+            return
+        }
         if let hit = cards.first(where: { $0.0.contains(p) }) {
             start(hit.1)
         } else if let t = toggles.first(where: { $0.0.contains(p) }) {
@@ -341,6 +360,8 @@ final class MenuScene: SKScene {
     override func keyDown(with event: NSEvent) {
         switch event.charactersIgnoringModifiers {
         case "m", "M": multiplayer()
+        case "c", "C": toggleCampaign()
+        case "\u{1B}": if campaignOpen { toggleCampaign() } else { NSApp.terminate(nil) }
         case "l", "L": loadLatest()
         case "1": start(.easy)
         case "2": start(.normal)
@@ -348,6 +369,67 @@ final class MenuScene: SKScene {
         case "\r": start(Difficulty(rawValue: Settings.lastDifficulty) ?? .normal)
         default: break
         }
+    }
+
+    // MARK: - Campaign
+
+    private var campaignOpen = false
+    private let campaignLayer = SKNode()
+    private var campaignRows: [(CGRect, Mission)] = []
+
+    private func toggleCampaign() {
+        campaignOpen.toggle()
+        campaignLayer.removeAllChildren()
+        campaignRows = []
+        if campaignLayer.parent == nil { campaignLayer.zPosition = 50; addChild(campaignLayer) }
+        guard campaignOpen else { return }
+        let done = Settings.campaignDone
+        let boxW: CGFloat = 640, rowH: CGFloat = 78
+        let boxH = 120 + rowH * CGFloat(campaign.count) + 60
+        let dim = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: size)
+        campaignLayer.addChild(dim)
+        let box = SKSpriteNode(texture: Art.panel(CGSize(width: boxW, height: boxH), radius: 16, accent: Palette.good))
+        box.size = CGSize(width: boxW, height: boxH)
+        campaignLayer.addChild(box)
+        let top = boxH / 2
+        let title = makeLabel("CAMPAIGN", size: 36, color: Palette.good, font: Fonts.heavy, align: .center, valign: .center)
+        title.position = CGPoint(x: 0, y: top - 44)
+        campaignLayer.addChild(title)
+        let sub = makeLabel("Five missions, played in order. Each unlocks the next.", size: 13, color: Palette.text, font: Fonts.demi, align: .center, valign: .center)
+        sub.position = CGPoint(x: 0, y: top - 78)
+        campaignLayer.addChild(sub)
+        var y = top - 118
+        for (i, m) in campaign.enumerated() {
+            let unlocked = i == 0 || done.contains(campaign[i - 1].id)
+            let finished = done.contains(m.id)
+            let r = CGRect(x: -boxW / 2 + 20, y: y - rowH + 6, width: boxW - 40, height: rowH - 8)
+            let bg = SKSpriteNode(texture: Art.button(r.size, unlocked ? (finished ? .active : .normal) : .disabled,
+                                                      accent: finished ? Palette.good : Palette.amber))
+            bg.size = r.size
+            bg.position = CGPoint(x: r.midX, y: r.midY)
+            campaignLayer.addChild(bg)
+            let head = makeLabel("\(i + 1). \(m.title)" + (finished ? "  ✓" : (unlocked ? "" : "  — locked")), size: 16,
+                                 color: unlocked ? Palette.text : Palette.dim, font: Fonts.bold, align: .left, valign: .center)
+            head.position = CGPoint(x: r.minX + 16, y: r.maxY - 20)
+            campaignLayer.addChild(head)
+            let info = SMapGen.info(m.map)?.name ?? m.map
+            let meta = makeLabel("\(info) · \(m.opponents) opponent\(m.opponents == 1 ? "" : "s") · \(Difficulty(rawValue: m.difficulty)?.name ?? "")",
+                                 size: 11, color: Palette.dim, font: Fonts.medium, align: .right, valign: .center)
+            meta.position = CGPoint(x: r.maxX - 16, y: r.maxY - 20)
+            campaignLayer.addChild(meta)
+            let brief = makeLabel(m.brief, size: 12, color: unlocked ? Palette.text : Palette.dim, font: Fonts.medium, align: .left, valign: .center)
+            brief.position = CGPoint(x: r.minX + 16, y: r.minY + 20)
+            campaignLayer.addChild(brief)
+            if unlocked { campaignRows.append((r, m)) }
+            y -= rowH
+        }
+        let close = makeLabel("Click a mission to deploy · C or Esc closes", size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        close.position = CGPoint(x: 0, y: -top + 28)
+        campaignLayer.addChild(close)
+    }
+
+    private func startMission(_ m: Mission) {
+        startMissionGame(view, size: size, mission: m)
     }
 
     private func loadLatest() {

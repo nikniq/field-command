@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -32,7 +32,7 @@ class PlayerInfo:
 
 
 class World:
-    def __init__(self, map_spec, players, difficulty):
+    def __init__(self, map_spec, players, difficulty, mission=None):
         self.map = map_spec
         self.difficulty = difficulty
         self.players = {p.slot: p for p in players}
@@ -44,12 +44,15 @@ class World:
         self.game_over = False
         self.winner_team = None
         self.shells = []
-        self.resources = {s: 250.0 for s in self.players}
+        self.resources = {s: float(START_CRYSTAL) for s in self.players}
         self.units_trained = {s: 0 for s in self.players}
         self.units_lost = {s: 0 for s in self.players}
         self.crystals_mined = {s: 0 for s in self.players}
         self.trained_kinds = {s: {} for s in self.players}
         self._alert_time = {s: -100.0 for s in self.players}
+        # A campaign mission (defs.Mission) or None; `mission_timer` is the hold time run up so far.
+        self.mission = MISSION_BY_ID.get(mission) if isinstance(mission, str) else mission
+        self.mission_timer = 0.0
         # Supply crates on the field, and when the next one drops.
         self.crates = []
         self.next_crate = CRATE_FIRST
@@ -251,6 +254,7 @@ class World:
         self._update_crates()
         for t in self.towers:
             t.update(dt)
+        self._check_mission(dt)
         for p in self.players.values():
             if p.ai and p.alive:
                 p.ai.update(dt)
@@ -411,6 +415,32 @@ class World:
                     self.by_id.pop(c.id, None)
             self.crystals = [c for c in self.crystals if not c.dead]
             self._nav_dirty = True
+
+    def mission_progress(self):
+        """Seconds toward a timed objective (survive: the clock; hold: time held in a row), else 0."""
+        m = self.mission
+        if m is None or m.win == "destroy":
+            return 0.0
+        return self.elapsed if m.win == "survive" else self.mission_timer
+
+    def _check_mission(self, dt):
+        """A timed mission ends in victory for the player's side when its clock or its hold is done."""
+        m = self.mission
+        if m is None or self.game_over or m.win == "destroy":
+            return
+        me = self.players[0]
+        if not me.alive:
+            return
+        if m.win == "hold":
+            hx, hy, hr = m.hold
+            mine = any(not e.dead and self.allied(e.team, 0) and math.hypot(e.x - hx, e.y - hy) <= hr
+                       for e in self.units + self.buildings)
+            enemy = any(not u.dead and self.enemies(u.team, 0) and math.hypot(u.x - hx, u.y - hy) <= hr for u in self.units)
+            self.mission_timer = self.mission_timer + dt if (mine and not enemy) else 0.0
+        if self.mission_progress() >= m.seconds:
+            self.game_over = True
+            self.winner_team = me.team
+            self.emit("gameover", me.team)
 
     def _check_victory(self):
         for p in self.players.values():

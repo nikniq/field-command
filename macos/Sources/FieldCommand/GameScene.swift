@@ -781,6 +781,7 @@ final class GameScene: SKScene {
 
     func endGame(won: Bool) {
         gameOver = true
+        if won, let m = net?.mission, !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
         cancelModes()
         fog.revealAll = true
         for u in units { u.isHidden = false }
@@ -790,7 +791,21 @@ final class GameScene: SKScene {
         Debug.gameEnded(self, won: won)
     }
 
+    func startMission(_ m: Mission) {
+        leaveNetGame()
+        startMissionGame(view, size: size, mission: m)
+    }
+
+    func nextMission() {
+        guard let m = net?.mission, let i = campaign.firstIndex(where: { $0.id == m.id }), i + 1 < campaign.count else { return }
+        startMission(campaign[i + 1])
+    }
+
     func restart() {
+        if let net, let m = net.mission {
+            startMission(m)
+            return
+        }
         if let net, let sk = net.skirmish {
             leaveNetGame()
             startSkirmish(view, size: size, difficulty: net.difficulty, mapId: sk.mapId, opponents: sk.opponents,

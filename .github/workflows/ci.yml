@@ -128,6 +128,11 @@ jobs:
         run: |
           set -o pipefail
           FC_ARTYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ARTILLERY TEST PASSED"
+      - name: Headless Campaign
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_CAMPAIGNTEST=1 "$BIN" | tee /dev/stderr | grep -q "CAMPAIGN TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

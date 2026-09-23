@@ -1363,6 +1363,9 @@ final class SWorld {
     var resources: [Int: Double] = [:]
     var unitsTrained: [Int: Int] = [:], unitsLost: [Int: Int] = [:], crystalsMined: [Int: Int] = [:]
     private var alertTime: [Int: Double] = [:]
+    /// A campaign mission or nil; `missionTimer` is the hold time run up so far.
+    var mission: Mission?
+    var missionTimer = 0.0
     /// Supply crates on the field, and when the next one drops.
     private(set) var crates: [SCrate] = []
     var nextCrate = crateFirst
@@ -1402,7 +1405,7 @@ final class SWorld {
         walls = mapWalls
         for p in list {
             players[p.slot] = p
-            resources[p.slot] = 250
+            resources[p.slot] = Double(startCrystal)
             playerKits[p.slot] = []
             unitsTrained[p.slot] = 0
             unitsLost[p.slot] = 0
@@ -1497,6 +1500,7 @@ final class SWorld {
         updateShells(dt)
         updateCrates()
         for t in towers { t.update(dt) }
+        checkMission(dt)
         for p in players.values where p.alive { p.ai?.update(dt) }
         cleanupDead()
         fogTimer -= dt
@@ -1769,6 +1773,28 @@ final class SWorld {
             for c in crystals where c.dead { byId[c.id] = nil }
             crystals.removeAll { $0.dead }
             navDirty = true
+        }
+    }
+
+    /// Seconds toward a timed objective (survive: the clock; hold: time held in a row), else 0.
+    func missionProgress() -> Double {
+        guard let m = mission, m.win != "destroy" else { return 0 }
+        return m.win == "survive" ? elapsed : missionTimer
+    }
+
+    /// A timed mission ends in victory for the player's side when its clock or its hold is done.
+    private func checkMission(_ dt: Double) {
+        guard let m = mission, !gameOver, m.win != "destroy", let me = players[0], me.alive else { return }
+        if m.win == "hold", let (hx, hy, hr) = m.hold {
+            let mine = units.contains { !$0.dead && allied($0.team, 0) && hyp($0.x - hx, $0.y - hy) <= hr }
+                || buildings.contains { !$0.dead && allied($0.team, 0) && hyp($0.x - hx, $0.y - hy) <= hr }
+            let enemy = units.contains { !$0.dead && enemies($0.team, 0) && hyp($0.x - hx, $0.y - hy) <= hr }
+            missionTimer = (mine && !enemy) ? missionTimer + dt : 0
+        }
+        if missionProgress() >= m.seconds {
+            gameOver = true
+            winnerTeam = me.team
+            emit(["gameover", me.team])
         }
     }
 

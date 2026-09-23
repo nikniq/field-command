@@ -150,6 +150,7 @@ def snapshot_for(world, slot, events):
             "u": units, "o": orders, "b": buildings,
             "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],
             "kit": sum(1 << i for i, k in enumerate(KIT_IDS) if k in world.kits.get(slot, ())),
+            "ms": int(world.mission_progress()) if world.mission else 0,
             "cr": [[c.id, _r(c.x), _r(c.y), CRATE_INDEX[c.kind], c.amount] for c in world.crates
                    if world.fog_for(slot).is_visible(c.x, c.y)],
             "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,
