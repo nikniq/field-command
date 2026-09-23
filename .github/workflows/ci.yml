@@ -63,7 +63,13 @@ jobs:
         run: swift --version
       - name: Build
         working-directory: macos
-        run: swift build -c release
+        # Compiler errors are re-emitted as workflow annotations, which the API exposes without a log token.
+        run: |
+          set +e
+          swift build -c release 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          grep -E "error:" build.log | sort -u | head -30 | sed 's/^/::error::/'
+          exit $status
       # One step per hook, so a failure names itself in the job's step list.
       - name: Locate binary
         working-directory: macos
