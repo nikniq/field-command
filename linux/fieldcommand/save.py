@@ -20,7 +20,7 @@ import numpy as np
 from . import defs
 from .ai import AI
 from .defs import DIFFICULTIES
-from .entities import IDLE, Bridge, Building, Crystal, Unit, Watchtower
+from .entities import Crate, IDLE, Bridge, Building, Crystal, Unit, Watchtower
 
 SAVE_FORMAT = 1
 
@@ -120,6 +120,8 @@ def world_to_dict(world, label=""):
         "units": units, "buildings": buildings,
         "bridges": [{"id": b.id, "intact": b.intact, "hp": b.hp, "progress": b.progress} for b in w.bridges],
         "towers": [{"id": t.id, "owner": t.owner, "capturing": t.capturing, "progress": t.progress} for t in w.towers],
+        "crates": [{"id": c.id, "x": c.x, "y": c.y, "kind": c.kind, "amount": c.amount, "born": c.born} for c in w.crates],
+        "next_crate": w.next_crate,
         "reveals": {str(t): {str(i): until for i, until in r.items()} for t, r in w.reveals.items()},
         "ai": ai,
         "fog": {str(t): _bits_out(g) for t, g in w.fog.items()},
@@ -147,6 +149,11 @@ def world_from_dict(data):
         w.by_id[cr.id] = cr
     for saved, live in zip(data["bridges"], w.bridges):
         live.id, live.intact, live.hp, live.progress = saved["id"], saved["intact"], saved["hp"], saved["progress"]
+    for c in data.get("crates", []):
+        cr = Crate(c["id"], c["x"], c["y"], c["kind"], c["amount"], c["born"])
+        w.crates.append(cr)
+        w.by_id[cr.id] = cr
+    w.next_crate = float(data.get("next_crate", w.next_crate))
     for saved, live in zip(data["towers"], w.towers):
         live.id, live.owner, live.capturing, live.progress = saved["id"], saved["owner"], saved["capturing"], saved["progress"]
     for e in w.bridges + w.towers:

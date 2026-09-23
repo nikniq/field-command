@@ -168,6 +168,9 @@ class GameScene:
         self.ping_pending = False
         self.ping_kind = 0
         self.beacons = []
+        # Satellite view: the whole map on screen at once (Tab), with markers so troops still read.
+        self.satellite = False
+        self._satellite_saved = None
         self._idle_cycle = 0
         self._last_builder = None
         self.hovered = None
@@ -348,6 +351,8 @@ class GameScene:
             self._alert(ev[2], ev[3])
         elif k == "ping":
             self._ping(ev[1], ev[2], ev[3], ev[4] if len(ev) > 4 else 0)
+        elif k == "crate":
+            self._crate_taken(ev[1], ev[2], ev[3], ev[4], ev[5])
         elif k == "income":
             if self._on_screen(ev[2], ev[3]):
                 fx.text(f"+{ev[4]}", ev[2], ev[3] + 14, CRYSTAL)
@@ -421,6 +426,22 @@ class GameScene:
             self.hud.flash((f"{who}: attack here!" if kind == 0 else f"{who} calls for help here!") + "  (Space to view)", color)
             audio.play("alert")
 
+    def _crate_taken(self, slot, x, y, kind, amount):
+        """Someone opened a supply crate: a burst where it stood, and a line for whoever gained by it."""
+        for i in range(2):
+            self.fx.ring(x, y, 20, 90, AMBER, 0.6, delay=i * 0.2)
+        self.fx.sparks(x, y, 10, 90, "amber")
+        me = slot == self.s.slot
+        p = self.s.players.get(slot) if hasattr(self.s.players, "get") else None
+        who = "You" if me else getattr(p, "name", f"Player {slot + 1}")
+        gift = f"{amount} crystal" if kind == "crystal" else ("a squad of Rangers" if kind == "squad" else "a Siege Tank")
+        if me or self.s.allied(slot, me and slot or self.s.slot):
+            self.hud.flash(f"Supply crate: {who} found {gift}", GOOD)
+            if me:
+                audio.play("complete")
+        else:
+            self.hud.flash(f"{who} took a supply crate", TEXT)
+
     def begin_ping(self, kind=0):
         self.cancel_modes()
         self.ping_pending = True
@@ -461,6 +482,22 @@ class GameScene:
                 self.fx.decal(("fallen", kind), x, y, 30, 18, angle=math.degrees(angle), team=team)
                 self.fx.smoke_puff(x, y, False)
         self._known_units = seen
+
+    def _draw_satellite_markers(self, screen, units, buildings):
+        """From orbit a Ranger is a pixel: draw every visible unit as a solid dot and every building as a
+        square in its side's colour, big enough to read, on top of the sprites."""
+        cam = self.cam
+        for u in units:
+            sx, sy = cam.to_screen(u.x, u.y)
+            col = to255(TEAM_LIGHT[u.team])
+            r = 5 if u.kind == "tank" else 4
+            pygame.draw.circle(screen, (0, 0, 0), (int(sx), int(sy)), r + 1)
+            pygame.draw.circle(screen, col, (int(sx), int(sy)), r)
+        for b in buildings:
+            sx, sy = cam.to_screen(b.x, b.y)
+            h = max(4, int(b.half / cam.zoom))
+            pygame.draw.rect(screen, (0, 0, 0), (int(sx) - h - 1, int(sy) - h - 1, 2 * h + 2, 2 * h + 2), 2)
+            pygame.draw.rect(screen, to255(TEAM_LIGHT[b.team]), (int(sx) - h, int(sy) - h, 2 * h, 2 * h), 2)
 
     def _draw_clouds(self, screen):
         """Cloud shadows drifting over everything on the ground (the fog goes on above them)."""
@@ -660,6 +697,8 @@ class GameScene:
 
     def clamp_camera(self):
         from .hud import PANEL_H, TOP_H
+        if self.satellite:
+            return                       # parked over the whole map
         z = self.cam.zoom
         hw, hh = self.cam.w * z / 2, self.cam.h * z / 2
         min_x, max_x = hw - 80, defs.WORLD_W - hw + 80
@@ -668,12 +707,37 @@ class GameScene:
         self.cam.y = defs.WORLD_H / 2 if min_y > max_y else clamp(self.cam.y, min_y, max_y)
 
     def center_camera(self, x, y):
+        if self.satellite:
+            self.satellite = False
+            self._satellite_saved = None
+            self.cam.zoom = 1.0
         from .hud import PANEL_H, TOP_H
         self.cam.x = x
         self.cam.y = y - (PANEL_H - TOP_H) / 2 * self.cam.zoom
         self.clamp_camera()
 
+    def toggle_satellite(self):
+        """The whole map on screen: the camera pulls back to fit it, and comes back to where it was."""
+        from .hud import PANEL_H, TOP_H
+        if self.satellite:
+            self.satellite = False
+            if self._satellite_saved:
+                self.cam.x, self.cam.y, self.cam.zoom = self._satellite_saved
+            self.clamp_camera()
+            return
+        self._satellite_saved = (self.cam.x, self.cam.y, self.cam.zoom)
+        self.satellite = True
+        self.cam.zoom = max(defs.WORLD_W / self.cam.w, defs.WORLD_H / max(1, self.cam.h - PANEL_H - TOP_H)) * 1.03
+        self.cam.x = defs.WORLD_W / 2
+        self.cam.y = defs.WORLD_H / 2 - (PANEL_H - TOP_H) * self.cam.zoom / 2
+        self.hud.flash("Satellite view: Tab returns to the ground", TEXT)
+
     def zoom(self, f, anchor=None):
+        if self.satellite:
+            if f >= 1:
+                return
+            self.toggle_satellite()      # zooming in from orbit brings you back down where you were
+            return
         old = self.cam.zoom
         z = clamp(old * f, 0.55, 1.9)
         if abs(z - old) < 1e-4:
@@ -836,7 +900,11 @@ class GameScene:
             return
         if self._blocked():
             return
-        if key == pygame.K_SPACE:
+        if key == pygame.K_TAB:
+            self.toggle_satellite()
+        elif key == pygame.K_SPACE:
+            if self.satellite:
+                self.toggle_satellite()
             self.jump_camera()
         elif name in ("=", "+", "[+]"):
             self.zoom(0.9)
@@ -873,17 +941,19 @@ class GameScene:
     # ------------------------------------------------------------ hover & cursor
 
     def _update_hover(self, mouse):
-        target, crystal, bridge = None, None, None
+        target, crystal, bridge, crate = None, None, None, None
         active = mouse and not self.hud.overlay_visible and self.drag_start is None and self.placing is None
         if active and not self.hud.over_hud(mouse):
             wx, wy = self.cam.to_world(*mouse)
             target = self.entity_at(wx, wy)
             if target is None and self.s.fog.is_explored(wx, wy):
                 crystal = self.s.crystal_at(wx, wy)
+                crate = self.crate_at(wx, wy)
             if target is None and crystal is None:
                 bridge = self.bridge_at(wx, wy)
             if target is None and crystal is None and bridge is None:
                 bridge = self.tower_at(wx, wy)
+        self._hover_crate = crate
         hover = target or bridge
         if hover is not self.hovered:
             if self.hovered:
@@ -898,6 +968,8 @@ class GameScene:
             if menders:
                 label += "    right-click to repair" if menders[0].kind == "worker" else "    right-click to treat"
             self.hud.set_hover(label, color, mouse)
+        elif mouse and crate:
+            self.hud.set_hover("Supply crate — walk any unit onto it", AMBER, mouse)
         elif mouse and crystal:
             if crystal.gold:
                 self.hud.set_hover(f"Gold deposit  {crystal.amount}  (a hundred fields' worth)", AMBER, mouse)
@@ -1030,6 +1102,12 @@ class GameScene:
         if self._treatable(target):
             out += [u for u in us if u.kind == "medic" and u is not target]
         return out
+
+    def crate_at(self, x, y):
+        for c in getattr(self.s, "crates", ()):
+            if not c.dead and math.hypot(c.x - x, c.y - y) < c.radius + 8 and self.s.fog.is_visible(c.x, c.y):
+                return c
+        return None
 
     def tower_at(self, x, y):
         for t in getattr(self.s, "towers", ()):
@@ -1320,6 +1398,9 @@ class GameScene:
         for t in getattr(s, "towers", ()):
             if visible(t.x, t.y):
                 self._draw_tower(screen, t, z, ts)
+        for c in getattr(s, "crates", ()):
+            if visible(c.x, c.y) and s.fog.is_visible(c.x, c.y):
+                self._draw_crate(screen, c, z, ts)
         glow_px = int(90 / z)
         for c in s.crystals:
             if not visible(c.x, c.y) or not s.fog.is_explored(c.x, c.y):
@@ -1355,6 +1436,8 @@ class GameScene:
         for e in units + buildings:
             self._draw_bars(screen, e)
         self._draw_clouds(screen)
+        if self.satellite:
+            self._draw_satellite_markers(screen, units, buildings)
         self.fog_view.draw(screen, cam)
         self._draw_beacons(screen)
         self._draw_overlays(screen, mouse)
@@ -1407,6 +1490,22 @@ class GameScene:
                                    (max(w, h) + 18) / (64 * art.SCALE) / z, tint=(*col, 255), fade=170)
             screen.blit(ring, (cx - ring.get_width() / 2, cy - ring.get_height() / 2))
 
+    def _draw_crate(self, screen, c, z, ts):
+        """The crate bobs a little and its beacon glows so it catches the eye from across the field."""
+        cam = self.cam
+        sx, sy = cam.to_screen(c.x, c.y)
+        sh = art.sprites.get("shadow", art.shadow(), 0, 46 / 64 / z)
+        screen.blit(sh, (sx + 4 / z - sh.get_width() / 2, sy + 5 / z - sh.get_height() / 2))
+        g = self.fx._glow(int(70 / z), (255, 170, 80), 3 + int(2 * math.sin(self.elapsed * 4 + c.id)))
+        screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2), special_flags=pygame.BLEND_ADD)
+        bob = math.sin(self.elapsed * 2.5 + c.id) * 2 / z
+        img = art.sprites.get("crate", art.crate(), (c.id * 37) % 360, ts)
+        screen.blit(img, (sx - img.get_width() / 2, sy - bob - img.get_height() / 2))
+        if c is getattr(self, "_hover_crate", None):
+            ring = art.sprites.get(("ring", (255, 255, 255)), art.ring(), 0, (c.radius * 2 + 12) / (64 * art.SCALE) / z,
+                                   tint=(255, 255, 255, 255), fade=170)
+            screen.blit(ring, (sx - ring.get_width() / 2, sy - ring.get_height() / 2))
+
     def _draw_tower(self, screen, t, z, ts):
         """The tower, its holder's banner, and the capture ring while someone is taking it."""
         cam = self.cam
@@ -1454,6 +1553,9 @@ class GameScene:
             screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
         if b.kind == "artillery":
             g = art.sprites.get(("agun", b.team), art.artillery_gun(b.team), math.degrees(b.gun_angle), ts, fade=fade)
+            screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
+        if b.kind == "hq" and "defense" in b.upgrades:
+            g = art.sprites.get(("hqgun", b.team), art.turret_gun(b.team), math.degrees(b.gun_angle), ts * 0.85, fade=fade)
             screen.blit(g, (sx - g.get_width() / 2, sy - g.get_height() / 2))
         if b.kind == "shield" and b.built:
             pulse = 0.55 + 0.25 * math.sin(self.elapsed * 3 + b.id)

@@ -155,6 +155,19 @@ final class SNavGrid {
         return smooth((x0, y0), pts)
     }
 
+    func isBlocked(_ cx: Int, _ cy: Int) -> Bool {
+        guard cx >= 0, cy >= 0, cx < cols, cy < rows else { return true }
+        return blocked[cy * cols + cx]
+    }
+
+    /// Whether there is a way at all from one point to the other (a cut bridge, say, means there is not).
+    /// A full search, so call it sparingly.
+    func reaches(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double) -> Bool {
+        let pts = findPath(x0, y0, x1, y1, maxNodes: 80000)
+        guard let last = pts.last else { return false }
+        return abs(last.0 - x1) < 1e-6 && abs(last.1 - y1) < 1e-6
+    }
+
     /// String-pulling: skip waypoints that can be seen directly from the previous kept point.
     private func smooth(_ origin: (Double, Double), _ pts: [(Double, Double)]) -> [(Double, Double)] {
         if pts.count <= 1 { return pts }

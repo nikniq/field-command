@@ -101,3 +101,22 @@ def test_bridge_state_travels_in_snapshots():
     snap = net.snapshot_for(w, 0, w.events)
     assert [b[1] for b in snap["br"]] == [1, 0, 1]
     assert any(e[0] == "bridge" and e[2] == 0 for e in snap["e"])
+
+
+def test_the_computer_rebuilds_the_crossing_its_attack_needs():
+    """With every span down the enemy is unreachable; the computer sends an Engineer to the crossing on its
+    route, holds the wave until it stands, and then the route is open again."""
+    w = make_world("river_crossing", ai=True, difficulty=1)
+    run(w, 5)
+    for b in w.bridges:
+        b.take_damage(BRIDGE_HP, None)
+    w.resources[1] = 400
+    ai = w.players[1].ai
+    ai._next_route = 0.0
+    run(w, 7)
+    assert not ai.route_open and ai.route_bridge is not None
+    assert any(u.order[0] == "rebuild" for u in w.units if u.team == 1 and u.kind == "worker")
+    assert run(w, 240, until=lambda: any(b.intact for b in w.bridges))
+    ai._next_route = 0.0
+    run(w, 7)
+    assert ai.route_open

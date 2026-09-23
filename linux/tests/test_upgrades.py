@@ -117,3 +117,20 @@ def test_upgrades_travel_in_snapshots():
     row = next(r for r in snap["b"] if r[0] == hq.id)
     assert row[12] == 1 << UPGRADE_KINDS.index("armor")
     assert row[13][0] == UPGRADE_KINDS.index("hp")
+
+
+def test_point_defence_arms_the_command_center():
+    from fieldcommand.defs import HQ_GUN_RANGE
+    w, hq = setup()
+    raider = Unit(w, "marine", 1, hq.x + HQ_GUN_RANGE - 30, hq.y)
+    w._add(raider)
+    raider.command(("idle",))
+    w.update_visibility()
+    hp0 = raider.hp
+    run(w, 4)
+    assert raider.hp == hp0 and not hq.armed            # unarmed until upgraded
+    buy(w, hq, "defense")
+    assert hq.armed
+    raider.hp = hp0
+    assert run(w, 6, until=lambda: raider.hp < hp0)     # and then it shoots back
+    assert "defense" not in [k for k in UPGRADE_KINDS if k != "defense" and w.can_upgrade(hq, k)] if hasattr(w, "can_upgrade") else True

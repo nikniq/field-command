@@ -300,7 +300,7 @@ final class HUD: SKNode {
     private func refreshTopButtons(_ mouse: CGPoint?) {
         let idle = game.idleWorkers.count, army = game.army.count
         let hoverIdx = mouse.flatMap { m in topButtons.firstIndex { $0.0.contains(m) } }
-        let sig = "\(idle)-\(army)-\(game.pingPending)-\(String(describing: hoverIdx))-\(size.width)"
+        let sig = "\(idle)-\(army)-\(game.pingPending)-\(game.satellite)-\(String(describing: hoverIdx))-\(size.width)"
         guard sig != lastTopSignature else { return }
         lastTopSignature = sig
         topButtonLayer.removeAllChildren()
@@ -310,17 +310,19 @@ final class HUD: SKNode {
                       highlight: idle > 0, hover: hoverIdx == 0) { [unowned self] in self.game.selectIdleWorker() }
         x = topButton("Army \(army)", icon: Art.unit(.marine, Team.local), x: x, width: 104, highlight: false,
                       hover: hoverIdx == 1) { [unowned self] in self.game.selectArmy() }
-        _ = topButton("Attack (Z)", icon: nil, x: x, width: 96, highlight: game.pingPending,
+        x = topButton("Attack (Z)", icon: nil, x: x, width: 96, highlight: game.pingPending,
                       hover: hoverIdx == 2) { [unowned self] in self.game.beginPing(kind: 0) }
+        _ = topButton("Satellite (Tab)", icon: nil, x: x, width: 118, highlight: game.satellite,
+                      hover: hoverIdx == 3) { [unowned self] in self.game.toggleSatellite() }
         let right = size.width / 2 - 14
-        _ = topButton("Menu", icon: nil, x: right - 72, width: 72, highlight: false, hover: hoverIdx == 3) { [unowned self] in
+        _ = topButton("Menu", icon: nil, x: right - 72, width: 72, highlight: false, hover: hoverIdx == 4) { [unowned self] in
             self.game.togglePause()
         }
-        _ = topButton("Help", icon: nil, x: right - 72 - 8 - 64, width: 64, highlight: false, hover: hoverIdx == 4) { [unowned self] in
+        _ = topButton("Help", icon: nil, x: right - 72 - 8 - 64, width: 64, highlight: false, hover: hoverIdx == 5) { [unowned self] in
             self.game.toggleHelp()
         }
         let canShop = game.myKits.count < kits.count && game.myResources >= 100
-        _ = topButton("Armory (Y)", icon: nil, x: right - 72 - 8 - 64 - 8 - 92, width: 92, highlight: canShop, hover: hoverIdx == 5) { [unowned self] in
+        _ = topButton("Armory (Y)", icon: nil, x: right - 72 - 8 - 64 - 8 - 92, width: 92, highlight: canShop, hover: hoverIdx == 6) { [unowned self] in
             self.game.toggleStore()
         }
     }
@@ -892,6 +894,7 @@ final class HUD: SKNode {
                                 "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
                                 "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
                                 "Z or Option+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
+                                "Tab — satellite view: the whole map on screen; Tab, Space or a minimap click brings you back",
                                 "Arrows / screen edge / two-finger swipe — pan · Pinch, wheel, +/− — zoom",
                                 "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
                                 "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

@@ -141,6 +141,14 @@ enum Art {
         }
     }
 
+    /// A solid dot with a dark rim: satellite markers, tinted per side.
+    static var dot: SKTexture {
+        texture("dot", size: CGSize(width: 16, height: 16), scale: 2) { ctx in
+            fill(ctx, circle(.zero, 7.5), NSColor(white: 0, alpha: 0.9))
+            fill(ctx, circle(.zero, 6), .white)
+        }
+    }
+
     static var shadow: SKTexture {
         texture("shadow", size: CGSize(width: 64, height: 64), scale: 1) { ctx in
             radial(ctx, nil, [NSColor(white: 0, alpha: 0.55), NSColor(white: 0, alpha: 0.35), NSColor(white: 0, alpha: 0)], .zero, 32)
@@ -1113,6 +1121,20 @@ enum Art {
     }
 
     /// A stone tower on a square footing, flying the holder's banner — grey and bare when nobody holds it.
+    /// A supply drop: an olive crate with strapping, a white chevron and a beacon light on the lid.
+    static var crate: SKTexture {
+        texture("crate", size: CGSize(width: 44, height: 38)) { ctx in
+            let bx = rr(box(-16, -13, 32, 26), 3)
+            lit(ctx, bx, .rgb(0.42, 0.44, 0.28))
+            stroke(ctx, bx, NSColor(white: 0, alpha: 0.6), 1.2)
+            for x: CGFloat in [-8, 8] { fill(ctx, rr(box(x - 2, -13, 4, 26), 0.5), .rgb(0.22, 0.2, 0.14)) }   // strapping
+            fill(ctx, poly([CGPoint(x: -5, y: -4), CGPoint(x: 0, y: 3), CGPoint(x: 5, y: -4), CGPoint(x: 3, y: -4),
+                            CGPoint(x: 0, y: 0), CGPoint(x: -3, y: -4)]), .rgb(0.92, 0.92, 0.88))
+            fill(ctx, circle(CGPoint(x: 11, y: 9), 2.4), .rgb(1.0, 0.45, 0.2))
+            fill(ctx, circle(CGPoint(x: 10.3, y: 9.6), 0.9), NSColor(white: 1, alpha: 0.8))
+        }
+    }
+
     static func watchtower(_ team: Team?) -> SKTexture {
         let col = team?.color ?? NSColor.rgb(0.45, 0.47, 0.5)
         return texture("watchtower-\(team?.rawValue ?? -1)", size: CGSize(width: 84, height: 84)) { ctx in
@@ -1205,6 +1227,18 @@ enum Art {
                     lines(ctx, [(CGPoint(x: -13, y: 0), CGPoint(x: 13, y: 0)), (CGPoint(x: 0, y: -10), CGPoint(x: 0, y: 10))],
                           .rgb(0.25, 0.17, 0.09, 0.8), 1.5)
                     fill(ctx, rr(box(-5, -16, 10, 6), 1), Palette.amber)
+                case .defense:
+                    // A gun over the Command Center's octagon
+                    let oct = octagon(15)
+                    lit(ctx, oct, .rgb(0.42, 0.46, 0.55))
+                    stroke(ctx, oct, NSColor(white: 0, alpha: 0.6), 1.2)
+                    linear(ctx, rr(box(0, -2.2, 18, 4.4), 1.2), [.rgb(0.7, 0.72, 0.74), .rgb(0.3, 0.31, 0.33)],
+                           CGPoint(x: 0, y: 2), CGPoint(x: 0, y: -2))
+                    fill(ctx, rr(box(15, -2.8, 4, 5.6), 1), .rgb(0.12, 0.12, 0.13))
+                    let hub = circle(CGPoint(x: -3, y: 0), 6.5)
+                    lit(ctx, hub, .rgb(0.5, 0.55, 0.62))
+                    stroke(ctx, hub, NSColor(white: 0, alpha: 0.6), 1)
+                    fill(ctx, circle(CGPoint(x: -3, y: 0), 2), .rgb(1, 0.35, 0.3))
                 case .guns:
                     for y: CGFloat in [-5, 5] {
                         linear(ctx, rr(box(-4, y - 2.2, 22, 4.4), 1.2), [.rgb(0.7, 0.72, 0.74), .rgb(0.3, 0.31, 0.33)],

@@ -10,10 +10,11 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import ARTILLERY_SHELL_SPEED, SHIELD_RADIUS, TANK_SHELL_SPEED
+from .defs import (ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+                   CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
-from .entities import IDLE, Bridge, Building, Crystal, Unit, Watchtower
+from .entities import IDLE, Bridge, Building, Crate, Crystal, Unit, Watchtower
 from .fog import FogGrid
 from .nav import NavGrid
 
@@ -49,6 +50,9 @@ class World:
         self.crystals_mined = {s: 0 for s in self.players}
         self.trained_kinds = {s: {} for s in self.players}
         self._alert_time = {s: -100.0 for s in self.players}
+        # Supply crates on the field, and when the next one drops.
+        self.crates = []
+        self.next_crate = CRATE_FIRST
         # Alert points: a player marks a spot and every ally is shown it; computer allies send troops.
         self.pings = []                  # [(slot, x, y, elapsed)], the last 30 seconds' worth
         self._ping_time = {s: -100.0 for s in self.players}
@@ -244,6 +248,7 @@ class World:
             if not b.dead:
                 b.update(dt)
         self._update_shells(dt)
+        self._update_crates()
         for t in self.towers:
             t.update(dt)
         for p in self.players.values():
@@ -805,6 +810,68 @@ class World:
         dur = max(0.05, math.hypot(x1 - x0, y1 - y0) / (ARTILLERY_SHELL_SPEED if arc else TANK_SHELL_SPEED))
         self.shells.append([x0, y0, x1, y1, dur, 0.0, damage, splash, team, attacker])
         self.emit("shell", x0, y0, x1, y1, dur, team, 1 if arc else 0)
+
+    # ------------------------------------------------------------ supply crates
+
+    def _update_crates(self):
+        """Drops a crate now and then, retires old ones, and hands a crate to the first unit to reach it."""
+        if self.elapsed >= self.next_crate:
+            self.next_crate = self.elapsed + CRATE_INTERVAL
+            if len(self.crates) < CRATE_MAX:
+                self.drop_crate()
+        if not self.crates:
+            return
+        for c in list(self.crates):
+            if self.elapsed - c.born > CRATE_LIFE:
+                self._remove_crate(c)
+                continue
+            taker = None
+            for u in self.units:
+                if not u.dead and abs(u.x - c.x) < 60 and abs(u.y - c.y) < 60 \
+                        and math.hypot(u.x - c.x, u.y - c.y) <= c.radius + u.radius:
+                    taker = u
+                    break
+            if taker is not None:
+                self.collect_crate(c, taker.team)
+
+    def drop_crate(self, kind=None):
+        """A crate somewhere open: clear of water and cliffs, away from every base and every mineral field."""
+        for _ in range(60):
+            x = random.uniform(200, defs.WORLD_W - 200)
+            y = random.uniform(200, defs.WORLD_H - 200)
+            if self.nav.is_blocked(int(x // 40), int(y // 40)):
+                continue
+            if any(math.hypot(b.x - x, b.y - y) < 600 for b in self.buildings if not b.dead):
+                continue
+            if any(math.hypot(c.x - x, c.y - y) < 120 for c in self.crystals if not c.dead):
+                continue
+            if any(rect_distance(w, x, y) < 40 for w in self.walls):
+                continue
+            k = kind or random.choices(CRATE_KINDS, weights=(50, 35, 15))[0]
+            amount = random.choice(CRATE_CRYSTAL) if k == "crystal" else 0
+            c = Crate(self.next_id(), x, y, k, amount, self.elapsed)
+            self.crates.append(c)
+            self.by_id[c.id] = c
+            return c
+        return None
+
+    def _remove_crate(self, c):
+        c.dead = True
+        self.crates.remove(c)
+        self.by_id.pop(c.id, None)
+
+    def collect_crate(self, c, team):
+        """The gift: crystal into the bank, or troops spawned around the crate for that side."""
+        if c.kind == "crystal":
+            self.resources[team] += c.amount
+        else:
+            kinds = ["marine"] * CRATE_SQUAD if c.kind == "squad" else ["tank"]
+            for i, k in enumerate(kinds):
+                a = i / len(kinds) * 2 * math.pi
+                u = Unit(self, k, team, c.x + math.cos(a) * 26, c.y + math.sin(a) * 26)
+                self._add(u)
+        self.emit("crate", team, c.x, c.y, c.kind, c.amount)
+        self._remove_crate(c)
 
     def _update_shields(self):
         """Every building within SHIELD_RADIUS of a finished friendly Shield Generator carries a shield."""

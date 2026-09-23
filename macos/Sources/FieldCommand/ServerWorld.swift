@@ -415,6 +415,20 @@ enum SOrder {
     var isIdle: Bool { if case .idle = self { return true }; return false }
 }
 
+/// A supply drop on the field: `kind` is a crateKinds entry, `amount` the crystal it holds.
+final class SCrate {
+    let id: Int
+    let x, y: Double
+    let kind: String
+    let amount: Int
+    let born: Double
+    var dead = false
+    let radius = crateRadius
+    init(id: Int, x: Double, y: Double, kind: String, amount: Int, born: Double) {
+        self.id = id; self.x = x; self.y = y; self.kind = kind; self.amount = amount; self.born = born
+    }
+}
+
 final class SCrystal {
     let id: Int
     let x, y: Double
@@ -1207,8 +1221,8 @@ final class SBuilding: SEntity {
 
     var supply: Int { stats.supply + (upgrades.contains(.supply) ? depotUpgradedSupply : 0) }
     var trainSpeed: Double { upgrades.contains(.prod) ? 2 : 1 }
-    var turretRange: Double { upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range) }
-    var turretDamage: Double { upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage) }
+    var turretRange: Double { kind == .hq ? hqGunRange : (upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range)) }
+    var turretDamage: Double { kind == .hq ? hqGunDamage : (upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage)) }
 
     override func takeDamage(_ amount: Double, from attacker: SEntity?) {
         var left = upgrades.contains(.armor) ? amount * armorFactor : amount
@@ -1269,10 +1283,12 @@ final class SBuilding: SEntity {
         } else if shield > 0 {
             shield = max(0, shield - 60 * dt)      // the generator is gone: the field collapses
         }
-        if kind == .turret || kind == .artillery { updateGun(dt) }
+        if armed { updateGun(dt) }
         else if kind == .radar { gunAngle = (gunAngle + dt * 0.8).truncatingRemainder(dividingBy: 2 * .pi) }
     }
 
+    /// Turrets and artillery always; a Command Center once it has its point-defence gun.
+    var armed: Bool { kind == .turret || kind == .artillery || (kind == .hq && upgrades.contains(.defense)) }
     var minRange: Double { kind == .artillery ? artilleryMinRange : 0 }
 
     /// Turrets and artillery: acquire, turn, fire. Artillery lobs shells and cannot hit inside its minimum
@@ -1290,7 +1306,7 @@ final class SBuilding: SEntity {
         let a = atan2(t.y - y, t.x - x)
         gunAngle = angLerp(gunAngle, a, dt * (kind == .artillery ? 4 : 10))
         guard cooldown <= 0 else { return }
-        cooldown = Double(stats.cooldown)
+        cooldown = kind == .hq ? hqGunCooldown : Double(stats.cooldown)
         let ux = cos(a), uy = sin(a)
         if kind == .artillery {
             if abs(angDiff(gunAngle, a)) > 0.35 {
@@ -1347,6 +1363,9 @@ final class SWorld {
     var resources: [Int: Double] = [:]
     var unitsTrained: [Int: Int] = [:], unitsLost: [Int: Int] = [:], crystalsMined: [Int: Int] = [:]
     private var alertTime: [Int: Double] = [:]
+    /// Supply crates on the field, and when the next one drops.
+    private(set) var crates: [SCrate] = []
+    var nextCrate = crateFirst
     /// Alert points: a player marks a spot and every ally is shown it; computer allies send troops.
     private(set) var pings: [(slot: Int, x: Double, y: Double, t: Double, kind: Int)] = []
     private var pingTime: [Int: Double] = [:]
@@ -1476,6 +1495,7 @@ final class SWorld {
         updateShields()
         for b in buildings where !b.dead { b.update(dt) }
         updateShells(dt)
+        updateCrates()
         for t in towers { t.update(dt) }
         for p in players.values where p.alive { p.ai?.update(dt) }
         cleanupDead()
@@ -2119,6 +2139,72 @@ final class SWorld {
         emit(["shell", x0, y0, x1, y1, dur, team, arc ? 1 : 0])
     }
 
+    // MARK: Supply crates
+
+    /// Drops a crate now and then, retires old ones, and hands a crate to the first unit to reach it.
+    private func updateCrates() {
+        if elapsed >= nextCrate {
+            nextCrate = elapsed + crateInterval
+            if crates.count < crateMax { _ = dropCrate() }
+        }
+        guard !crates.isEmpty else { return }
+        for c in crates {
+            if elapsed - c.born > crateLife { removeCrate(c); continue }
+            if let taker = units.first(where: { u in !u.dead && abs(u.x - c.x) < 60 && abs(u.y - c.y) < 60
+                                                && hyp(u.x - c.x, u.y - c.y) <= c.radius + u.radius }) {
+                collectCrate(c, team: taker.team)
+            }
+        }
+    }
+
+    /// A crate somewhere open: clear of water and cliffs, away from every base and every mineral field.
+    @discardableResult
+    func dropCrate(kind: String? = nil) -> SCrate? {
+        for _ in 0..<60 {
+            let x = Double.random(in: 200...(worldW - 200)), y = Double.random(in: 200...(worldH - 200))
+            if nav.isBlocked(Int(x / 40), Int(y / 40)) { continue }
+            if buildings.contains(where: { !$0.dead && hyp($0.x - x, $0.y - y) < 600 }) { continue }
+            if crystals.contains(where: { !$0.dead && hyp($0.x - x, $0.y - y) < 120 }) { continue }
+            if walls.contains(where: { $0.distance(x, y) < 40 }) { continue }
+            let roll = Int.random(in: 0..<100)
+            let k = kind ?? (roll < 50 ? "crystal" : roll < 85 ? "squad" : "tank")
+            let amount = k == "crystal" ? crateCrystal.randomElement()! : 0
+            let c = SCrate(id: nextId(), x: x, y: y, kind: k, amount: amount, born: elapsed)
+            crates.append(c)
+            byId[c.id] = c
+            return c
+        }
+        return nil
+    }
+
+    private func removeCrate(_ c: SCrate) {
+        c.dead = true
+        crates.removeAll { $0 === c }
+        byId[c.id] = nil
+    }
+
+    /// The gift: crystal into the bank, or troops spawned around the crate for that side.
+    func collectCrate(_ c: SCrate, team: Int) {
+        if c.kind == "crystal" {
+            resources[team, default: 0] += Double(c.amount)
+        } else {
+            let kinds: [UnitKind] = c.kind == "squad" ? Array(repeating: .marine, count: crateSquad) : [.tank]
+            for (i, k) in kinds.enumerated() {
+                let a = Double(i) / Double(kinds.count) * 2 * .pi
+                add(SUnit(world: self, kind: k, team: team, x: c.x + cos(a) * 26, y: c.y + sin(a) * 26))
+            }
+        }
+        emit(["crate", team, c.x, c.y, c.kind, c.amount])
+        removeCrate(c)
+    }
+
+    /// For tests and saves.
+    func restoreCrate(id: Int, x: Double, y: Double, kind: String, amount: Int, born: Double) {
+        let c = SCrate(id: id, x: x, y: y, kind: kind, amount: amount, born: born)
+        crates.append(c)
+        byId[c.id] = c
+    }
+
     /// Every building within shieldRadius of a finished friendly Shield Generator carries a shield.
     private func updateShields() {
         let gens = buildings.filter { $0.kind == .shield && $0.built && !$0.dead }
@@ -2165,6 +2251,11 @@ final class SAI {
     private var nextRaid = 240.0
     /// Time of the last allied alert point this side sent troops to.
     private var answeredPing = -1.0
+    /// The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
+    private(set) var routeOpen = true
+    private var nextRouteCheck = 0.0
+    private(set) var routeBridge: SBridge?
+    func forceRouteCheck() { nextRouteCheck = 0 }
     var attackersCount: Int { attackers.count }
 
     init(world: SWorld, team: Int) {
@@ -2266,6 +2357,8 @@ final class SAI {
         upgrade(hq, bases)
         shop(army)
         defend(bases, home)
+        grabCrates(hq, home)
+        openRoute(hq, home, workers)
         attack(hq, home)
     }
 
@@ -2351,6 +2444,7 @@ final class SAI {
         var wants: [(SBuilding, UpgradeKind)] = bases.filter { $0.kind == .barracks || $0.kind == .factory }.map { ($0, .prod) }
         wants += [(hq, .armor), (hq, .hp)]
         wants += bases.filter { $0.kind == .turret }.map { ($0, .guns) }
+        wants += bases.filter { $0.kind == .hq }.map { ($0, .defense) }
         wants += bases.filter { $0.kind == .depot }.map { ($0, .supply) }
         for (b, k) in wants where b.canUpgrade(k) && (g.resources[team] ?? 0) >= Double(k.cost(for: b.kind)) + 300 {
             g.apply(team, ["upgrade", [b.id], k.wireName])
@@ -2461,9 +2555,51 @@ final class SAI {
         }
     }
 
+    /// A supply crate in sight and not too far from home is worth a trooper's walk.
+    private func grabCrates(_ hq: SBuilding, _ home: [SUnit]) {
+        let g = world
+        for c in g.crates where hyp(c.x - hq.x, c.y - hq.y) <= 1400 && g.fog[g.players[team]!.team]?.isVisible(c.x, c.y) == true {
+            let taken = home.contains { u in if case .move(let x, let y) = u.order { return abs(x - c.x) < 1 && abs(y - c.y) < 1 }; return false }
+            if taken { continue }
+            if let u = home.filter({ $0.order.isIdle }).min(by: { hyp($0.x - c.x, $0.y - c.y) < hyp($1.x - c.x, $1.y - c.y) }) {
+                u.command(.move(c.x, c.y))
+            }
+        }
+    }
+
+    /// When the way to the enemy is cut — the crossings are down — an attack must not bounce off the water:
+    /// an Engineer goes to put back the bridge on the route, an escort holds the near bank, and the wave
+    /// waits for the span. Rebuilding pays the bridge's price even with nothing else in the bank.
+    private func openRoute(_ hq: SBuilding, _ home: [SUnit], _ workers: [SUnit]) {
+        let g = world
+        guard g.elapsed >= nextRouteCheck else { return }
+        nextRouteCheck = g.elapsed + 6
+        guard let target = g.primaryTarget(team, hq.x, hq.y) else { routeOpen = true; routeBridge = nil; return }
+        routeOpen = g.nav.reaches(hq.x, hq.y, target.x, target.y)
+        if routeOpen { routeBridge = nil; return }
+        let down = g.bridges.filter { !$0.intact }
+        guard let b = down.min(by: { hyp($0.x - hq.x, $0.y - hq.y) + hyp(target.x - $0.x, target.y - $0.y)
+                                   < hyp($1.x - hq.x, $1.y - hq.y) + hyp(target.x - $1.x, target.y - $1.y) }) else { return }
+        routeBridge = b
+        let busy = workers.contains { if case .rebuild = $0.order { return true }; return false }
+        if !busy && (g.resources[team] ?? 0) >= Double(bridgeCost) {
+            let free = workers.filter { w in
+                w.order.isIdle || { if case .gather = w.order { return true }; if case .ret = w.order { return true }; return false }() }
+            if let builder = free.min(by: { hyp($0.x - b.x, $0.y - b.y) < hyp($1.x - b.x, $1.y - b.y) }) {
+                g.resources[team, default: 0] -= Double(bridgeCost)
+                builder.command(.rebuild(b))
+            }
+        }
+        // The escort holds the near bank: a little short of the ruins, on this side of the water.
+        let d = max(1, hyp(b.x - hq.x, b.y - hq.y))
+        let px = b.x - (b.x - hq.x) / d * 150, py = b.y - (b.y - hq.y) / d * 150
+        for u in home.filter({ $0.order.isIdle }).prefix(6) { let (x, y) = standoff(u, px, py); u.command(.amove(x, y)) }
+    }
+
     private func attack(_ hq: SBuilding, _ home: [SUnit]) {
         let g = world
         let overdue = g.elapsed > nextWave + 120 && home.count >= 4
+        if !routeOpen { nextWave = max(nextWave, g.elapsed + 10) }      // the wave waits for the crossing
         if g.elapsed >= nextWave && (home.count >= waveSize || overdue), let target = g.primaryTarget(team, hq.x, hq.y) {
             for u in home { let (x, y) = standoff(u, target.x, target.y); u.command(.amove(x, y)) }
             attackers += home

@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 10, so a 1.14.0 Mac and a 1.14.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.15.0 Mac and a 1.15.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -127,6 +127,14 @@ heals. The rules and numbers match the Linux edition exactly — `FC_REPAIRTEST`
 finds its targets; slow, high-arcing 45-damage shells with splash every 4 seconds, blind inside 150. **K**
 builds a Shield Generator (225, needs a Barracks): every building of yours within 320 carries 300 shield
 points that soak damage first and recharge. Same numbers as the Linux edition (`FC_ARTYTEST`).
+
+## Satellite view, point defence and supply crates
+
+**Tab** shows the whole map with markers for every troop and building (Tab, Space or a minimap click brings
+you back). **J** on a Command Center buys point defence: a roof gun with 240 reach. Supply crates drop on the
+field every 75 seconds; the first unit to reach one banks crystal or gains a squad or a tank. The computer
+reopens a cut route by rebuilding the bridge on its way (`FC_AITEST`). Same rules as the Linux edition
+(`FC_UPGRADETEST`, `FC_CRATETEST`).
 
 ## Medics
 
@@ -198,6 +206,7 @@ FC_AUDIOTEST=1 .build/release/FieldCommand                    # every synthesise
 FC_MEDICTEST=1 .build/release/FieldCommand                    # Medics healing, Engineers repairing tanks
 FC_PINGTEST=1 .build/release/FieldCommand                     # alert points: alliance-only, rate limit, AI allies answer
 FC_ARTYTEST=1 .build/release/FieldCommand                     # artillery reach, arc and blind spot; shields soak and recharge
+FC_CRATETEST=1 .build/release/FieldCommand                    # supply crates: drop, pickup, gifts, expiry, save
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

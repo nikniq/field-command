@@ -306,7 +306,8 @@ class HUD:
         me = g.s.slot
         x = self._top_button(screen, mouse, 220, 96, f"{idle} idle", art.unit("worker", me), idle > 0, g.select_idle_worker)
         x = self._top_button(screen, mouse, x, 104, f"Army {army}", art.unit("marine", me), False, g.select_army)
-        self._top_button(screen, mouse, x, 90, "Attack (Z)", None, g.ping_pending, g.begin_ping)
+        x = self._top_button(screen, mouse, x, 90, "Attack (Z)", None, g.ping_pending, g.begin_ping)
+        self._top_button(screen, mouse, x, 112, "Satellite (Tab)", None, g.satellite, g.toggle_satellite)
         speed = settings.speed_index != 1 and g.s.can_pause
         clock = fmt_time(g.elapsed) + (f"  ·  {settings.speed_name}" if speed else "") + ("" if g.s.can_pause else "  ·  ONLINE")
         ui.blit_text(screen, clock, 16, TEXT, (w / 2, cy), align="center", bold=True, mono=True)
@@ -745,6 +746,7 @@ class HUD:
             "Ctrl+1–9 — assign group · 1–9 — recall (double-tap to jump there)",
             "I — next idle engineer · ` or F2 — select army · Space — jump to alert",
             "Z or Alt+click — attack point, Shift+Z — help point: your whole side sees it, computer allies send troops",
+            "Tab — satellite view: the whole map on screen; Tab, Space or a minimap click brings you back",
             "Arrows / screen edge / middle-drag — pan · Wheel or +/− — zoom",
             "Y — the Armory: buy kit for your troops · G — siege / unsiege tanks",
             "F5 — quick save · F9 — quick load · the game also autosaves every five minutes",

@@ -365,6 +365,20 @@ def tank_outriggers(team):
     return texture(("outriggers", team), (76, 56), d)
 
 
+def crate():
+    """A supply drop: an olive crate with strapping, a white chevron and a beacon light on the lid."""
+    def d(c):
+        box_ = rr(-16, -13, 32, 26, 3)
+        lit(c, box_, rgb(0.42, 0.44, 0.28))
+        stroke(c, box_, rgb(0, 0, 0, 0.6), 1.2)
+        for x in (-8, 8):
+            fill(c, rr(x - 2, -13, 4, 26, 0.5), rgb(0.22, 0.2, 0.14))        # strapping
+        fill(c, poly([(-5, 4), (0, -3), (5, 4), (3, 4), (0, 0), (-3, 4)]), rgb(0.92, 0.92, 0.88))
+        fill(c, circle(11, -9, 2.4), rgb(1.0, 0.45, 0.2))
+        fill(c, circle(10.3, -9.6, 0.9), alpha(WHITE, 0.8))
+    return texture("crate", (44, 38), d)
+
+
 def watchtower(team):
     """A stone tower on a square footing, flying the holder's banner — grey and bare when nobody holds it."""
     col = TEAM_COLOR[team] if team is not None else rgb(0.45, 0.47, 0.5)
@@ -451,6 +465,17 @@ def icon_upgrade(kind):
             stroke(c, box, rgb(0, 0, 0, 0.6), 1.2)
             lines(c, [((-13, 0), (13, 0)), ((0, -10), (0, 10))], rgb(0.25, 0.17, 0.09, 0.8), 1.5)
             fill(c, rr(-5, -16, 10, 6, 1), AMBER)
+        elif kind == "defense":
+            # A gun over the Command Center's octagon
+            oct_ = _octagon(15)
+            lit(c, oct_, rgb(0.42, 0.46, 0.55))
+            stroke(c, oct_, rgb(0, 0, 0, 0.6), 1.2)
+            linear(c, rr(0, -2.2, 18, 4.4, 1.2), [rgb(0.7, 0.72, 0.74), rgb(0.3, 0.31, 0.33)], (0, 2), (0, -2))
+            fill(c, rr(15, -2.8, 4, 5.6, 1), rgb(0.12, 0.12, 0.13))
+            base = circle(-3, 0, 6.5)
+            lit(c, base, rgb(0.5, 0.55, 0.62))
+            stroke(c, base, rgb(0, 0, 0, 0.6), 1)
+            fill(c, circle(-3, 0, 2), rgb(1, 0.35, 0.3))
         else:   # guns
             for y in (-5, 5):
                 linear(c, rr(-4, y - 2.2, 22, 4.4, 1.2), [rgb(0.7, 0.72, 0.74), rgb(0.3, 0.31, 0.33)], (0, y + 2), (0, y - 2))

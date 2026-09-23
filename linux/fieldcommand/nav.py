@@ -172,6 +172,12 @@ class NavGrid:
             pts.append((x1, y1))
         return self._smooth((x0, y0), pts)
 
+    def reaches(self, x0, y0, x1, y1):
+        """Whether there is a way at all from one point to the other (a cut bridge, say, means there is not).
+        A full search, so call it sparingly."""
+        pts = self.find_path(x0, y0, x1, y1, max_nodes=80000)
+        return bool(pts) and abs(pts[-1][0] - x1) < 1e-6 and abs(pts[-1][1] - y1) < 1e-6
+
     def _smooth(self, origin, pts):
         """String-pulling: skip waypoints that can be seen directly from the previous kept point."""
         if len(pts) <= 1:

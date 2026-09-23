@@ -516,6 +516,7 @@ final class GameServer {
         case "msg", "alert", "income", "built", "wave", "trained", "upgraded", "rank", "kit": return jInt(e[1]) == slot
         case "elim", "gameover", "chat", "bridge", "tower": return true
         case "ping": return w.allied(jInt(e[1]), slot)        // an alert point is for the whole alliance
+        case "crate": return w.allied(jInt(e[1]), slot) || (w.fog[w.players[slot]?.team ?? -1]?.isVisible(num(2), num(3)) ?? false)
         case "recoil", "pulse":
             guard let ent = w.byId[jInt(e[1])] as? SEntity else { return false }
             return w.sees(slot, ent)
@@ -571,6 +572,8 @@ final class GameServer {
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
                 "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
+                "cr": w.crates.filter { c in w.fog[w.players[slot]?.team ?? -1]?.isVisible(c.x, c.y) == true }
+                    .map { [$0.id, r1($0.x), r1($0.y), crateKinds.firstIndex(of: $0.kind) ?? 0, $0.amount] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]
     }
 }

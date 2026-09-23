@@ -206,6 +206,24 @@ extension GameScene {
             let o = jInt(v[3]), c = jInt(v[4])
             node.apply(owner: o < 0 ? nil : o, capturing: c < 0 ? nil : c, progress: jNum(v[5]) / 100)
         }
+        // Crates arrive only while in sight, so what the server sent is the whole list.
+        var liveCrates = Set<Int>()
+        for c in jArr(m["cr"]) {
+            let v = jArr(c)
+            guard v.count >= 5 else { continue }
+            let id = jInt(v[0])
+            liveCrates.insert(id)
+            if crateNodes[id] == nil {
+                let k = crateKinds[min(crateKinds.count - 1, max(0, jInt(v[3])))]
+                let node = CrateNode(id: id, kind: k, amount: jInt(v[4]), at: CGPoint(x: jNum(v[1]), y: jNum(v[2])))
+                world.addChild(node)
+                crateNodes[id] = node
+            }
+        }
+        for (id, node) in crateNodes where !liveCrates.contains(id) {
+            node.removeFromParent()
+            crateNodes[id] = nil
+        }
         for (i, b) in jArr(m["br"]).enumerated() {
             let v = jArr(b)
             guard v.count >= 4, i < bridgeNodes.count else { continue }
@@ -281,6 +299,7 @@ extension GameScene {
             hud.flash(jStr(e[2]), color: jStr(e[3]) == "bad" ? Palette.bad : Palette.text)
         case "alert": alertAttack(at: p(2))
         case "ping": allyPing(slot: jInt(e[1]), at: p(2), kind: e.count > 4 ? jInt(e[4]) : 0)
+        case "crate": crateTaken(slot: jInt(e[1]), at: p(2), kind: jStr(e[4]), amount: jInt(e[5]))
         case "income":
             let at = p(2)
             if visibleWorldRect().contains(at) { floatText("+\(jInt(e[4]))", at: at + CGPoint(x: 0, y: 14), color: Palette.crystal) }

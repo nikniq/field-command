@@ -81,6 +81,7 @@ jobs:
           FC_MEDICTEST=1 "$BIN" | tee /dev/stderr | grep -q "MEDIC TEST PASSED"
           FC_PINGTEST=1 "$BIN" | tee /dev/stderr | grep -q "PING TEST PASSED"
           FC_ARTYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ARTILLERY TEST PASSED"
+          FC_CRATETEST=1 "$BIN" | tee /dev/stderr | grep -q "CRATE TEST PASSED"
           FC_BRIDGETEST=river_crossing "$BIN" | tee /dev/stderr | grep -q "BRIDGE TEST PASSED"
           FC_SAVETEST=1 FC_SAVE_FIXTURE="$GITHUB_WORKSPACE/tests/fixtures/save_python.json" "$BIN" | tee /dev/stderr | grep -q "SAVE TEST PASSED"
       - name: App bundle

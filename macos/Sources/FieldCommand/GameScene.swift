@@ -52,6 +52,11 @@ final class GameScene: SKScene {
     /// Alert points: Z (or Option+click) marks "attack here", Shift+Z "help here", for the whole alliance.
     var pingPending = false
     var pingKind = 0
+    /// Satellite view: the whole map on screen at once (Tab), with markers so troops still read.
+    private(set) var satellite = false
+    private var satelliteSaved: (CGPoint, CGFloat)?
+    private let satelliteLayer = SKNode()
+    private var satelliteMarkers: [ObjectIdentifier: SKSpriteNode] = [:]
     var dragStart: CGPoint?
     private let selectionBox = SKShapeNode()
     private let rallyFlag = SKNode()
@@ -572,6 +577,7 @@ final class GameScene: SKScene {
     // MARK: - Main loop
 
     override func update(_ currentTime: TimeInterval) {
+        if satellite { updateSatelliteMarkers() }
         cloudLayer.position = CGPoint(x: (elapsed * 22).truncatingRemainder(dividingBy: 1024) - 1024,
                                       y: (elapsed * 9).truncatingRemainder(dividingBy: 1024) - 1024)
         let rawDt = lastTime == 0 ? 1.0 / 60 : currentTime - lastTime
@@ -916,6 +922,7 @@ final class GameScene: SKScene {
     }
 
     func clampCamera() {
+        if satellite { return }              // parked over the whole map
         let s = cam.xScale
         let hw = size.width * s / 2, hh = size.height * s / 2
         let minX = hw - 80, maxX = worldSize.width - hw + 80
@@ -925,6 +932,12 @@ final class GameScene: SKScene {
     }
 
     func centerCamera(on p: CGPoint) {
+        if satellite {
+            satellite = false
+            satelliteSaved = nil
+            cam.setScale(1)
+            clearSatelliteMarkers()
+        }
         // Offset so the point sits in the middle of the area above the HUD panel.
         let offset = (HUD.panelHeight - HUD.topHeight) / 2 * cam.yScale
         cam.position = CGPoint(x: p.x, y: p.y - offset)
@@ -932,7 +945,65 @@ final class GameScene: SKScene {
     }
 
     /// Zooms while keeping `anchor` (a world point, usually under the cursor) fixed on screen.
+    /// The whole map on screen: the camera pulls back to fit it, and comes back to where it was.
+    func toggleSatellite() {
+        if satellite {
+            satellite = false
+            if let (p, s) = satelliteSaved { cam.position = p; cam.setScale(s) }
+            satelliteSaved = nil
+            clampCamera()
+            clearSatelliteMarkers()
+            return
+        }
+        satelliteSaved = (cam.position, cam.xScale)
+        satellite = true
+        let s = max(worldSize.width / size.width, worldSize.height / max(1, size.height - HUD.panelHeight - HUD.topHeight)) * 1.03
+        cam.setScale(s)
+        cam.position = CGPoint(x: worldSize.width / 2, y: worldSize.height / 2 - (HUD.panelHeight - HUD.topHeight) * s / 2)
+        hud.flash("Satellite view: Tab returns to the ground", color: Palette.text)
+        hud.selectionChanged()
+    }
+
+    private func clearSatelliteMarkers() {
+        satelliteLayer.removeAllChildren()
+        satelliteMarkers = [:]
+    }
+
+    /// From orbit a Ranger is a pixel: every visible unit gets a solid dot and every building a square in its
+    /// side's colour, drawn in screen space so they stay readable.
+    private func updateSatelliteMarkers() {
+        if satelliteLayer.parent == nil { satelliteLayer.zPosition = 45; cam.addChild(satelliteLayer) }
+        let s = cam.xScale
+        var live = Set<ObjectIdentifier>()
+        func marker(for e: Entity, size: CGFloat, ring: Bool) {
+            let key = ObjectIdentifier(e)
+            live.insert(key)
+            let m: SKSpriteNode
+            if let existing = satelliteMarkers[key] {
+                m = existing
+            } else {
+                m = SKSpriteNode(texture: ring ? Art.squareRing : Art.dot)
+                m.color = e.team.lightColor
+                m.colorBlendFactor = 1
+                satelliteLayer.addChild(m)
+                satelliteMarkers[key] = m
+            }
+            m.size = CGSize(width: size, height: size)
+            m.position = CGPoint(x: (e.position.x - cam.position.x) / s, y: (e.position.y - cam.position.y) / s)
+        }
+        for u in units where !u.dead && (u.team.isFriendly || u.visibleToPlayer) { marker(for: u, size: u.kind == .tank ? 11 : 9, ring: false) }
+        for b in buildings where !b.dead && (b.team.isFriendly || b.visibleToPlayer) { marker(for: b, size: max(10, b.half * 2 / s + 4), ring: true) }
+        for (key, m) in satelliteMarkers where !live.contains(key) {
+            m.removeFromParent()
+            satelliteMarkers[key] = nil
+        }
+    }
+
     func zoom(by f: CGFloat, anchor: CGPoint? = nil) {
+        if satellite {
+            if f < 1 { toggleSatellite() }      // zooming in from orbit brings you back down where you were
+            return
+        }
         let old = cam.xScale
         let s = clamp(old * f, 0.55, 1.9)
         guard abs(s - old) > 0.0001 else { return }
@@ -1087,7 +1158,8 @@ final class GameScene: SKScene {
         if chars == "h" || chars == "?" || chars == "/" { toggleHelp(); return }
         if chars == "y" { toggleStore(); return }
         if gamePaused { return }
-        if code == 49 { jumpCamera(); return }
+        if code == 48 { toggleSatellite(); return }                                        // Tab
+        if code == 49 { if satellite { toggleSatellite() }; jumpCamera(); return }
         if chars == "=" || chars == "+" { zoom(by: 0.9); return }
         if chars == "-" || chars == "_" { zoom(by: 1.1); return }
         if chars == "o" {
@@ -1135,9 +1207,11 @@ final class GameScene: SKScene {
         var crystal: Crystal?
         var hoveredBridge: BridgeNode?
         var hoveredTower: TowerNode?
+        var hoveredCrate: CrateNode?
         let active = mouse != nil && !hud.overlayVisible && dragStart == nil && placing == nil
         if active, let m = mouse, !hud.isOverHUD(m.hud) {
             target = entity(at: m.world)
+            if target == nil { hoveredCrate = crate(at: m.world) }
             if target == nil, fog.isExplored(m.world) { crystal = self.crystal(at: m.world) }
             if target == nil, crystal == nil { hoveredBridge = bridge(at: m.world) }
             if target == nil, crystal == nil, hoveredBridge == nil { hoveredTower = tower(at: m.world) }
@@ -1157,6 +1231,8 @@ final class GameScene: SKScene {
                     label += first.kind == .worker ? "    right-click to repair" : "    right-click to treat"
                 }
                 hud.setHover(label, color: t.team.isLocal ? Palette.text : (t.team.isFriendly ? t.team.lightColor : Palette.bad), at: m.hud)
+            } else if hoveredCrate != nil {
+                hud.setHover("Supply crate — walk any unit onto it", color: Palette.amber, at: m.hud)
             } else if let c = crystal {
                 hud.setHover(c.isGold ? "Gold deposit  \(c.amount)  (a hundred fields' worth)" : "Crystal  \(c.amount)",
                              color: c.isGold ? Palette.amber : Palette.crystal, at: m.hud)
@@ -1200,6 +1276,7 @@ final class GameScene: SKScene {
             }
         }
         Art.cursor(kind).set()
+        for (_, n) in crateNodes where n.hovered != (n === hoveredCrate) { n.hovered = n === hoveredCrate }
     }
 
     private func orderTarget(_ o: Order) -> (CGPoint, Int)? {
@@ -1379,6 +1456,23 @@ final class GameScene: SKScene {
     }
 
     func tower(at p: CGPoint) -> TowerNode? { towerNodes.first { $0.contains(world: p) } }
+    var crateNodes: [Int: CrateNode] = [:]
+    func crate(at p: CGPoint) -> CrateNode? { crateNodes.values.first { $0.contains(world: p) && fog.isVisible($0.position) } }
+
+    /// Someone opened a supply crate: a burst where it stood, and a line for whoever gained by it.
+    func crateTaken(slot: Int, at p: CGPoint, kind: String, amount: Int) {
+        marker(at: p, color: Palette.amber, size: 40)
+        emit(FX.sparks(count: 10, speed: 90, color: Palette.amber), at: p, life: 1)
+        let team = Team(rawValue: slot)
+        let who = team.isLocal ? "You" : playerName(team)
+        let gift = kind == "crystal" ? "\(amount) crystal" : (kind == "squad" ? "a squad of Rangers" : "a Siege Tank")
+        if team.isFriendly {
+            hud.flash("Supply crate: \(who) found \(gift)", color: Palette.good)
+            if team.isLocal { playSound("complete") }
+        } else {
+            hud.flash("\(who) took a supply crate", color: Palette.text)
+        }
+    }
 
     func bridge(at p: CGPoint) -> BridgeNode? {
         bridgeNodes.first { $0.contains(world: p) }

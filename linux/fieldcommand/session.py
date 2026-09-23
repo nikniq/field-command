@@ -10,6 +10,7 @@ import time
 
 from . import mapgen
 from . import defs
+from .defs import CRATE_KINDS, CRATE_RADIUS
 from .defs import KIT_IDS
 from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, TOWER_HALF, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS,
@@ -159,6 +160,7 @@ class LocalSession(_Base):
     units = property(lambda self: self.world.units)
     buildings = property(lambda self: self.world.buildings)
     crystals = property(lambda self: self.world.crystals)
+    crates = property(lambda self: self.world.crates)
     bridges = property(lambda self: self.world.bridges)
     towers = property(lambda self: self.world.towers)
     kits = property(lambda self: self.world.kits[self.slot])
@@ -261,6 +263,18 @@ class _ProxyBridge:
 
     def targetable_by(self, slot):
         return self.intact
+
+
+class _ProxyCrate:
+    is_building = False
+    dead = False
+    team = None
+    name = "Supply crate"
+    radius = CRATE_RADIUS
+
+    def __init__(self, id, x, y, kind, amount):
+        self.id, self.x, self.y, self.kind, self.amount = id, x, y, kind, amount
+        self.selected = self.hovered = False
 
 
 class _ProxyTower:
@@ -400,6 +414,7 @@ class NetSession(_Base):
         self._bridges_by_id = {}
         self.towers = []
         self._towers_by_id = {}
+        self.crates = []
         self.kits = set()
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
@@ -526,6 +541,8 @@ class NetSession(_Base):
             t.owner = None if owner < 0 else owner
             t.capturing = None if capturing < 0 else capturing
             t.progress = prog / 100
+        # Crates arrive only while in sight, so the list is simply what the server sent.
+        self.crates = [_ProxyCrate(i, x, y, CRATE_KINDS[k], amount) for (i, x, y, k, amount) in m.get("cr", ())]
         amounts = {i: a for i, a in m["c"]}
         for c in self.crystals:
             if c.id in amounts:

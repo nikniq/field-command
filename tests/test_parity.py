@@ -195,6 +195,21 @@ def test_artillery_and_shield_constants_agree():
         assert float(re.search(rf"let {name}: Double = ([\d.]+)", src).group(1)) == value, name
 
 
+def test_hq_gun_and_crate_constants_agree():
+    from fieldcommand import defs
+    src = swift("Defs.swift")
+    for name, value in [("hqGunRange", defs.HQ_GUN_RANGE), ("hqGunDamage", defs.HQ_GUN_DAMAGE), ("hqGunCooldown", defs.HQ_GUN_COOLDOWN),
+                        ("crateInterval", defs.CRATE_INTERVAL), ("crateFirst", defs.CRATE_FIRST), ("crateLife", defs.CRATE_LIFE),
+                        ("crateRadius", defs.CRATE_RADIUS)]:
+        assert float(re.search(rf"let {name}: Double = ([\d.]+)", src).group(1)) == value, name
+    assert int(re.search(r"let crateMax = (\d+)", src).group(1)) == defs.CRATE_MAX
+    assert int(re.search(r"let crateSquad = (\d+)", src).group(1)) == defs.CRATE_SQUAD
+    kinds = re.search(r"let crateKinds = \[(.*?)\]", src).group(1).replace('"', "").replace(" ", "").split(",")
+    assert kinds == defs.CRATE_KINDS
+    amounts = [int(v) for v in re.search(r"let crateCrystal = \[(.*?)\]", src).group(1).split(",")]
+    assert tuple(amounts) == defs.CRATE_CRYSTAL
+
+
 def test_healing_constants_agree():
     from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
     src = swift("Defs.swift")

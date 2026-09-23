@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.14.0
+Version:        1.15.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,14 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Sep 23 2026 Field Command Developers <noreply@example.invalid> - 1.15.0-1
+- The computer reopens a cut route: with the crossings down it rebuilds the bridge on its way, escorted,
+  and holds its wave until the span stands
+- Satellite view (Tab): the whole map on screen with markers for every troop and building
+- Point defence (J): the Command Center mounts its own gun
+- Supply crates drop on the field: the first unit to reach one banks crystal or gains a squad or a tank
+- Protocol 11 (older clients are refused)
+
 * Wed Sep 23 2026 Field Command Developers <noreply@example.invalid> - 1.14.0-1
 - Visuals: one sun for the whole map with biome tints, drifting cloud shadows, wheel ruts along roads,
   pebbles, darker forest floors, longer-lasting craters, hit flashes, and the fallen left where they dropped

@@ -22,11 +22,11 @@ import time
 import zlib
 
 from . import mapgen
-from .defs import BUILDING_KINDS, DIFFICULTIES, KIT_IDS, MAX_PLAYERS, UNIT_KINDS, UPGRADE_KINDS
+from .defs import BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_IDS, MAX_PLAYERS, UNIT_KINDS, UPGRADE_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 10
+PROTOCOL_VERSION = 11
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -35,6 +35,7 @@ COMPRESS_OVER = 512
 _FLAG = 0x80000000
 
 UNIT_INDEX = {k: i for i, k in enumerate(UNIT_KINDS)}
+CRATE_INDEX = {k: i for i, k in enumerate(CRATE_KINDS)}
 UPGRADE_INDEX = {k: i for i, k in enumerate(UPGRADE_KINDS)}
 BUILDING_INDEX = {k: i for i, k in enumerate(BUILDING_KINDS)}
 STATUS = {"idle": 0, "move": 1, "amove": 2, "attack": 3, "gather": 4, "return": 5, "build": 6,
@@ -78,6 +79,8 @@ def event_visible(world, slot, ev):
         return True
     if kind == "ping":
         return world.allied(ev[1], slot)      # an alert point is for the whole alliance
+    if kind == "crate":
+        return world.allied(ev[1], slot) or world.fog_for(slot).is_visible(ev[2], ev[3])
     fog = world.fog_for(slot)
     if kind in ("recoil", "pulse"):
         e = world.by_id.get(ev[1])
@@ -147,6 +150,8 @@ def snapshot_for(world, slot, events):
             "u": units, "o": orders, "b": buildings,
             "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],
             "kit": sum(1 << i for i, k in enumerate(KIT_IDS) if k in world.kits.get(slot, ())),
+            "cr": [[c.id, _r(c.x), _r(c.y), CRATE_INDEX[c.kind], c.amount] for c in world.crates
+                   if world.fog_for(slot).is_visible(c.x, c.y)],
             "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,
                     -1 if t.capturing is None else t.capturing, int(t.progress * 100)] for t in world.towers],
             "c": [[c.id, c.amount] for c in world.crystals],

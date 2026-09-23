@@ -953,6 +953,13 @@ final class Building: Entity {
             upgrades = set
             maxHp = stats.hp * (set.contains(.hp) ? 2 : 1)      // the bar must know the new ceiling
             updateHPBar()
+            if kind == .hq && set.contains(.defense) && gun == nil {      // the point-defence gun on the roof
+                let g = SKSpriteNode(texture: Art.turretGun(team))
+                g.size = CGSize(width: 76 * 0.85, height: 36 * 0.85)
+                g.zPosition = 2
+                addChild(g)
+                gun = g
+            }
         }
         upgrading = inProgress?.0
         upgradeProgress = inProgress?.1 ?? 0
@@ -1024,6 +1031,51 @@ final class Building: Entity {
 
 /// A control point on the client: the tower art in the holder's colour, and the capture ring while someone
 /// is taking it. Position comes with the first snapshot; condition with every one.
+/// A supply crate on the field: bobs a little, its beacon glows, and a hover ring when the mouse is on it.
+final class CrateNode: SKNode {
+    let crateId: Int
+    let kind: String
+    let amount: Int
+    let radius: CGFloat = CGFloat(crateRadius)
+    var hovered = false { didSet { marker.isHidden = !hovered } }
+    private let marker = SKSpriteNode(texture: Art.ring)
+
+    init(id: Int, kind: String, amount: Int, at p: CGPoint) {
+        crateId = id; self.kind = kind; self.amount = amount
+        super.init()
+        position = p
+        zPosition = 1.6
+        let shadow = SKSpriteNode(texture: Art.shadow)
+        shadow.size = CGSize(width: 46, height: 46)
+        shadow.position = CGPoint(x: 4, y: -5)
+        shadow.zPosition = -0.5
+        addChild(shadow)
+        let glow = SKSpriteNode(texture: Art.glow)
+        glow.size = CGSize(width: 70, height: 70)
+        glow.color = .rgb(1, 0.67, 0.31)
+        glow.colorBlendFactor = 1
+        glow.blendMode = .add
+        glow.alpha = 0.55
+        glow.zPosition = -0.2
+        glow.run(.repeatForever(.sequence([.fadeAlpha(to: 0.25, duration: 0.8), .fadeAlpha(to: 0.7, duration: 0.8)])))
+        addChild(glow)
+        let body = SKSpriteNode(texture: Art.crate)
+        body.size = CGSize(width: 44, height: 38)
+        body.zRotation = CGFloat(id * 37 % 360) * .pi / 180
+        body.run(.repeatForever(.sequence([.moveBy(x: 0, y: 2, duration: 1.2), .moveBy(x: 0, y: -2, duration: 1.2)])))
+        addChild(body)
+        marker.size = CGSize(width: radius * 2 + 12, height: radius * 2 + 12)
+        marker.alpha = 0.7
+        marker.isHidden = true
+        marker.zPosition = -0.1
+        addChild(marker)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func contains(world p: CGPoint) -> Bool { position.distance(to: p) < radius + 8 }
+}
+
 final class TowerNode: SKNode {
     var towerId = -1
     private(set) var owner: Int?

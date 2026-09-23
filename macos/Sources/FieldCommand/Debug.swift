@@ -403,6 +403,58 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_CRATETEST=1: supply crates drop on open ground, are collected by the first unit to reach them, give
+    /// crystal or troops to that side, expire, and survive a save.
+    static func runCrateTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        let w = SWorld(map: SMapGen.generate("twin_ridges"),
+                       players: [SPlayer(slot: 0, name: "P0", team: 1, isAI: false, start: 0),
+                                 SPlayer(slot: 1, name: "P1", team: 2, isAI: false, start: 1)], difficulty: .normal)
+        for u in w.units { u.command(.idle) }
+        var heard: [[Any]] = []
+        func run(_ seconds: Double, until: () -> Bool = { false }) {
+            var t = 0.0
+            while t < seconds {
+                w.step(1.0 / 30)
+                heard += w.events.filter { jStr($0.first) == "crate" }
+                w.events.removeAll()
+                t += 1.0 / 30
+                if until() { return }
+            }
+        }
+        run(crateFirst + 1)
+        check(w.crates.count == 1, "the first crate drops at \(Int(crateFirst))s")
+        if let c = w.crates.first {
+            let clear = !w.nav.isBlocked(Int(c.x / 40), Int(c.y / 40))
+                && !w.buildings.contains { (($0.x - c.x) * ($0.x - c.x) + ($0.y - c.y) * ($0.y - c.y)).squareRoot() < 600 }
+            check(clear, "on open ground away from every base")
+        }
+        let cash = w.dropCrate(kind: "crystal")!
+        let bank = w.resources[0] ?? 0
+        let runner = SUnit(world: w, kind: .marine, team: 0, x: cash.x + 60, y: cash.y); w.add(runner)
+        runner.command(.move(cash.x, cash.y))
+        run(6) { cash.dead }
+        check(cash.dead && (w.resources[0] ?? 0) == bank + Double(cash.amount), "the first unit to reach a crystal crate banks \(cash.amount)")
+        let squad = w.dropCrate(kind: "squad")!
+        let before = w.units.filter { $0.team == 0 && $0.kind == .marine }.count
+        let r2 = SUnit(world: w, kind: .worker, team: 0, x: squad.x + 60, y: squad.y); w.add(r2)
+        r2.command(.move(squad.x, squad.y))
+        heard = []
+        run(6) { squad.dead }
+        check(squad.dead && w.units.filter { $0.team == 0 && $0.kind == .marine }.count == before + crateSquad, "a squad crate spawns \(crateSquad) Rangers for the taker's side")
+        check(heard.first.map { jInt($0[1]) == 0 && jStr($0[4]) == "squad" } ?? false, "and the pickup is an event")
+        let old = w.dropCrate(kind: "tank")!
+        run(crateLife + 2)
+        check(old.dead, "a crate nobody reaches expires after \(Int(crateLife))s")
+        let far = w.dropCrate(kind: "crystal")!
+        let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+        let w2 = try! SaveGame.decode(doc)
+        check(w2.crates.contains { $0.id == far.id && $0.kind == "crystal" && $0.amount == far.amount } && w2.nextCrate == w.nextCrate, "crates survive a save")
+        print(ok ? "CRATE TEST PASSED" : "CRATE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_ARTYTEST=1: Artillery reaches beyond its sight only with a spotter, lobs arcing shells with splash,
     /// is blind up close; Shield Generators soak damage within their radius, recharge, and collapse when lost.
     static func runArtilleryTest() -> Never {
@@ -773,6 +825,30 @@ enum Debug {
         while !w2.gameOver && w2.elapsed < 1500 { w2.step(1.0 / 30); w2.events.removeAll() }
         check(w2.gameOver, String(format: "two reacting opponents finish a game (%.0fs)", w2.elapsed))
 
+        // With every crossing down the enemy is unreachable: the computer rebuilds the one on its route.
+        do {
+            let map = SMapGen.generate("river_crossing")
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }
+            let w = SWorld(map: map, players: ps, difficulty: .normal)
+            var t = 0.0
+            while t < 5 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+            for b in w.bridges { b.takeDamage(bridgeHP, from: nil) }
+            w.resources[1] = 400
+            let ai = w.players[1]!.ai!
+            ai.forceRouteCheck()
+            t = 0
+            while t < 7 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+            check(!ai.routeOpen && ai.routeBridge != nil, "with every crossing down it knows its route is cut")
+            let building = w.units.contains { u in u.team == 1 && u.kind == .worker && { if case .rebuild = u.order { return true }; return false }() }
+            check(building, "and sends an Engineer to the crossing on its route")
+            t = 0
+            while t < 240 && !w.bridges.contains(where: { $0.intact }) { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+            check(w.bridges.contains { $0.intact }, "which stands again within \(Int(t))s")
+            ai.forceRouteCheck()
+            t = 0
+            while t < 7 { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 }
+            check(ai.routeOpen, "and the route is open again")
+        }
         print(ok ? "AI TEST PASSED" : "AI TEST FAILED")
         exit(ok ? 0 : 1)
     }
@@ -1086,6 +1162,21 @@ enum Debug {
         w.resources[0] = 10
         w.apply(0, ["upgrade", [b.id], "hp"])
         check(b.upgrading == nil && (w.resources[0] ?? 0) == 10, "not enough crystal")
+
+        // Point defence: the Command Center shoots back once it has the gun, and not before.
+        (w, b) = setup()
+        let raider = SUnit(world: w, kind: .marine, team: 1, x: b.x + hqGunRange - 30, y: b.y); w.add(raider)
+        raider.command(.idle)
+        w.updateVisibility()
+        let hpBefore = raider.hp
+        _ = run(w, 4)
+        check(raider.hp == hpBefore, "an unupgraded Command Center is unarmed")
+        w.apply(0, ["upgrade", [b.id], "defense"])
+        _ = run(w, UpgradeKind.defense.stats.time + 1)
+        check(b.upgrades.contains(.defense) && b.armed, "point defence installs on the Command Center")
+        raider.hp = hpBefore
+        _ = run(w, 4)
+        check(raider.hp < hpBefore, "and then it fires on a raider at \(Int(hqGunRange))")
 
         print(ok ? "UPGRADE TEST PASSED" : "UPGRADE TEST FAILED")
         exit(ok ? 0 : 1)

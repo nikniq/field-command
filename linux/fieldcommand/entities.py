@@ -14,7 +14,8 @@ from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWE
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
-                   ARTILLERY_MIN_RANGE, ARTILLERY_SPLASH, HEAL_RANGE, HEAL_RATE, SHIELD_DELAY, SHIELD_MAX, SHIELD_REGEN,
+                   ARTILLERY_MIN_RANGE, ARTILLERY_SPLASH, CRATE_RADIUS, HEAL_RANGE, HEAL_RATE, HQ_GUN_COOLDOWN, HQ_GUN_DAMAGE,
+                   HQ_GUN_RANGE, SHIELD_DELAY, SHIELD_MAX, SHIELD_REGEN,
                    MODE_SIEGING, MODE_UNSIEGING, REPAIR_COST_RATIO, REPAIR_TIME, SIEGE_COOLDOWN, SIEGE_DAMAGE,
                    SIEGE_MIN_RANGE, SIEGE_RANGE, SIEGE_SIGHT, SIEGE_SPLASH, SIEGE_TRANSITION, UNITS, angle_diff, angle_lerp,
                    rect_distance, square_rect)
@@ -48,6 +49,19 @@ class Crystal:
         if self.amount <= 0:
             self.dead = True
         return a
+
+
+class Crate:
+    """A supply drop on the field: `kind` is a CRATE_KINDS entry, `amount` the crystal it holds."""
+    is_building = False
+    radius = CRATE_RADIUS
+    name = "Supply crate"
+    team = None
+    dead = False
+
+    def __init__(self, id, x, y, kind, amount, born):
+        self.id, self.x, self.y, self.kind, self.amount, self.born = id, x, y, kind, amount, born
+        self.selected = self.hovered = False
 
 
 class Entity:
@@ -916,10 +930,14 @@ class Building(Entity):
 
     @property
     def turret_range(self):
+        if self.kind == "hq":
+            return HQ_GUN_RANGE
         return TURRET_UPGRADED_RANGE if "guns" in self.upgrades else self.stats.range
 
     @property
     def turret_damage(self):
+        if self.kind == "hq":
+            return HQ_GUN_DAMAGE
         return TURRET_UPGRADED_DAMAGE if "guns" in self.upgrades else self.stats.damage
 
     def take_damage(self, amount, attacker):
@@ -964,10 +982,15 @@ class Building(Entity):
         elif self.shield > 0:
             self.shield = max(0.0, self.shield - 60 * dt)      # the generator is gone: the field collapses
 
-        if self.kind in ("turret", "artillery"):
+        if self.armed:
             self._update_gun(dt)
         elif self.kind == "radar":
             self.gun_angle = (self.gun_angle + dt * 0.8) % (2 * math.pi)
+
+    @property
+    def armed(self):
+        """Turrets and artillery always; a Command Center once it has its point-defence gun."""
+        return self.kind in ("turret", "artillery") or (self.kind == "hq" and "defense" in self.upgrades)
 
     @property
     def min_range(self):
@@ -991,7 +1014,7 @@ class Building(Entity):
         self.gun_angle = angle_lerp(self.gun_angle, a, dt * (4 if self.kind == "artillery" else 10))
         if self.cooldown > 0:
             return
-        self.cooldown = self.stats.cooldown
+        self.cooldown = HQ_GUN_COOLDOWN if self.kind == "hq" else self.stats.cooldown
         ux, uy = math.cos(a), math.sin(a)
         if self.kind == "artillery":
             if abs(angle_diff(self.gun_angle, a)) > 0.35:

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.14.0"
+let appVersion = "1.15.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -307,6 +307,23 @@ let bridgeRebuildTime: Double = 25
 // Repair: one Engineer restores a building's full health in `repairTime` seconds (more Engineers stack), and a
 // full bar costs `repairCostRatio` of the building's price, charged as the health goes back on. Engineers also
 // repair Siege Tanks, at the same rate and the same share of the tank's price.
+// Supply crates: one drops somewhere open every crateInterval seconds (at most crateMax on the field, each
+// gone after crateLife), and the first unit to reach one collects its gift for its side: crystal, a squad
+// of Rangers, or a Siege Tank. crateKinds is the wire order.
+let crateInterval: Double = 75
+let crateFirst: Double = 60
+let crateMax = 4
+let crateLife: Double = 180
+let crateRadius: Double = 22
+let crateKinds = ["crystal", "squad", "tank"]
+let crateSquad = 3
+let crateCrystal = [150, 200, 250, 300, 400]
+
+// The Command Center's point-defence gun (the "defense" upgrade): a turret's reach, a little less bite.
+let hqGunRange: Double = 240
+let hqGunDamage: Double = 14
+let hqGunCooldown: Double = 0.6
+
 // Artillery: a fixed gun that reaches beyond its own sight, so it needs something else to see the target. Its
 // shells fly slowly in a high arc (visible all the way), land with splash, and it cannot hit anything close.
 let artilleryMinRange: Double = 150
@@ -365,7 +382,7 @@ struct UpgradeStats {
 }
 
 enum UpgradeKind: Int, CaseIterable {
-    case hp = 0, armor, prod, supply, guns
+    case hp = 0, armor, prod, supply, guns, defense
 
     var stats: UpgradeStats {
         switch self {
@@ -379,12 +396,14 @@ enum UpgradeKind: Int, CaseIterable {
                                           cost: 75, flat: true, time: 20, hotkey: "U", appliesTo: [.depot], button: "Storage")
         case .guns: return UpgradeStats(name: "Twin cannon", short: "Twin cannon", desc: "Damage 11 to 20 and range 210 to 260.",
                                         cost: 0.9, flat: false, time: 35, hotkey: "U", appliesTo: [.turret], button: "Twin gun")
+        case .defense: return UpgradeStats(name: "Point defence", short: "Point defence", desc: "The Command Center mounts a gun: damage 14 at range 240.",
+                                           cost: 0.5, flat: false, time: 35, hotkey: "J", appliesTo: [.hq], button: "Defence")
         }
     }
 
     func applies(to b: BuildingKind) -> Bool { stats.appliesTo.isEmpty || stats.appliesTo.contains(b) }
     func cost(for b: BuildingKind) -> Int { stats.flat ? Int(stats.cost) : Int((Double(b.stats.cost) * stats.cost).rounded()) }
-    var wireName: String { ["hp", "armor", "prod", "supply", "guns"][rawValue] }
+    var wireName: String { ["hp", "armor", "prod", "supply", "guns", "defense"][rawValue] }
 }
 
 // MARK: - The Armory

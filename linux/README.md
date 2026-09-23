@@ -71,6 +71,10 @@ arrive; the server enforces fog of war, so this vision is the only way to watch 
 
 ## The computer opponent
 
+When every crossing to you is down, it knows its route is cut: an Engineer goes to rebuild the bridge on
+the way, an escort holds the near bank, and the attack wave waits for the span instead of bouncing off the
+water.
+
 The computer keeps a tally of every enemy unit its side can see and builds to answer it: massed Rangers
 bring tanks, tanks bring Snipers, Snipers bring tanks and Rangers together. Its Snipers stop 200 short of
 whatever the army is attacking so they fight at their range instead of walking into the line, and from the
@@ -147,6 +151,13 @@ health bar, that soak damage before the walls take any; four seconds after the l
 a second. Overlapping generators do not stack. If the generator falls, the field collapses over the next
 few seconds. Armour plating applies before the shield, so an armoured, shielded Command Center is a very hard
 nut. Computer players build one from about six minutes in.
+
+## Point defence
+
+The Command Center can be armed: the **Point defence** upgrade (**J**, half the Center's price, 35 seconds)
+mounts a gun on its roof that fires on anything hostile within 240 for 14 damage every 0.6 seconds — a
+turret's reach, a little less bite — so a raid on an unguarded base is no longer free. Computer players buy
+it after armour.
 
 ## Building upgrades
 
@@ -329,6 +340,20 @@ queues and upgrades, crystals, bridges, watchtowers, kit, the computer opponents
 explored ground. Files live in `~/.local/share/fieldcommand/saves/` (Windows: `%APPDATA%\FieldCommand\saves`).
 The macOS edition writes and reads exactly the same document, so a game saved on one platform loads on the
 other; `tests/fixtures/` holds a save from each edition and both suites load the other's.
+
+## Satellite view
+
+**Tab** (or the *Satellite (Tab)* button in the top bar) pulls the camera back until the whole map is on
+screen, with every troop drawn as a solid dot and every building as a square in its side's colour so they
+still read from orbit. Orders, selection and the minimap all work as usual from up there; **Tab** again,
+**Space** or a minimap click brings you back to where you were.
+
+## Supply crates
+
+From the first minute a supply crate drops somewhere open every 75 seconds (at most four on the field; each
+lasts three minutes). The first unit of any side to walk onto one collects its gift: 150–400 crystal, a
+squad of three Rangers, or a Siege Tank, spawned on the spot. Crates show while they are in your sight,
+with a beacon glow; computer players send a trooper for any they can see near home.
 
 ## The look
 

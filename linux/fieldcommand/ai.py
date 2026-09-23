@@ -26,6 +26,10 @@ class AI:
         self.attackers = []
         self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0}     # decaying count of enemy units seen
         self.answered_ping = -1.0        # time of the last allied alert point this side sent troops to
+        # The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
+        self.route_open = True
+        self._next_route = 0.0
+        self.route_bridge = None
         self.next_raid = 240.0
 
     @property
@@ -66,6 +70,8 @@ class AI:
         self._upgrade(hq, bases)
         self._shop(army)
         self._defend(bases, home)
+        self._grab_crates(hq, home)
+        self._open_route(hq, home, workers)
         self._attack(hq, home)
 
     @staticmethod
@@ -158,6 +164,7 @@ class AI:
         wants = [(b, "prod") for b in bases if b.kind in ("barracks", "factory")]
         wants += [(hq, "armor"), (hq, "hp")]
         wants += [(b, "guns") for b in bases if b.kind == "turret"]
+        wants += [(b, "defense") for b in bases if b.kind == "hq"]
         wants += [(b, "supply") for b in bases if b.kind == "depot"]
         for b, k in wants:
             if b.can_upgrade(k) and g.resources[self.team] >= upgrade_cost(k, b.kind) + 300:
@@ -329,9 +336,56 @@ class AI:
         back = min(self.STANDOFF[u.kind], max(0.0, d - 60.0))
         return tx + dx / d * back, ty + dy / d * back
 
+    def _grab_crates(self, hq, home):
+        """A supply crate in sight and not too far from home is worth a trooper's walk."""
+        g = self.game
+        for c in g.crates:
+            if math.hypot(c.x - hq.x, c.y - hq.y) > 1400 or not g.fog_for(self.team).is_visible(c.x, c.y):
+                continue
+            if any(u.order[0] == "move" and abs(u.order[1] - c.x) < 1 and abs(u.order[2] - c.y) < 1 for u in home):
+                continue
+            idle = [u for u in home if u.order[0] == "idle"]
+            if idle:
+                min(idle, key=lambda u: math.hypot(u.x - c.x, u.y - c.y)).command(("move", c.x, c.y))
+
+    def _open_route(self, hq, home, workers):
+        """When the way to the enemy is cut — the crossings are down — an attack must not bounce off the water:
+        an Engineer goes to put back the bridge on the route, an escort holds the near bank, and the wave
+        waits for the span. Rebuilding pays the bridge's price even with nothing else in the bank."""
+        g = self.game
+        if g.elapsed < self._next_route:
+            return
+        self._next_route = g.elapsed + 6.0
+        target = g.primary_target(self.team, hq.x, hq.y)
+        if target is None:
+            self.route_open, self.route_bridge = True, None
+            return
+        self.route_open = g.nav.reaches(hq.x, hq.y, target.x, target.y)
+        if self.route_open:
+            self.route_bridge = None
+            return
+        down = [b for b in g.bridges if not b.intact]
+        if not down:
+            return
+        b = min(down, key=lambda b: math.hypot(b.x - hq.x, b.y - hq.y) + math.hypot(target.x - b.x, target.y - b.y))
+        self.route_bridge = b
+        if not any(w.order[0] == "rebuild" for w in workers) and g.resources[self.team] >= BRIDGE_COST:
+            free = [w for w in workers if w.order[0] in ("idle", "gather", "return")]
+            if free:
+                builder = min(free, key=lambda w: math.hypot(w.x - b.x, w.y - b.y))
+                g.resources[self.team] -= BRIDGE_COST
+                builder.command(("rebuild", b))
+        # The escort holds the near bank: a little short of the ruins, on this side of the water.
+        d = math.hypot(b.x - hq.x, b.y - hq.y) or 1.0
+        px, py = b.x - (b.x - hq.x) / d * 150, b.y - (b.y - hq.y) / d * 150
+        for u in [u for u in home if u.order[0] == "idle"][:6]:
+            u.command(("amove", *self._standoff(u, px, py)))
+
     def _attack(self, hq, home):
         g = self.game
         overdue = g.elapsed > self.next_wave + 120 and len(home) >= 4
+        if not self.route_open:
+            self.next_wave = max(self.next_wave, g.elapsed + 10)       # the wave waits for the crossing
         if g.elapsed >= self.next_wave and (len(home) >= self.wave_size or overdue):
             target = g.primary_target(self.team, hq.x, hq.y)
             if target:

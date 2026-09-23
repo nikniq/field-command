@@ -198,9 +198,27 @@ UPGRADES = {
                       button="Storage"),
     "guns": Upgrade("Twin cannon", "Twin cannon", "Damage 11 to 20 and range 210 to 260.", 0.9, False, 35, "U",
                     ("turret",), button="Twin gun"),
+    "defense": Upgrade("Point defence", "Point defence", "The Command Center mounts a gun: damage 14 at range 240.", 0.5,
+                       False, 35, "J", ("hq",), button="Defence"),
 }
 # Order matters: an installed set travels as a bitmask over this list, an upgrade in progress as its index.
-UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns"]
+UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns", "defense"]
+# Supply crates: one drops somewhere open every CRATE_INTERVAL seconds (at most CRATE_MAX on the field, each
+# gone after CRATE_LIFE), and the first unit to reach one collects its gift for its side: crystal, a squad
+# of Rangers, or a Siege Tank. CRATE_KINDS is the wire order.
+CRATE_INTERVAL = 75.0
+CRATE_FIRST = 60.0
+CRATE_MAX = 4
+CRATE_LIFE = 180.0
+CRATE_RADIUS = 22.0
+CRATE_KINDS = ["crystal", "squad", "tank"]
+CRATE_SQUAD = 3          # Rangers in a squad crate
+CRATE_CRYSTAL = (150, 200, 250, 300, 400)
+
+# The Command Center's point-defence gun (the "defense" upgrade): a turret's reach, a little less bite.
+HQ_GUN_RANGE = 240.0
+HQ_GUN_DAMAGE = 14.0
+HQ_GUN_COOLDOWN = 0.6
 ARMOR_FACTOR = 0.7
 TURRET_UPGRADED_DAMAGE = 20.0
 TURRET_UPGRADED_RANGE = 260.0
