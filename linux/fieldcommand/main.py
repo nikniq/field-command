@@ -153,7 +153,8 @@ class App:
                     f"python {platform.python_version()} on {platform.platform()}\n"
                     f"window {self.window.get_size()} logical {self.screen.get_size()} ui_scale {self.ui_scale} "
                     f"(setting {self.settings.ui_scale}) depth {info.bitsize} fullscreen {self.settings.fullscreen}\n"
-                    f"driver {self.pg.display.get_driver()}\n")
+                    f"driver {self.pg.display.get_driver()}\n"
+                    f"command-card icon repairs this game: {getattr(getattr(self.scene, 'hud', None), 'icon_repairs', 0)}\n")
         hud = getattr(self.scene, "hud", None)
         if hud is not None:
             hud.flash(f"Screenshot saved to {path}", (0.9, 0.93, 0.95, 1))

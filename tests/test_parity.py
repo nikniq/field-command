@@ -24,7 +24,8 @@ SWIFT = os.path.join(ROOT, "macos", "Sources", "FieldCommand")
 
 
 def swift(name):
-    with open(os.path.join(SWIFT, name)) as f:
+    # UTF-8 explicitly: the sources carry em dashes and symbols, and Windows would read them as cp1252.
+    with open(os.path.join(SWIFT, name), encoding="utf-8") as f:
         return f.read()
 
 
@@ -242,11 +243,11 @@ def test_save_format_agrees():
 
 def test_app_versions_agree():
     swift_v = re.search(r'let appVersion = "([^"]+)"', swift("Defs.swift")).group(1)
-    with open(os.path.join(ROOT, "linux", "fieldcommand", "__init__.py")) as f:
+    with open(os.path.join(ROOT, "linux", "fieldcommand", "__init__.py"), encoding="utf-8") as f:
         py_v = re.search(r'__version__ = "([^"]+)"', f.read()).group(1)
-    with open(os.path.join(ROOT, "linux", "Makefile")) as f:
+    with open(os.path.join(ROOT, "linux", "Makefile"), encoding="utf-8") as f:
         mk_v = re.search(r"VERSION\s*:=\s*(\S+)", f.read()).group(1)
-    with open(os.path.join(ROOT, "linux", "field-command.spec")) as f:
+    with open(os.path.join(ROOT, "linux", "field-command.spec"), encoding="utf-8") as f:
         spec_v = re.search(r"Version:\s*(\S+)", f.read()).group(1)
     assert swift_v == py_v == mk_v == spec_v
 

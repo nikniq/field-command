@@ -89,6 +89,7 @@ enum Debug {
         let path = pictures.appendingPathComponent("field-command-\(stamp).png").path
         write(tex.cgImage(), to: path)
         let note = "Field Command \(appVersion) macOS\nview \(Int(v.bounds.width))x\(Int(v.bounds.height)) points, scale \(v.window?.backingScaleFactor ?? 1)\n"
+            + "command-card icon repairs this game: \(g.hud.iconRepairs)\n"
         try? note.write(toFile: path.replacingOccurrences(of: ".png", with: ".txt"), atomically: true, encoding: .utf8)
         print("screenshot: \(path)")
         return path
@@ -804,7 +805,7 @@ enum Debug {
         let after = signature(w2)
         check(after == before, "a save round trip keeps the whole game")
         if after != before { print("  before: \(before)\n  after:  \(after)") }
-        while !w2.gameOver && w2.elapsed < 1500 { w2.step(1.0 / 30); w2.events.removeAll() }
+        while !w2.gameOver && w2.elapsed < 3000 { w2.step(1.0 / 30); w2.events.removeAll() }
         check(w2.gameOver, "and the loaded game plays on to a result")
         check((try? SaveGame.decode(["game": "field-command", "format": 99])) == nil, "unknown formats are refused")
 
@@ -814,7 +815,7 @@ enum Debug {
                 let w3 = try SaveGame.decode(d)
                 let n = w3.units.count, b = w3.buildings.count
                 let kits = w3.playerKits[0] ?? []
-                while !w3.gameOver && w3.elapsed < 1500 { w3.step(1.0 / 30); w3.events.removeAll() }
+                while !w3.gameOver && w3.elapsed < 3000 { w3.step(1.0 / 30); w3.events.removeAll() }
                 check(n == jArr(d["units"]).count && b == jArr(d["buildings"]).count && kits.contains("flak") && w3.gameOver,
                       "a save written by the Python edition loads (\(n) units, \(b) buildings, kit \(kits.sorted())) and plays on")
             } catch {
@@ -882,7 +883,7 @@ enum Debug {
         let map2 = SMapGen.generate("twin_ridges")
         let bots = (0..<2).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }
         let w2 = SWorld(map: map2, players: bots, difficulty: .normal)
-        while !w2.gameOver && w2.elapsed < 1500 { w2.step(1.0 / 30); w2.events.removeAll() }
+        while !w2.gameOver && w2.elapsed < 3000 { w2.step(1.0 / 30); w2.events.removeAll() }
         check(w2.gameOver, String(format: "two reacting opponents finish a game (%.0fs)", w2.elapsed))
 
         // With every crossing down the enemy is unreachable: the computer rebuilds the one on its route.

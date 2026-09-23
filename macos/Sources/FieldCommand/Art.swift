@@ -1095,6 +1095,20 @@ enum Art {
 
     /// A cached greyscale copy of a texture, alpha untouched — for things that are shown but unavailable.
     /// Done in pixels rather than with a sprite colour blend so the result is certain: grey, not darker blue.
+    /// Drops every cached form of a command-card icon so the next draw renders it from scratch.
+    static func forgetIcon(_ icon: ButtonIcon) {
+        let stem: String
+        switch icon {
+        case .unit(let k): stem = "unit-\(k)-"
+        case .building(let k): stem = "bld-\(k)-"
+        case .upgrade(let k): stem = "icon-upgrade-\(k.rawValue)"
+        case .siege(let on): stem = "icon-siege-\(on)"
+        case .attack: stem = "icon-attack"
+        case .stop: stem = "icon-stop"
+        }
+        for k in cache.keys where k.hasPrefix(stem) || k.hasPrefix("grey-\(icon)") { cache[k] = nil }
+    }
+
     static func greyscale(_ tex: SKTexture, key: String) -> SKTexture {
         let k = "grey-\(key)"
         if let t = cache[k] { return t }

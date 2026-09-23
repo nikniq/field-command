@@ -44,6 +44,11 @@ def game():
     # No pygame.quit() here: cached art surfaces belong to this display, and other test modules reuse it.
 
 
+def BTN_SIZE():
+    from fieldcommand import hud as hudmod
+    return hudmod.BTN
+
+
 def icon_ink(screen, r, btn):
     """How much the middle of a button differs from a bare button face: near 0 means no icon was drawn."""
     from fieldcommand import art
@@ -95,3 +100,23 @@ def test_card_titles_fit_their_buttons(game):
             while size > 7 and ui.font(size, True).size(b.title)[0] > hudmod.BTN - 6:
                 size -= 1
             assert ui.font(size, True).size(b.title)[0] <= hudmod.BTN - 6, (b.title, size)
+
+
+def test_a_blank_icon_is_caught_and_redrawn(game):
+    """If a cached icon ever comes back empty, the card throws the art away and draws it fresh."""
+    from fieldcommand import art
+    app, g, e = game
+    g.set_selection([e["eng"]])
+    g.update(1 / 30, None)
+    g.draw(app.screen, None)
+    b = next(b for b in g.hud.current_buttons if b.icon[0] == "building")
+    # Poison the sprite cache with an empty surface for this icon and draw again.
+    fit = 38
+    keys = [k for k in art.sprites.items if k[0] == ("icon", b.icon, fit, b.enabled)]
+    assert keys, "the icon was drawn once"
+    art.sprites.items[keys[0]] = pygame.Surface((40, 40), pygame.SRCALPHA)
+    before = g.hud.icon_repairs
+    g.draw(app.screen, None)
+    assert g.hud.icon_repairs == before + 1
+    r = g.hud.button_rects[g.hud.current_buttons.index(b)]
+    assert icon_ink(app.screen, r, BTN_SIZE()) > 3

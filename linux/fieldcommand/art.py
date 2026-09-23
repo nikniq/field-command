@@ -1324,6 +1324,18 @@ class SpriteCache:
 sprites = SpriteCache()
 
 
+def forget_icon(icon, tex):
+    """Drops every cached form of a command-card icon so the next draw renders it from scratch: the base
+    texture, its greyscale copy, and the scaled/faded variants in the sprite cache."""
+    for key in [k for k in _cache if isinstance(k, tuple) and k and k[0] in ("bld", "unit", "icon_upgrade", "icon_siege")
+                and (len(k) < 2 or k[1] in icon)]:
+        _cache.pop(key, None)
+    for key in ("icon_attack", "icon_stop", ("grey", id(tex))):
+        _cache.pop(key, None)
+    for k in [k for k in sprites.items if isinstance(k, tuple) and k and k[0] == ("icon", *icon)[:1] and icon in k]:
+        sprites.items.pop(k, None)
+
+
 def greyscale(tex):
     """A cached greyscale copy of a texture, alpha untouched — for things that are shown but unavailable."""
     key = ("grey", id(tex))

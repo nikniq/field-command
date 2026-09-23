@@ -36,6 +36,7 @@ class HUD:
         self._hover_text = None
         self._pings = []
         self._press = {}
+        self.icon_repairs = 0        # blank command-card icons caught and redrawn (see _draw_card)
         self._mm_fog = None
         self._fog_timer = 0.0
         self._fog_dirty = True
@@ -506,6 +507,22 @@ class HUD:
 
     # command card
 
+    def _icon_source(self, b):
+        """The base texture a command button's icon is cut from."""
+        g = self.game
+        kind = b.icon[0]
+        if kind == "attack":
+            return art.icon_attack()
+        if kind == "stop":
+            return art.icon_stop()
+        if kind == "siege":
+            return art.icon_siege(b.icon[1])
+        if kind == "upgrade":
+            return art.icon_upgrade(b.icon[1])
+        if kind == "unit":
+            return art.unit(b.icon[1], g.s.slot)
+        return art.building(b.icon[1], g.s.slot)
+
     def _draw_card(self, screen, mouse):
         g = self.game
         self.button_rects = []
@@ -526,25 +543,25 @@ class HUD:
             if pressed:
                 r = r.inflate(-6, -6)
             screen.blit(art.button(r.w, r.h, state), r.topleft)
+            tex = self._icon_source(b)
             kind = b.icon[0]
-            if kind == "attack":
-                tex, fit, rot = art.icon_attack(), 30, 0
-            elif kind == "stop":
-                tex, fit, rot = art.icon_stop(), 30, 0
-            elif kind == "siege":
-                tex, fit, rot = art.icon_siege(b.icon[1]), 34, 0
-            elif kind == "upgrade":
-                tex, fit, rot = art.icon_upgrade(b.icon[1]), 34, 0
-            elif kind == "unit":
-                tex, fit, rot = art.unit(b.icon[1], g.s.slot), (40 if b.icon[1] == "tank" else 30), 90
-            else:
-                tex, fit, rot = art.building(b.icon[1], g.s.slot), 38, 0
+            fit = 30 if kind in ("attack", "stop") else 34 if kind in ("siege", "upgrade") else \
+                (40 if kind == "unit" and b.icon[1] == "tank" else 30) if kind == "unit" else 38
+            rot = 90 if kind == "unit" else 0
             if not b.enabled:
                 # Locked, not missing: keep the art legible in greyscale so the button still says what it
                 # builds. (At the old 35% opacity it vanished into the dark disabled button.)
                 tex = art.greyscale(tex)
             img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
                                   fade=255 if b.enabled else 160)
+            if img.get_bounding_rect().width == 0:
+                # A blank icon: whatever produced it (a stale cached surface after a display change, a failed
+                # conversion), throw the cached art away and draw it fresh — and remember it for the F12 note.
+                art.forget_icon(b.icon, tex)
+                tex = art.greyscale(self._icon_source(b)) if not b.enabled else self._icon_source(b)
+                img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
+                                      fade=255 if b.enabled else 160)
+                self.icon_repairs += 1
             # A dark plate behind the picture, so the art reads against the button face in every state.
             pw, ph = max(img.get_width(), img.get_height()) + 10, max(img.get_width(), img.get_height()) + 10
             plate = art.icon_plate(pw, ph)

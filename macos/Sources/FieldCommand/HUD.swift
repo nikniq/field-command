@@ -43,6 +43,8 @@ final class HUD: SKNode {
     private var buttonRects: [CGRect] = []
     private var buttonBGs: [SKSpriteNode] = []
     private var cardSignature = ""
+    /// Blank command-card icons caught and redrawn (see rebuildCard).
+    private(set) var iconRepairs = 0
     private var hoverButton: Int?
     private var queueRects: [(CGRect, Int)] = []
     private var upgradeRect: (CGRect, Building)?
@@ -758,8 +760,14 @@ final class HUD: SKNode {
 
             // Locked, not missing: a greyscale icon keeps saying what the button builds. (At the old 35% alpha
             // the art vanished into the dark disabled button.)
-            let icon = SKSpriteNode(texture: b.enabled ? Art.icon(b.icon)
-                                                       : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)"))
+            var iconTex = b.enabled ? Art.icon(b.icon) : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)")
+            if iconTex.size().width < 1 || iconTex.size().height < 1 {
+                // A blank icon: throw the cached art away and draw it fresh — and count it for the F12 note.
+                Art.forgetIcon(b.icon)
+                iconTex = b.enabled ? Art.icon(b.icon) : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)")
+                iconRepairs += 1
+            }
+            let icon = SKSpriteNode(texture: iconTex)
             let ts = icon.texture!.size()
             let fit: CGFloat
             switch b.icon {

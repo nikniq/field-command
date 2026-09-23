@@ -602,7 +602,7 @@ def bake_swift(path=None):
                 f'    static let {cam}Bridges = "{bake_bridges(m)}"', ""]
     out.append("}")
     path = path or os.path.join(os.path.dirname(__file__), "..", "..", "macos", "Sources", "FieldCommand", "GiantMaps.swift")
-    with open(path, "w") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out) + "\n")
     return path
 
