@@ -1085,7 +1085,16 @@ class GameScene:
 
     # ------------------------------------------------------------ selection
 
+    def _voice(self, prefix, es=None):
+        """The unit's radio call: `voice_` when it is selected, `ack_` when it takes an order."""
+        es = self.selection if es is None else es
+        u = next((e for e in es if not e.is_building and self.mine(e) and not e.dead), None)
+        if u is not None:
+            audio.play(f"{prefix}{u.kind}", 0.3)
+
     def set_selection(self, es):
+        if es and not (len(es) == len(self.selection) and all(a is b for a, b in zip(es, self.selection))):
+            self._voice("voice_", es)
         for e in self.selection:
             e.selected = False
         self.selection = [e for e in es if not e.dead]
@@ -1239,6 +1248,7 @@ class GameScene:
         return [e.id for e in es]
 
     def smart_command(self, x, y, queue=False):
+        self._voice("ack_")
         us = self.selected_own_units()
         send = self.s.send
         if us:

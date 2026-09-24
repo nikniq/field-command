@@ -30,7 +30,8 @@ jobs:
           set -o pipefail
           python -m pytest tests -q -rfE --tb=short 2>&1 | tee pytest.txt || {
             # Failures as annotations, readable through the checks API without a log token.
-            grep -E "^(FAILED|ERROR|E  |[a-z_/]+\.py:[0-9]+: )" pytest.txt | head -60 | sed 's/^/::error::/'
+            grep -E "^(FAILED|ERROR|E  |[a-z_/]+\.py:[0-9]+: )" pytest.txt | head -40 | sed 's/^/::error::/'
+            tail -n 25 pytest.txt | sed 's/^/::error::tail: /'
             exit 1
           }
       - name: Cross-edition parity

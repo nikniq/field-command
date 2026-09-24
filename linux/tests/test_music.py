@@ -5,9 +5,10 @@ import numpy as np
 from fieldcommand import music
 
 
-def test_three_eight_second_loops_within_bounds():
+def test_five_loops_of_four_bars_within_bounds():
     loops = music.synthesise()
-    assert list(loops) == music.LAYERS
+    assert list(loops) == music.LAYERS and len(music.LAYERS) == 5
+    assert music.LOOP_SECONDS == music.BEATS * 60 / music.BPM and len(music.CHORDS) == 4
     n = int(music.RATE * music.LOOP_SECONDS)
     for name, x in loops.items():
         assert x.dtype == np.float32 and len(x) == n, name
@@ -19,9 +20,9 @@ def test_three_eight_second_loops_within_bounds():
 
 def test_layer_gains_follow_the_threat():
     calm, edge, war = music.layer_gains(0.0), music.layer_gains(0.5), music.layer_gains(1.0)
-    assert calm == {"pad": 1.0, "pulse": 0.0, "drums": 0.0}
-    assert edge["pad"] == 1.0 and 0.5 < edge["pulse"] <= 1.0 and edge["drums"] == 0.0
-    assert war == {"pad": 1.0, "pulse": 1.0, "drums": 1.0}
+    assert calm == {"pad": 1.0, "melody": 1.0, "pulse": 0.0, "drums": 0.0, "brass": 0.0}
+    assert edge["pad"] == 1.0 and 0.5 < edge["pulse"] <= 1.0 and edge["drums"] == 0.0 and 0.4 < edge["melody"] < 1.0
+    assert war == {"pad": 1.0, "melody": 0.0, "pulse": 1.0, "drums": 1.0, "brass": 1.0}
 
 
 def test_the_meter_rises_in_a_second_and_falls_over_six():

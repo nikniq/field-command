@@ -7,7 +7,10 @@ import Foundation
 enum Audio {
     static let rate = 22050.0
     static let names = ["rifle", "cannon", "explosion", "turret", "complete", "alert", "wave", "snipe", "siege",
-                        "pop", "click", "victory", "defeat"]
+                        "pop", "click", "victory", "defeat"] + voicePitch.keys.sorted().flatMap { ["voice_\($0)", "ack_\($0)"] }
+    /// Unit voices: a radio acknowledgement per kind — two tones when selected, a quick one on an order. The
+    /// base pitch tells the kinds apart; audio.py's VOICE_PITCH has the same numbers.
+    static let voicePitch: [String: Double] = ["worker": 520, "marine": 440, "tank": 200, "sniper": 660, "medic": 590, "gunship": 360]
     /// How soon the same effect may play again, in seconds — gunfire otherwise stacks into a wall.
     static let minGaps: [String: Double] = ["rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08, "snipe": 0.05]
 
@@ -83,7 +86,33 @@ enum Audio {
         make("click", mul(tone(1200, n(0.03)), env(n(0.03), decay: 0.01)), 0.15)
         make("victory", [523.0, 659, 784, 1046].flatMap { mul(tone($0, n(0.18)), env(n(0.18), decay: 0.2)) }, 0.3)
         make("defeat", [392.0, 330, 262].flatMap { gain(mul(tone($0, n(0.3), square: true), env(n(0.3), decay: 0.3)), 0.4) }, 0.25)
+        for kind in voicePitch.keys.sorted() {
+            make("voice_\(kind)", voice(voicePitch[kind]!, ack: false, &rng), 0.3)
+            make("ack_\(kind)", voice(voicePitch[kind]!, ack: true, &rng), 0.3)
+        }
         return out
+    }
+
+    /// A radio call: a squelch click, then tones with a little vibrato through a band-limited 'speaker' — two
+    /// rising notes for a selection, one quick falling note for an acknowledgement.
+    static func voice(_ f0: Double, ack: Bool, _ rng: inout Noise) -> [Float] {
+        var parts: [Float] = mul(noise(n(0.03), &rng), env(n(0.03), attack: 0.001, decay: 0.008)).map { $0 * 0.6 }
+        let notes: [(Double, Double)] = ack ? [(f0 * 1.5, 0.07), (f0 * 1.1, 0.09)] : [(f0, 0.09), (f0 * 1.25, 0.12)]
+        for (f, secs) in notes {
+            let m = n(secs)
+            var phase = 0.0
+            var t = [Float](repeating: 0, count: m)
+            for i in 0..<m {
+                let tt = Double(i) / rate
+                phase += f * (1 + 0.02 * sin(2 * .pi * 40 * tt))
+                let s = sin(2 * .pi * phase / rate)
+                t[i] = Float(s + 0.35 * (s > 0 ? 1 : (s < 0 ? -1 : 0)) * (1 - tt / secs))
+            }
+            parts += mul(lowpass(t, 0.35), env(m, attack: 0.006, decay: secs * 0.6))
+            parts += [Float](repeating: 0, count: n(0.02))
+        }
+        parts += mul(noise(n(0.02), &rng), env(n(0.02), attack: 0.001, decay: 0.006)).map { $0 * 0.4 }
+        return parts
     }
 
     // MARK: Playback
@@ -121,9 +150,12 @@ enum Audio {
     /// Procedural ambient music, layered by threat — music.py's recipe: a pad (always on), a pulse that comes
     /// up as the enemy comes into view, drums that come up when your forces are fighting.
     enum Music {
-        static let loopSeconds = 8.0
         static let bpm = 100.0
-        static let layers = ["pad", "pulse", "drums"]
+        static let beats = 32                    // four chords of eight beats: A minor, F, C, G
+        static let loopSeconds = Double(beats) * 60.0 / bpm    // 19.2 s
+        static let layers = ["pad", "melody", "pulse", "drums", "brass"]
+        /// The progression, as (root, third, fifth) in Hz, low: Am, F, C, G — music.py's CHORDS.
+        static let chords: [(Double, Double, Double)] = [(110.0, 130.81, 164.81), (87.31, 110.0, 130.81), (130.81, 164.81, 196.0), (98.0, 123.47, 146.83)]
         static let master: Float = 0.32
         static let rise = 1.0, fall = 6.0
         static let alertHold = 12.0, shotHold = 4.0
@@ -137,7 +169,8 @@ enum Audio {
 
         /// Per-layer gain for a threat level in 0..1.
         static func layerGains(_ threat: Double) -> [String: Double] {
-            ["pad": 1, "pulse": smooth(0.2, 0.6, threat), "drums": smooth(0.55, 1.0, threat)]
+            ["pad": 1, "melody": 1 - smooth(0.35, 0.75, threat), "pulse": smooth(0.2, 0.6, threat),
+             "drums": smooth(0.55, 1.0, threat), "brass": smooth(0.8, 1.0, threat)]
         }
 
         /// What the player is facing, as a number: 1 under attack, 0.7 while shots are heard, 0.4 with an
@@ -180,71 +213,134 @@ enum Audio {
             return x.map { v in acc += k * (v - acc); return acc }
         }
 
-        /// The three loops as samples in [-1, 1], each loopSeconds long and seamless.
+        private static func pluck(_ freq: Double, _ count: Int) -> [Double] {
+            (0..<count).map { i in
+                let t = Double(i) / rate
+                let env = min(1, t / 0.008) * exp(-t / 0.28)
+                return (sin(2 * .pi * freq * t) + 0.3 * sin(2 * .pi * freq * 2 * t)) * env
+            }
+        }
+
+        /// The five loops as samples in [-1, 1], each loopSeconds long and seamless: a chord progression over
+        /// four bars — A minor, F, C, G — at 100 beats a minute (music.py's recipe).
         static func synthesise() -> [String: [Float]] {
             let n = Int(rate * loopSeconds)
             let beat = 60.0 / bpm
-            var rng = Noise(state: 0xD1B54A32D192ED03)
-            // Pad: A minor, two octaves apart, each voice slightly detuned so it slowly beats; a breath every loop.
-            var pad = [Double](repeating: 0, count: n)
-            for (f, g) in [(110.0, 0.5), (110.6, 0.5), (164.8, 0.35), (220.0, 0.25), (261.6, 0.2), (329.6, 0.15)] {
-                let t = tone(f, n)
-                for i in 0..<n { pad[i] += t[i] * g }
-            }
-            for i in 0..<n {
-                let t = Double(i) / rate
-                pad[i] *= 0.55 + 0.45 * sin(2 * .pi * t / loopSeconds - .pi / 2) * 0.5 + 0.25
-            }
-            pad = lowpass(pad, 0.12)
-            // Pulse: a bass note every beat over A - C - E - D, softened, with a little grit.
-            var pulse = [Double](repeating: 0, count: n)
-            let notes = [55.0, 65.4, 82.4, 73.4]
             let step = Int(rate * beat)
-            let beats = Int(loopSeconds / beat)
-            for i in 0..<beats {
-                let f = notes[(i / 2) % notes.count]
-                let seg = min(step, n - i * step)
-                let e = env(seg, 0.01, 0.22), t1 = tone(f, seg), t2 = tone(f * 2, seg)
-                let g = i % 2 == 0 ? 1.0 : 0.7
-                for j in 0..<seg {
-                    let sq: Double = t2[j] > 0 ? 1 : (t2[j] < 0 ? -1 : 0)
-                    pulse[i * step + j] += (t1[j] + 0.4 * sq) * e[j] * g
+            let bar = step * 8
+            var rng = Noise(state: 0xD1B54A32D192ED03)
+            // Pad: every chord sustained over its bar, voices detuned so they slowly beat, crossfading at the bar line.
+            var pad = [Double](repeating: 0, count: n)
+            for (ci, ch) in chords.enumerated() {
+                let voices: [(Double, Double)] = [(ch.0, 0.5), (ch.0 * 1.004, 0.45), (ch.1, 0.3), (ch.2, 0.3), (ch.0 * 2, 0.2)]
+                let t0 = Double(ci) * beat * 8, t1 = Double(ci + 1) * beat * 8 + 0.4
+                for i in 0..<n {
+                    let t = Double(i) / rate
+                    let fade = min(1, max(0, (t - t0) / 1.5)) * min(1, max(0, (t1 - t) / 1.5))
+                    if fade <= 0 { continue }
+                    var v = 0.0
+                    for (f, g) in voices { v += sin(2 * .pi * f * t) * g }
+                    pad[i] += v * fade
+                }
+            }
+            for i in 0..<n { pad[i] *= 0.8 + 0.2 * sin(2 * .pi * Double(i) / rate / 6.0) }
+            pad = lowpass(pad, 0.12)
+            // Melody: a plucked arpeggio over each chord's tones, eighth notes, with a soft echo — the calm layer.
+            var melody = [Double](repeating: 0, count: n)
+            let pattern = [0, 2, 1, 2, 3, 2, 1, 2, 0, 1, 2, 3, 2, 1, 2, 1]
+            for (ci, ch) in chords.enumerated() {
+                let tones = [ch.0 * 2, ch.1 * 2, ch.2 * 2, ch.0 * 4]
+                for k in 0..<16 {
+                    let start = ci * bar + k * step / 2
+                    let m = min(Int(rate * 0.5), n - start)
+                    if m <= 0 { continue }
+                    let p = pluck(tones[pattern[k]], m)
+                    let g = k % 4 == 0 ? 0.9 : 0.6
+                    for q in 0..<m { melody[start + q] += p[q] * g }
+                }
+            }
+            let d = Int(rate * beat * 0.75)
+            var echoed = melody
+            for i in d..<n { echoed[i] += melody[i - d] * 0.35 }
+            melody = echoed
+            // Pulse: a bass note every beat on the chord's root, softened, with a little grit.
+            var pulse = [Double](repeating: 0, count: n)
+            for (ci, ch) in chords.enumerated() {
+                for k in 0..<8 {
+                    let f = ch.0 / 2
+                    let start = ci * bar + k * step
+                    let seg = min(step, n - start)
+                    let e = env(seg, 0.01, 0.22), t1 = tone(f, seg), t2 = tone(f * 2, seg)
+                    let g = k % 2 == 0 ? 1.0 : 0.7
+                    for q in 0..<seg {
+                        let sq: Double = t2[q] > 0 ? 1 : (t2[q] < 0 ? -1 : 0)
+                        pulse[start + q] += (t1[q] + 0.4 * sq) * e[q] * g
+                    }
                 }
             }
             pulse = lowpass(pulse, 0.2)
-            // Drums: a kick on the beat (a sine sweeping down), hats off the beat, a snare on 2 and 4.
+            // Drums: a kick on the beat, hats off the beat, a snare on two and four, and a fill at the turn.
             var drums = [Double](repeating: 0, count: n)
-            for i in 0..<beats {
-                let s = i * step
+            for k in 0..<beats {
+                let s = k * step
                 let kn = min(Int(rate * 0.25), n - s)
                 var phase = 0.0
                 let ke = env(kn, 0.002, 0.09)
-                for j in 0..<kn {
-                    let sweep = 120 * exp(-Double(j) / rate * 18) + 40
+                for q in 0..<kn {
+                    let sweep = 120 * exp(-Double(q) / rate * 18) + 40
                     phase += sweep
-                    drums[s + j] += sin(2 * .pi * phase / rate) * ke[j] * 1.2
+                    drums[s + q] += sin(2 * .pi * phase / rate) * ke[q] * 1.2
                 }
                 let hs = s + step / 2
                 let hn = min(Int(rate * 0.06), n - hs)
                 if hn > 0 {
                     let he = env(hn, 0.001, 0.02)
-                    for j in 0..<hn { drums[hs + j] += Double(rng.next()) * he[j] * 0.35 }
+                    for q in 0..<hn { drums[hs + q] += Double(rng.next()) * he[q] * 0.35 }
                 }
-                if i % 2 == 1 {
+                if k % 2 == 1 {
                     let sn = min(Int(rate * 0.16), n - s)
                     let se = env(sn, 0.002, 0.05)
                     let body = lowpass((0..<sn).map { _ in Double(rng.next()) }, 0.5)
-                    for j in 0..<sn { drums[s + j] += body[j] * se[j] * 0.6 }
+                    for q in 0..<sn { drums[s + q] += body[q] * se[q] * 0.6 }
+                }
+                if k >= beats - 2 {
+                    for f in 0..<4 {
+                        let qs = s + f * step / 4
+                        let qn = min(Int(rate * 0.1), n - qs)
+                        if qn <= 0 { continue }
+                        let qe = env(qn, 0.002, 0.04)
+                        let body = lowpass((0..<qn).map { _ in Double(rng.next()) }, 0.5)
+                        for q in 0..<qn { drums[qs + q] += body[q] * qe[q] * 0.45 }
+                    }
                 }
             }
+            // Brass: a sawtooth swell on the chord every four beats, only at the very top of the threat.
+            var brass = [Double](repeating: 0, count: n)
+            for (ci, ch) in chords.enumerated() {
+                for k in [0, 4] {
+                    let start = ci * bar + k * step
+                    let seg = min(step * 3, n - start)
+                    for q in 0..<seg {
+                        let tt = Double(q) / rate
+                        let e = min(1, tt / 0.35) * exp(-max(0, tt - 1.2) / 0.5)
+                        var v = 0.0
+                        for (f, g) in [(ch.0, 0.5), (ch.1, 0.35), (ch.2, 0.35)] {
+                            v += (2 * ((f * tt).truncatingRemainder(dividingBy: 1)) - 1) * g
+                        }
+                        brass[start + q] += v * e
+                    }
+                }
+            }
+            brass = lowpass(brass, 0.08)
             var out: [String: [Float]] = [:]
             let fade = Int(rate * 0.02)
-            let mixes: [(String, [Double], Double)] = [("pad", pad, 0.22), ("pulse", pulse, 0.5), ("drums", drums, 0.7)]
+            let mixes: [(String, [Double], Double)] = [("pad", pad, 0.22), ("melody", melody, 0.34), ("pulse", pulse, 0.5),
+                                                       ("drums", drums, 0.7), ("brass", brass, 0.55)]
             for (name, x, vol) in mixes {
                 var y = x.map { $0 * vol }
-                for j in 0..<fade {
-                    y[n - fade + j] *= 1 - Double(j) / Double(fade - 1)
-                    y[j] *= Double(j) / Double(fade - 1)
+                for q in 0..<fade {
+                    y[n - fade + q] *= 1 - Double(q) / Double(fade - 1)
+                    y[q] *= Double(q) / Double(fade - 1)
                 }
                 out[name] = y.map { Float(max(-1, min(1, $0))) }
             }

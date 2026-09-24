@@ -1258,11 +1258,11 @@ enum Debug {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
         let sounds = Audio.synthesise()
-        check(Set(sounds.keys) == Set(Audio.names), "thirteen effects: \(sounds.keys.sorted().joined(separator: ", "))")
+        check(Set(sounds.keys) == Set(Audio.names) && Audio.names.count == 25, "thirteen effects and twelve unit voices")
         let expected: [String: Double] = ["rifle": 0.08, "cannon": 0.5, "explosion": 0.9, "turret": 0.1, "complete": 0.37,
                                           "alert": 0.45, "wave": 0.75, "snipe": 0.35, "siege": 0.68, "pop": 0.08,
                                           "click": 0.03, "victory": 0.72, "defeat": 0.9]
-        for name in Audio.names {
+        for name in Audio.names where !name.hasPrefix("voice_") && !name.hasPrefix("ack_") {
             guard let s = sounds[name] else { continue }
             let secs = Double(s.count) / Audio.rate
             let peak = s.map { abs($0) }.max() ?? 0
@@ -1272,7 +1272,13 @@ enum Debug {
         }
         // The music (1.23): three seamless eight-second loops, gains by threat, a meter that rises fast and falls slow.
         let loops = Audio.Music.synthesise()
-        check(Set(loops.keys) == Set(Audio.Music.layers), "three music layers: \(loops.keys.sorted().joined(separator: ", "))")
+        check(Set(loops.keys) == Set(Audio.Music.layers) && Audio.Music.layers.count == 5 && Audio.Music.chords.count == 4, "five music layers over four chords")
+        for kind in Audio.voicePitch.keys.sorted() {
+            let sel = sounds["voice_\(kind)"]!, ack = sounds["ack_\(kind)"]!
+            let ls = Double(sel.count) / Audio.rate, la = Double(ack.count) / Audio.rate
+            check(ls > 0.2 && ls < 0.4 && la > 0.15 && la < 0.3 && ack.count < sel.count && sel.map { abs($0) }.max()! > 0.3,
+                  String(format: "%@ answers in %.2fs, acknowledges in %.2fs", kind as NSString, ls, la))
+        }
         let n = Int(Audio.rate * Audio.Music.loopSeconds)
         for name in Audio.Music.layers {
             guard let x = loops[name] else { continue }
@@ -1282,8 +1288,9 @@ enum Debug {
                   String(format: "%-6@ %.1fs peak %.2f, faded at the seam", name as NSString, Double(x.count) / Audio.rate, peak))
         }
         let calm = Audio.Music.layerGains(0), edge = Audio.Music.layerGains(0.5), war = Audio.Music.layerGains(1)
-        check(calm == ["pad": 1, "pulse": 0, "drums": 0] && edge["pad"] == 1 && edge["pulse"]! > 0.5 && edge["drums"] == 0
-              && war == ["pad": 1, "pulse": 1, "drums": 1], "layer gains follow the threat")
+        check(calm == ["pad": 1, "melody": 1, "pulse": 0, "drums": 0, "brass": 0] && edge["pad"] == 1 && edge["pulse"]! > 0.5
+              && edge["drums"] == 0 && edge["melody"]! > 0.4 && edge["melody"]! < 1
+              && war == ["pad": 1, "melody": 0, "pulse": 1, "drums": 1, "brass": 1], "layer gains follow the threat")
         var t = Audio.Music.Threat()
         t.enemiesSeen = 2
         check(t.target(10) == Audio.Music.threatSeen, "an enemy in sight is a low threat")

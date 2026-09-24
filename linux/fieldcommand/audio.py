@@ -11,7 +11,10 @@ _enabled = False
 _last_played = {}
 _music = {}              # layer name -> (Sound, Channel) once the loops are playing
 _music_level = -1.0
-MUSIC_CHANNELS = 3       # the first channels are kept for the loops; effects use the rest
+MUSIC_CHANNELS = 5       # the first channels are kept for the loops; effects use the rest
+# Unit voices: a radio acknowledgement per kind — two tones when selected, a quick one on an order. The base
+# pitch tells the kinds apart; the same numbers live in Audio.swift.
+VOICE_PITCH = {"worker": 520.0, "marine": 440.0, "tank": 200.0, "sniper": 660.0, "medic": 590.0, "gunship": 360.0}
 
 
 def _env(n, attack=0.005, decay=None):
@@ -86,7 +89,28 @@ def init():
     _sounds["victory"] = _make(win, 0.3)
     lose = np.concatenate([_tone(f, n(0.3), "square") * 0.4 * _env(n(0.3), decay=0.3) for f in (392, 330, 262)])
     _sounds["defeat"] = _make(lose, 0.25)
+    for kind, f0 in VOICE_PITCH.items():
+        _sounds[f"voice_{kind}"] = _make(voice(f0, False, rng), 0.3)
+        _sounds[f"ack_{kind}"] = _make(voice(f0, True, rng), 0.3)
     _enabled = True
+
+
+def voice(f0, ack, rng):
+    """A radio call: a squelch click, then tones with a little vibrato through a band-limited 'speaker' — two
+    rising notes for a selection, one quick falling note for an acknowledgement."""
+    n = lambda s: int(RATE * s)
+    parts = [_noise(n(0.03), rng) * _env(n(0.03), attack=0.001, decay=0.008) * 0.6]
+    notes = [(f0 * 1.5, 0.07), (f0 * 1.1, 0.09)] if ack else [(f0, 0.09), (f0 * 1.25, 0.12)]
+    for f, secs in notes:
+        m = n(secs)
+        t = np.arange(m) / RATE
+        vib = f * (1 + 0.02 * np.sin(2 * np.pi * 40 * t))
+        tone = np.sin(2 * np.pi * np.cumsum(vib) / RATE)
+        tone += 0.35 * np.sign(tone) * (1 - t / secs)                # a buzz that fades out of the note
+        parts.append(_lowpass(tone, 0.35) * _env(m, attack=0.006, decay=secs * 0.6))
+        parts.append(np.zeros(n(0.02)))
+    parts.append(_noise(n(0.02), rng) * _env(n(0.02), attack=0.001, decay=0.006) * 0.4)
+    return np.concatenate(parts)
 
 
 def music_update(threat):

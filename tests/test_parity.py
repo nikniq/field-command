@@ -197,11 +197,16 @@ def test_high_ground_agrees():
 
 def test_music_agrees():
     """The music's loop, tempo, layers and threat numbers match in both editions."""
-    from fieldcommand import music
+    from fieldcommand import audio, music
     src = swift("Audio.swift")
     def const(name):
         return float(re.search(r"static let %s(?:: \w+)? = ([\d.]+)" % name, src).group(1))
-    assert const("loopSeconds") == music.LOOP_SECONDS and const("bpm") == music.BPM and const("master") == music.MASTER
+    assert const("bpm") == music.BPM and const("master") == music.MASTER
+    assert int(re.search(r"static let beats = (\d+)", src).group(1)) == music.BEATS
+    chords = re.findall(r"\(([\d.]+), ([\d.]+), ([\d.]+)\)", re.search(r"static let chords: .*?= \[(.*?)\]", src).group(1))
+    assert [tuple(float(v) for v in c) for c in chords] == [tuple(c) for c in music.CHORDS]
+    pitches = dict(re.findall(r'"(\w+)": (\d+)', re.search(r"static let voicePitch: \[String: Double\] = \[(.*?)\]", src).group(1)))
+    assert {k: float(v) for k, v in pitches.items()} == audio.VOICE_PITCH
     assert re.findall(r'"(\w+)"', re.search(r"static let layers = \[(.*?)\]", src).group(1)) == music.LAYERS
     rise, fall = re.search(r"static let rise = ([\d.]+), fall = ([\d.]+)", src).groups()
     assert (float(rise), float(fall)) == (music.RISE, music.FALL)

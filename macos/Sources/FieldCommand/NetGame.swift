@@ -425,6 +425,7 @@ extension GameScene {
     }
 
     func netSmartCommand(at p: CGPoint, queue: Bool) {
+        unitVoice("ack_")
         let us = selectedOwnUnits
         if !us.isEmpty {
             // A standing bridge is a road: right-click walks across it. Demolition is deliberate — A then click.

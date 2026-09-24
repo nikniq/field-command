@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 14, so a 1.27.1 Mac and a 1.27.1 Linux client play together; neither accepts an
+Both editions speak protocol 14, so a 1.28.0 Mac and a 1.28.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -166,8 +166,10 @@ clock, rebindable keys (Keys… in the game menu) and first-run arrows — as th
 
 ## Music
 
-Three synthesised loops — a pad, a pulse, drums — mixed by a threat meter fed by what the client sees and
-hears: calm at the base, the pulse as the enemy comes into view, drums while your forces fight. *Music:
+Five synthesised loops over four chords — a pad, a plucked melody, a bass pulse, drums and a brass swell —
+mixed by a threat meter fed by what the client sees and hears: the melody at the base, the pulse as the
+enemy comes into view, drums while your forces fight, brass at the top. Units answer with a radio call when
+selected and a quick acknowledgement on an order. *Music:
 On/Off* beside *Sound*. Same recipe and numbers as the Linux edition (`FC_AUDIOTEST`).
 
 ## High ground

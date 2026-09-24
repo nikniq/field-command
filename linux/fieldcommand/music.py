@@ -1,15 +1,18 @@
-"""Procedural ambient music, layered by threat (no audio files). Three eight-second loops are synthesised
-once from the same recipe in both editions: a `pad` (a slow minor drone, always on), a `pulse` (a filtered
-bass line at 100 beats a minute that comes up as the enemy comes into view), and `drums` (a kick and hats
-that come up when your forces are fighting). The client keeps a `Threat` meter from what it sees and hears
+"""Procedural ambient music, layered by threat (no audio files). Five loops of 19.2 seconds — four bars over
+A minor, F, C, G at 100 beats a minute — are synthesised once from the same recipe in both editions: a
+`pad` (sustained chords, always on), a `melody` (a plucked arpeggio with an echo, the calm layer, which
+yields as the threat climbs), a `pulse` (a bass line on the roots that comes up as the enemy comes into
+view), `drums` (a kick, hats and a snare that come up when your forces are fighting, with a fill at the
+turn) and `brass` (a sawtooth swell only at the very top). The client keeps a `Threat` meter from what it sees and hears
 — an attack alert, gunfire, enemies on screen — which rises in a second and falls over six, and the mixer
 sets each layer's gain from it. Audio.swift's `Music` is the same."""
 import numpy as np
 
 RATE = 22050
-LOOP_SECONDS = 8.0
 BPM = 100.0
-LAYERS = ["pad", "pulse", "drums"]
+BEATS = 32                       # four chords of eight beats: A minor, F, C, G
+LOOP_SECONDS = BEATS * 60.0 / BPM    # 19.2 s
+LAYERS = ["pad", "melody", "pulse", "drums", "brass"]
 MASTER = 0.32            # the whole mix, under the effects
 RISE = 1.0               # seconds for the meter to climb to a higher target
 FALL = 6.0               # and to settle to a lower one
@@ -17,6 +20,8 @@ ALERT_HOLD = 12.0        # an attack alert counts for this long
 SHOT_HOLD = 4.0          # gunfire heard, this long
 THREAT_ALERT, THREAT_SHOTS, THREAT_SEEN = 1.0, 0.7, 0.4
 SHOTS = ("rifle", "cannon", "turret", "snipe", "explosion")
+# The progression, as (root, third, fifth) in Hz, low: Am, F, C, G.
+CHORDS = [(110.0, 130.81, 164.81), (87.31, 110.0, 130.81), (130.81, 164.81, 196.0), (98.0, 123.47, 146.83)]
 
 
 def _smooth(e0, e1, x):
@@ -25,9 +30,11 @@ def _smooth(e0, e1, x):
 
 
 def layer_gains(threat):
-    """Per-layer gain for a threat level in 0..1: the pad is always there, the pulse comes up through the
-    middle of the range, the drums over the top of it."""
-    return {"pad": 1.0, "pulse": _smooth(0.2, 0.6, threat), "drums": _smooth(0.55, 1.0, threat)}
+    """Per-layer gain for a threat level in 0..1: the pad is always there, the melody yields as the threat
+    climbs, the pulse comes up through the middle of the range, the drums over the top of it, and a brass
+    swell only at the very top."""
+    return {"pad": 1.0, "melody": 1.0 - _smooth(0.35, 0.75, threat), "pulse": _smooth(0.2, 0.6, threat),
+            "drums": _smooth(0.55, 1.0, threat), "brass": _smooth(0.8, 1.0, threat)}
 
 
 class Threat:
@@ -80,46 +87,101 @@ def _lowpass(x, k):
     return out
 
 
+def _pluck(freq, n):
+    """A plucked note: a sine with a touch of its octave, a quick attack and a decaying tail."""
+    t = np.arange(n) / RATE
+    env = np.minimum(1.0, t / 0.008) * np.exp(-t / 0.28)
+    return (np.sin(2 * np.pi * freq * t) + 0.3 * np.sin(2 * np.pi * freq * 2 * t)) * env
+
+
+def _echo(x, delay, gain):
+    d = int(RATE * delay)
+    out = x.copy()
+    out[d:] += x[:-d] * gain
+    return out
+
+
 def synthesise():
-    """The three loops as float32 arrays in [-1, 1], each LOOP_SECONDS long and seamless."""
+    """The five loops as float32 arrays in [-1, 1], each LOOP_SECONDS long and seamless: a chord progression
+    over four bars — A minor, F, C, G — at 100 beats a minute."""
     n = int(RATE * LOOP_SECONDS)
     beat = 60.0 / BPM
+    step = int(RATE * beat)
+    bar = step * 8
     rng = np.random.default_rng(11)
     t = np.arange(n) / RATE
-    # Pad: A minor, two octaves apart, each voice slightly detuned so it slowly beats; a breath every loop.
+    # Pad: every chord sustained over its bar, voices detuned so they slowly beat, crossfading at the bar line.
     pad = np.zeros(n)
-    for f, g in ((110.0, 0.5), (110.6, 0.5), (164.8, 0.35), (220.0, 0.25), (261.6, 0.2), (329.6, 0.15)):
-        pad += _tone(f, n) * g
-    pad *= 0.55 + 0.45 * np.sin(2 * np.pi * t / LOOP_SECONDS - np.pi / 2) * 0.5 + 0.25
+    for ci, (r, third, fifth) in enumerate(CHORDS):
+        seg = np.zeros(n)
+        for f, g in ((r, 0.5), (r * 1.004, 0.45), (third, 0.3), (fifth, 0.3), (r * 2, 0.2)):
+            seg += _tone(f, n) * g
+        fade = np.clip((t - ci * beat * 8) / 1.5, 0, 1) * np.clip(((ci + 1) * beat * 8 + 0.4 - t) / 1.5, 0, 1)
+        if ci == 0:                                   # the first chord also carries the loop's seam
+            fade = np.maximum(fade, np.clip((LOOP_SECONDS - t) / 0.01, 0, 1) * 0)
+        pad += seg * fade
+    pad *= 0.8 + 0.2 * np.sin(2 * np.pi * t / 6.0)
     pad = _lowpass(pad, 0.12)
-    # Pulse: a bass note every beat over A - C - E - D, softened, with a little grit.
+    # Melody: a plucked arpeggio over each chord's tones, eighth notes, with a soft echo — the calm layer.
+    melody = np.zeros(n)
+    pattern = [0, 2, 1, 2, 3, 2, 1, 2, 0, 1, 2, 3, 2, 1, 2, 1]        # indices into (root, third, fifth, octave)
+    for ci, (r, third, fifth) in enumerate(CHORDS):
+        tones = (r * 2, third * 2, fifth * 2, r * 4)
+        for k in range(16):
+            f = tones[pattern[k]]
+            start_ = ci * bar + k * step // 2
+            m = min(int(RATE * 0.5), n - start_)
+            if m > 0:
+                melody[start_:start_ + m] += _pluck(f, m) * (0.9 if k % 4 == 0 else 0.6)
+    melody = _echo(melody, beat * 0.75, 0.35)
+    # Pulse: a bass note every beat on the chord's root, softened, with a little grit.
     pulse = np.zeros(n)
-    notes = [55.0, 65.4, 82.4, 73.4]
-    step = int(RATE * beat)
-    for i in range(int(LOOP_SECONDS / beat)):
-        f = notes[(i // 2) % len(notes)]
-        seg = min(step, n - i * step)
-        env = _env(seg, 0.01, 0.22)
-        pulse[i * step:i * step + seg] += (_tone(f, seg) + 0.4 * np.sign(_tone(f * 2, seg))) * env * (1.0 if i % 2 == 0 else 0.7)
+    for ci, (r, _third, _fifth) in enumerate(CHORDS):
+        for k in range(8):
+            f = r / 2
+            start_ = ci * bar + k * step
+            seg = min(step, n - start_)
+            env = _env(seg, 0.01, 0.22)
+            pulse[start_:start_ + seg] += (_tone(f, seg) + 0.4 * np.sign(_tone(f * 2, seg))) * env * (1.0 if k % 2 == 0 else 0.7)
     pulse = _lowpass(pulse, 0.2)
-    # Drums: a kick on the beat (a sine sweeping down), hats off the beat (short bright noise), a snare on 2 and 4.
+    # Drums: a kick on the beat, hats off the beat, a snare on two and four, and a fill on the last bar's end.
     drums = np.zeros(n)
-    for i in range(int(LOOP_SECONDS / beat)):
-        s = i * step
-        kn = min(int(RATE * 0.25), n - s)
+    for k in range(BEATS):
+        s_ = k * step
+        kn = min(int(RATE * 0.25), n - s_)
         sweep = 120.0 * np.exp(-np.arange(kn) / RATE * 18) + 40.0
-        drums[s:s + kn] += np.sin(2 * np.pi * np.cumsum(sweep) / RATE) * _env(kn, 0.002, 0.09) * 1.2
-        hs = s + step // 2
+        drums[s_:s_ + kn] += np.sin(2 * np.pi * np.cumsum(sweep) / RATE) * _env(kn, 0.002, 0.09) * 1.2
+        hs = s_ + step // 2
         hn = min(int(RATE * 0.06), n - hs)
         if hn > 0:
             drums[hs:hs + hn] += rng.uniform(-1, 1, hn) * _env(hn, 0.001, 0.02) * 0.35
-        if i % 2 == 1:
-            sn = min(int(RATE * 0.16), n - s)
-            drums[s:s + sn] += _lowpass(rng.uniform(-1, 1, sn), 0.5) * _env(sn, 0.002, 0.05) * 0.6
+        if k % 2 == 1:
+            sn = min(int(RATE * 0.16), n - s_)
+            drums[s_:s_ + sn] += _lowpass(rng.uniform(-1, 1, sn), 0.5) * _env(sn, 0.002, 0.05) * 0.6
+        if k >= BEATS - 2:                                             # the fill: four quick snares
+            for q in range(4):
+                qs = s_ + q * step // 4
+                qn = min(int(RATE * 0.1), n - qs)
+                if qn > 0:
+                    drums[qs:qs + qn] += _lowpass(rng.uniform(-1, 1, qn), 0.5) * _env(qn, 0.002, 0.04) * 0.45
+    # Brass: a sawtooth swell on the chord every four beats, only at the very top of the threat.
+    brass = np.zeros(n)
+    for ci, (r, third, fifth) in enumerate(CHORDS):
+        for k in (0, 4):
+            start_ = ci * bar + k * step
+            seg = min(step * 3, n - start_)
+            tt = np.arange(seg) / RATE
+            env = np.minimum(1.0, tt / 0.35) * np.exp(-np.maximum(0, tt - 1.2) / 0.5)
+            for f, g in ((r, 0.5), (third, 0.35), (fifth, 0.35)):
+                saw = 2 * ((f * tt) % 1.0) - 1
+                brass[start_:start_ + seg] += saw * env * g
+    brass = _lowpass(brass, 0.08)
     out = {}
-    for name, x, vol in (("pad", pad, 0.22), ("pulse", pulse, 0.5), ("drums", drums, 0.7)):
+    for name, x, vol in (("pad", pad, 0.22), ("melody", melody, 0.34), ("pulse", pulse, 0.5), ("drums", drums, 0.7),
+                         ("brass", brass, 0.55)):
         x = x * vol
-        x[-int(RATE * 0.02):] *= np.linspace(1, 0, int(RATE * 0.02))       # a short fade so the loop seam is clean
-        x[:int(RATE * 0.02)] *= np.linspace(0, 1, int(RATE * 0.02))
+        fade_n = int(RATE * 0.02)
+        x[-fade_n:] *= np.linspace(1, 0, fade_n)       # a short fade so the loop seam is clean
+        x[:fade_n] *= np.linspace(0, 1, fade_n)
         out[name] = np.clip(x, -1, 1).astype(np.float32)
     return out

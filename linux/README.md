@@ -458,10 +458,15 @@ with a beacon glow; computer players send a trooper for any they can see near ho
 
 ## Music
 
-There is no music file: three eight-second loops are synthesised at start (a slow minor **pad**, a bass
-**pulse** at 100 beats a minute, a kick-and-hats **drums** line) and mixed by a threat meter the client keeps
-from what it sees and hears. The pad is always there; the pulse comes up as enemies come into view; the drums
-come up while your forces are fighting and when the base is under attack. The meter climbs in about a
+There is no music file: five loops of 19.2 seconds — four bars over A minor, F, C and G at 100 beats a
+minute — are synthesised at start and mixed by a threat meter the client keeps from what it sees and hears:
+a **pad** of sustained chords (always there), a plucked **melody** with an echo (the calm layer, which
+yields as the threat climbs), a bass **pulse** on the roots (up as enemies come into view), **drums** with
+a fill at the turn (up while your forces are fighting and when the base is under attack) and a **brass**
+swell only at the very top.
+
+Units have **voices**: a radio call when selected — two rising notes — and a quick acknowledgement when
+given an order, each kind at a pitch of its own, synthesised like everything else. The meter climbs in about a
 second and settles over six, so the music breathes rather than flickers. The title screen plays the pad
 alone. *Music: On/Off* sits beside *Sound* on the title screen and in the pause settings; both editions use
 the same recipe (`music.py`, `Audio.swift`).

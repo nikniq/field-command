@@ -1430,7 +1430,15 @@ final class GameScene: SKScene {
 
     // MARK: - Selection
 
+    /// The unit's radio call: "voice_" when it is selected, "ack_" when it takes an order.
+    func unitVoice(_ prefix: String, _ es: [Entity]? = nil) {
+        let list = es ?? selection
+        guard let u = list.first(where: { !($0 is Building) && $0.team.isLocal && !$0.dead }) as? Unit else { return }
+        Audio.play("\(prefix)\(NetProtocol.name(u.kind))", minGap: 0.3)
+    }
+
     func setSelection(_ es: [Entity]) {
+        if !es.isEmpty && !(es.count == selection.count && zip(es, selection).allSatisfy { $0 === $1 }) { unitVoice("voice_", es) }
         for e in selection { e.isSelected = false }
         selection = es.filter { !$0.dead }
         for e in selection { e.isSelected = true }
