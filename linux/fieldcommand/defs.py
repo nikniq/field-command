@@ -260,6 +260,11 @@ MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
 # Every side starts with this much crystal in the bank.
 START_CRYSTAL = 2000
 
+# High ground: a map's ridges ([x0, y0, x1, y1] plateaus) are walkable and buildable, and anything standing
+# on one sees HIGH_SIGHT times as far and shoots HIGH_RANGE further.
+HIGH_SIGHT = 1.3
+HIGH_RANGE = 40.0
+
 # Supply crates: one drops somewhere open every CRATE_INTERVAL seconds (at most CRATE_MAX on the field, each
 # gone after CRATE_LIFE), and the first unit to reach one collects its gift for its side: crystal, a squad
 # of Rangers, or a Siege Tank. CRATE_KINDS is the wire order.

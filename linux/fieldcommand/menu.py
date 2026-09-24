@@ -185,6 +185,8 @@ class MenuScene:
         for x0, y0, x1, y1, kind in spec.get("walls", []):
             col = (38, 66, 104) if kind == "water" else (74, 62, 50)
             pygame.draw.rect(surf, col, (int(x0 * s), int(y0 * s), max(1, int((x1 - x0) * s)), max(1, int((y1 - y0) * s))))
+        for x0, y0, x1, y1 in spec.get("ridges", []):
+            pygame.draw.rect(surf, (96, 112, 58), (int(x0 * s), int(y0 * s), max(1, int((x1 - x0) * s)), max(1, int((y1 - y0) * s))))
         for x0, y0, x1, y1 in spec.get("bridges", []):
             pygame.draw.rect(surf, to255(AMBER), (int(x0 * s), int(y0 * s), max(2, int((x1 - x0) * s)), max(2, int((y1 - y0) * s))))
         for c in spec["crystals"]:

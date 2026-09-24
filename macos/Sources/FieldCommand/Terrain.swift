@@ -17,6 +17,14 @@ enum Terrain {
         }
     }
 
+    /// High ground: walkable plateaus, drawn raised.
+    static func ridges(_ map: [String: Any]) -> [CGRect] {
+        jArr(map["ridges"]).map { b in
+            let v = jArr(b)
+            return CGRect(x: jNum(v[0]), y: jNum(v[1]), width: jNum(v[2]) - jNum(v[0]), height: jNum(v[3]) - jNum(v[1]))
+        }
+    }
+
     static func bridges(_ map: [String: Any]) -> [CGRect] {
         jArr(map["bridges"]).map { b in
             let v = jArr(b)
@@ -107,10 +115,10 @@ enum Terrain {
 
     // MARK: Rendering
 
-    /// A world-sized (at 1/`res` scale) image of all water, cliffs and bridges, or nil when the map has none.
+    /// A world-sized (at 1/`res` scale) image of all water, cliffs, high ground and bridges, or nil when the map has none.
     static func image(_ map: [String: Any]) -> CGImage? {
-        let walls = walls(map), bridges = bridges(map)
-        guard !walls.isEmpty else { return nil }
+        let walls = walls(map), bridges = bridges(map), ridges = ridges(map)
+        guard !walls.isEmpty || !ridges.isEmpty else { return nil }
         let w = Int(Double(worldSize.width) / res), h = Int(Double(worldSize.height) / res)
         let seed = UInt64(max(1, jInt(map["seed"])))
         let warp = noise(w, h, period: 150 / res, octaves: 3, seed: seed &+ 11)
@@ -184,6 +192,44 @@ enum Terrain {
                     let top = smooth(0.55, 0.75, v[i])
                     let n = fine.a[i] * 26
                     let r = (92 + 36 * top + n) * light, g = (86 + 36 * top + n) * light, b = (76 + 32 * top + n) * light
+                    rgb[i * 3] = rgb[i * 3] * (1 - bd) + r * bd
+                    rgb[i * 3 + 1] = rgb[i * 3 + 1] * (1 - bd) + g * bd
+                    rgb[i * 3 + 2] = rgb[i * 3 + 2] * (1 - bd) + b * bd
+                    alpha[i] = max(alpha[i], bd)
+                }
+            }
+        }
+
+        if !ridges.isEmpty {
+            // High ground: a raised plateau of drier grass with a lit rim toward the light and a soft cast
+            // shadow down-right, so it reads as a step up rather than a patch of colour (terrain.py's pass).
+            var f = mask(ridges, w, h)
+            blur(&f, 7)
+            var v = f.a, hgt = f.a
+            for i in v.indices {
+                let b = f.a[i]
+                v[i] = b + warp.a[i] * 0.12 * smooth(0, 0.3, b)
+                hgt[i] = smooth(0.32, 0.62, v[i]) * 18 + fine.a[i] * 3 * smooth(0.3, 0.6, v[i])
+            }
+            var body = [Float](repeating: 0, count: w * h)
+            for i in v.indices { body[i] = smooth(0.36, 0.44, v[i]) }
+            for y in 0..<h {
+                for x in 0..<w {
+                    let i = y * w + x
+                    let sy = y - 4, sx = x - 3
+                    let caster: Float = sy >= 0 && sx >= 0 ? body[sy * w + sx] : 0
+                    let sh = caster * (1 - body[i]) * 0.35
+                    if sh > 0 {
+                        rgb[i * 3] *= 1 - sh; rgb[i * 3 + 1] *= 1 - sh; rgb[i * 3 + 2] *= 1 - sh
+                        alpha[i] = max(alpha[i], sh)
+                    }
+                    let bd = body[i]
+                    guard bd > 0 else { continue }
+                    let gx = (hgt[y * w + min(w - 1, x + 1)] - hgt[y * w + max(0, x - 1)]) * 0.5
+                    let gy = (hgt[min(h - 1, y + 1) * w + x] - hgt[max(0, y - 1) * w + x]) * 0.5
+                    let light = min(1.35, max(0.45, 0.80 + gx * 0.30 + gy * 0.36))
+                    let n = fine.a[i] * 12
+                    let r = (112 + n) * light, g = (126 + n) * light, b = (66 + n) * light
                     rgb[i * 3] = rgb[i * 3] * (1 - bd) + r * bd
                     rgb[i * 3 + 1] = rgb[i * 3 + 1] * (1 - bd) + g * bd
                     rgb[i * 3 + 2] = rgb[i * 3 + 2] * (1 - bd) + b * bd

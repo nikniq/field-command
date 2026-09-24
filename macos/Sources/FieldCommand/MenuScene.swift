@@ -500,6 +500,10 @@ final class MenuScene: SKScene {
                 Art.fill(ctx, CGPath(rect: CGRect(x: x0, y: y0, width: max(1, x1 - x0), height: max(1, y1 - y0)), transform: nil),
                          water ? .rgb(0.15, 0.26, 0.41) : .rgb(0.29, 0.24, 0.20))
             }
+            for r in jArr(spec["ridges"]).map({ jArr($0) }) where r.count >= 4 {
+                let x0 = CGFloat(jNum(r[0])) * s, y0 = CGFloat(jNum(r[1])) * s, x1 = CGFloat(jNum(r[2])) * s, y1 = CGFloat(jNum(r[3])) * s
+                Art.fill(ctx, CGPath(rect: CGRect(x: x0, y: y0, width: max(1, x1 - x0), height: max(1, y1 - y0)), transform: nil), .rgb(0.38, 0.44, 0.23))
+            }
             for b in jArr(spec["bridges"]).map({ jArr($0) }) where b.count >= 4 {
                 let x0 = CGFloat(jNum(b[0])) * s, y0 = CGFloat(jNum(b[1])) * s, x1 = CGFloat(jNum(b[2])) * s, y1 = CGFloat(jNum(b[3])) * s
                 Art.fill(ctx, CGPath(rect: CGRect(x: x0, y: y0, width: max(2, x1 - x0), height: max(2, y1 - y0)), transform: nil), Palette.amber)

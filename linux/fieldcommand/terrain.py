@@ -58,9 +58,10 @@ def _lerp(a, b, t):
 
 
 def render(map_spec):
-    """Returns a world-sized RGBA surface of all water and cliffs (or None when the map has none)."""
+    """Returns a world-sized RGBA surface of all water, cliffs and high ground (or None when the map has none)."""
     walls = map_spec.get("walls", [])
-    if not walls:
+    ridges = map_spec.get("ridges", [])
+    if not walls and not ridges:
         return None
     res = _res()
     W, H = int(defs.WORLD_W) // res, int(defs.WORLD_H) // res
@@ -109,6 +110,23 @@ def render(map_spec):
         rgb = rgb * (1 - sh[..., None] * 0.4)
         alpha = np.maximum(alpha, sh * 0.4)
         rgb = rgb * (1 - body[..., None]) + rock * body[..., None]
+        alpha = np.maximum(alpha, body)
+
+    if ridges:
+        # High ground: a raised plateau of drier grass with a lit rim toward the light and a soft cast shadow
+        # down-right, so it reads as a step up rather than a patch of colour.
+        b = _blur(_mask([tuple(r[:4]) for r in ridges], W, H, res), max(4, int(14 / res)))
+        f = b + warp * 0.12 * _smooth(0.0, 0.3, b)
+        body = _smooth(0.36, 0.44, f)
+        hgt = _smooth(0.32, 0.62, f) * 18 + fine * 3 * _smooth(0.3, 0.6, f)
+        gy, gx = np.gradient(hgt)
+        light = np.clip(0.80 + gx * 0.30 + gy * 0.36, 0.45, 1.35)
+        grass = np.broadcast_to(np.array([112, 126, 66], np.float32), f.shape + (3,)).copy() + fine[..., None] * 12
+        grass = grass * light[..., None]
+        sh = np.roll(np.roll(body, 4, axis=0), 3, axis=1) * (1 - body)
+        rgb = rgb * (1 - sh[..., None] * 0.35)
+        alpha = np.maximum(alpha, sh * 0.35)
+        rgb = rgb * (1 - body[..., None]) + grass * body[..., None]
         alpha = np.maximum(alpha, body)
 
     # rgb currently holds colour already weighted by coverage for cliffs' shadow; un-premultiply

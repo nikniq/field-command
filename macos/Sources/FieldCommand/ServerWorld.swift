@@ -193,7 +193,8 @@ enum SMapGen {
 
     static func finish(_ id: String, _ starts: [Start], _ expansions: [(Double, Double, Int, Int)],
                                _ roads: [[(Double, Double)]], seed: UInt64, walls: [Wall] = [],
-                               bridges: [(Double, Double, Double, Double)] = []) -> [String: Any] {
+                               bridges: [(Double, Double, Double, Double)] = [],
+                               ridges: [(Double, Double, Double, Double)] = []) -> [String: Any] {
         let meta = info(id)!
         setWorldSize(size(id).width, size(id).height)  // helpers below read worldW/worldH
         let blockers = walls.map { SRect($0.0, $0.1, $0.2, $0.3) } + bridges.map { SRect($0.0, $0.1, $0.2, $0.3) }
@@ -247,6 +248,7 @@ enum SMapGen {
         return ["id": id, "name": meta.name, "players": meta.players, "w": worldW, "h": worldH, "seed": Int(seed),
                 "walls": walls.map { [$0.0, $0.1, $0.2, $0.3, $0.4] as [Any] },
                 "bridges": bridges.map { [$0.0, $0.1, $0.2, $0.3] },
+                "ridges": ridges.map { [$0.0, $0.1, $0.2, $0.3] },
                 "starts": starts.map { [$0.x, $0.y, $0.angle] },
                 "expansions": expansions.map { [$0.0, $0.1, $0.2, $0.3] as [Any] },
                 "crystals": crystals, "clearings": clearings.map { [$0.0, $0.1, $0.2] },
@@ -261,8 +263,14 @@ enum SMapGen {
                       [(2000, 480, 6, 1000), (2000, 2320, 6, 1000), (520, 2280, 6, 1000), (3480, 520, 6, 1000), (2000, 1400, 4, goldAmount)],
                       [[ps, (1150, 820), (1600, 1250), (2000, 1400), (2400, 1550), (2850, 1980), es],
                        [(1600, 1250), (1850, 800), (2000, 600)], [(2400, 1550), (2150, 2000), (2000, 2200)],
-                       [ps, (700, 1400), (560, 2150)], [es, (3300, 1400), (3440, 650)]], seed: 42)
+                       [ps, (700, 1400), (560, 2150)], [es, (3300, 1400), (3440, 650)]], seed: 42, ridges: twinRidgesRidges)
     }
+
+    // High ground, as mapgen.py places it: plateaus flanking the gold (Twin Ridges, Four Corners) and on the
+    // middle side of each outer pass (Highland Pass).
+    static let twinRidgesRidges: [(Double, Double, Double, Double)] = [(1350, 950, 1750, 1250), (2250, 1550, 2650, 1850)]
+    static let highlandPassRidges: [(Double, Double, Double, Double)] = [(600, 1140, 940, 1380), (3060, 1420, 3400, 1660)]
+    static let fourCornersRidges: [(Double, Double, Double, Double)] = [(1500, 1150, 1800, 1650), (2200, 1150, 2500, 1650)]
 
     static func fourCorners() -> [String: Any] {
         setWorldSize(size("four_corners").width, size("four_corners").height)
@@ -274,7 +282,7 @@ enum SMapGen {
                       [(2000, 430, 6, 1000), (2000, 2370, 6, 1000), (430, 1400, 6, 1000), (3570, 1400, 6, 1000), (c.0, c.1, 4, goldAmount)],
                       [[bl, (1300, 950), c], [br, (2700, 950), c], [tl, (1300, 1850), c], [tr, (2700, 1850), c],
                        [bl, (1300, 520), (2000, 560), (2700, 520), br], [tl, (1300, 2280), (2000, 2240), (2700, 2280), tr],
-                       [bl, (560, 1400), tl], [br, (3440, 1400), tr]], seed: 7)
+                       [bl, (560, 1400), tl], [br, (3440, 1400), tr]], seed: 7, ridges: fourCornersRidges)
     }
 
     private static func rot(_ p: (Double, Double)) -> (Double, Double) { (worldW - p.0, worldH - p.1) }
@@ -299,7 +307,7 @@ enum SMapGen {
                       [[ps, (770, 820), (770, 1300), (1660, 1500), (1660, 1950), (2600, 2200), es],
                        [ps, (1500, 700), (2340, 860), (2340, 1300), (3230, 1500), (3230, 1980), es],
                        [(770, 1300), (420, 1400)], [(3230, 1500), (3580, 1400)], [(1660, 1500), (2000, 1400), (2340, 1300)]],
-                      seed: 23, walls: highlandPassWalls)
+                      seed: 23, walls: highlandPassWalls, ridges: highlandPassRidges)
     }
 
     static func crossroads() -> [String: Any] {
@@ -767,10 +775,10 @@ final class SUnit: SEntity {
 
     var sieged: Bool { mode == .sieged }
     var canSiege: Bool { kind == .tank }
-    var attackRange: Double { (sieged ? siegeRange : Double(stats.range)) + kit("range") }
+    var attackRange: Double { (sieged ? siegeRange : Double(stats.range)) + kit("range") + (world.onHigh(x, y) ? highRange : 0) }
     var minRange: Double { sieged ? siegeMinRange : 0 }
     override var sight: Double {
-        get { sieged ? siegeSight : super.sight }
+        get { (sieged ? siegeSight : super.sight) * (world.onHigh(x, y) ? highSight : 1) }
         set { super.sight = newValue }
     }
 
@@ -1225,7 +1233,9 @@ final class SBuilding: SEntity {
 
     var supply: Int { stats.supply + (upgrades.contains(.supply) ? depotUpgradedSupply : 0) }
     var trainSpeed: Double { upgrades.contains(.prod) ? 2 : 1 }
-    var turretRange: Double { kind == .hq ? hqGunRange : (upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range)) }
+    var turretRange: Double {
+        (kind == .hq ? hqGunRange : (upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range))) + (world.onHigh(x, y) ? highRange : 0)
+    }
     var turretDamage: Double { kind == .hq ? hqGunDamage : (upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage)) }
 
     override func takeDamage(_ amount: Double, from attacker: SEntity?) {
@@ -1390,6 +1400,9 @@ final class SWorld {
     /// `walls` is derived: the map's own water and cliffs plus the span of every fallen bridge.
     private(set) var walls: [SRect]
     private var mapWalls: [SRect] = []
+    /// High ground: walkable plateaus; sight and reach are better from up there.
+    private(set) var ridges: [SRect] = []
+    func onHigh(_ x: Double, _ y: Double) -> Bool { ridges.contains { x >= $0.x0 && x <= $0.x1 && y >= $0.y0 && y <= $0.y1 } }
     /// The map's own water and cliffs, for the automated tests in Debug.swift.
     var mapWallsForTests: [SRect] { mapWalls }
     var bridges: [SBridge] = []
@@ -1423,6 +1436,7 @@ final class SWorld {
             return SRect(Double(jNum(v[0])), Double(jNum(v[1])), Double(jNum(v[2])), Double(jNum(v[3])))
         }
         walls = mapWalls
+        ridges = jArr(map["ridges"]).map { r in let v = jArr(r); return SRect(Double(jNum(v[0])), Double(jNum(v[1])), Double(jNum(v[2])), Double(jNum(v[3]))) }
         for p in list {
             players[p.slot] = p
             resources[p.slot] = Double(startCrystal)
@@ -1659,7 +1673,7 @@ final class SWorld {
         for (team, grid) in fog {
             var viewers: [(Double, Double, Double)] = []
             for u in units where players[u.team]?.team == team { viewers.append((u.x, u.y, u.sight)) }
-            for b in buildings where players[b.team]?.team == team { viewers.append((b.x, b.y, b.sight)) }
+            for b in buildings where players[b.team]?.team == team { viewers.append((b.x, b.y, b.sight * (onHigh(b.x, b.y) ? highSight : 1))) }
             for t in towers { if let o = t.owner, players[o]?.team == team { viewers.append((t.x, t.y, towerSight)) } }
             if var active = reveals[team] {
                 for (id, until) in active where until <= elapsed { active[id] = nil }
@@ -1766,6 +1780,8 @@ final class SWorld {
             u.y = clampD(u.y, r + 4, worldH - r - 4)
         }
     }
+
+    func cleanupDeadForTests() { cleanupDead() }
 
     private func cleanupDead() {
         if units.contains(where: { $0.dead }) {

@@ -2,7 +2,7 @@
 
     {"id", "name", "players", "w", "h", "starts": [[x, y, mineral_angle]], "expansions": [[x, y, count, amount]],
      "crystals": [[x, y, amount, variant]], "clearings": [[x, y, r]], "roads": [[[x, y], ...]],
-     "walls": [[x0, y0, x1, y1, "water" | "cliff"]], "bridges": [[x0, y0, x1, y1]],
+     "walls": [[x0, y0, x1, y1, "water" | "cliff"]], "bridges": [[x0, y0, x1, y1]], "ridges": [[x0, y0, x1, y1]],
      "trees": [[x, y, radius, variant, angle_deg, scale]]}
 
 Walls are impassable terrain; bridges are walkable decoration drawn over water.
@@ -192,7 +192,7 @@ def _rect_dist(r, x, y):
     return math.hypot(dx, dy)
 
 
-def _finish(map_id, starts, expansions, roads, seed, walls=(), bridges=()):
+def _finish(map_id, starts, expansions, roads, seed, walls=(), bridges=(), ridges=()):
     """Adds mineral lines, clearings and forests around the given layout."""
     w, h = _W, _H
     crystals, clearings = [], []
@@ -250,7 +250,8 @@ def _finish(map_id, starts, expansions, roads, seed, walls=(), bridges=()):
             "expansions": [list(e) for e in expansions], "crystals": crystals, "clearings": clearings,
             "roads": [[list(p) for p in r] for r in roads], "trees": trees,
             "walls": [[*[round(v, 1) for v in wl[:4]], wl[4]] for wl in walls],
-            "bridges": [[round(v, 1) for v in b] for b in bridges]}
+            "bridges": [[round(v, 1) for v in b] for b in bridges],
+            "ridges": [[round(v, 1) for v in r] for r in ridges]}
 
 
 def twin_ridges():
@@ -265,7 +266,9 @@ def twin_ridges():
         [ps, (700, 1400), (560, 2150)],
         [es, (3300, 1400), (3440, 650)],
     ]
-    return _finish("twin_ridges", starts, expansions, roads, 42)
+    # High ground: two plateaus flanking the gold, one on each side's road to it.
+    ridges = [(1350, 950, 1750, 1250), (2250, 1550, 2650, 1850)]
+    return _finish("twin_ridges", starts, expansions, roads, 42, ridges=ridges)
 
 
 def river_crossing():
@@ -300,7 +303,9 @@ def highland_pass():
     roads = [[ps, (770, 820), (770, 1300), (1660, 1500), (1660, 1950), (2600, 2200), es],
              [ps, (1500, 700), (2340, 860), (2340, 1300), (3230, 1500), (3230, 1980), es],
              [(770, 1300), (420, 1400)], [(3230, 1500), (3580, 1400)], [(1660, 1500), (2000, 1400), (2340, 1300)]]
-    return _finish("highland_pass", starts, expansions, roads, 23, walls)
+    # High ground: a plateau on the middle side of each outer pass — hold it and the pass is covered.
+    ridges = [(600, 1140, 940, 1380), (3060, 1420, 3400, 1660)]
+    return _finish("highland_pass", starts, expansions, roads, 23, walls, ridges=ridges)
 
 
 def four_corners():
@@ -316,7 +321,9 @@ def four_corners():
         [tl, (1300, 2280), (2000, 2240), (2700, 2280), tr],
         [bl, (560, 1400), tl], [br, (3440, 1400), tr],
     ]
-    return _finish("four_corners", starts, expansions, roads, 7)
+    # High ground: two plateaus either side of the gold in the middle.
+    ridges = [(1500, 1150, 1800, 1650), (2200, 1150, 2500, 1650)]
+    return _finish("four_corners", starts, expansions, roads, 7, ridges=ridges)
 
 
 def crossroads():

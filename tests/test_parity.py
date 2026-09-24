@@ -97,6 +97,9 @@ def test_shared_constants_agree():
     assert const("siegeCooldown") == SIEGE_COOLDOWN
     assert const("siegeTransition") == SIEGE_TRANSITION
     assert const("siegeSight") == SIEGE_SIGHT
+    from fieldcommand.defs import HIGH_RANGE, HIGH_SIGHT
+    assert const("highSight") == HIGH_SIGHT
+    assert const("highRange") == HIGH_RANGE
 
 
 def test_upgrade_catalogue_agrees():
@@ -170,6 +173,20 @@ def test_map_catalogue_agrees():
                          ("Walls", mapgen.bake_walls), ("Bridges", mapgen.bake_bridges)]:
             got = re.search(rf'let {cam}{part} = "(.*?)"\n', baked).group(1)
             assert got == fn(m), f"{mid} {part}: re-bake with mapgen.bake_swift()"
+
+
+def test_high_ground_agrees():
+    """The hand-written maps' plateaus are the ones mapgen.py places."""
+    from fieldcommand import mapgen
+    src = swift("ServerWorld.swift")
+    sw = {}
+    for name, body in re.findall(r"static let (\w+)Ridges: \[\(Double, Double, Double, Double\)\] = \[(.*?)\]\n", src):
+        sw[name] = [tuple(float(v) for v in r.split(",")) for r in re.findall(r"\(([\d., ]+)\)", body)]
+    for m in mapgen.CATALOG:
+        ridges = [tuple(float(v) for v in r) for r in mapgen.generate(m["id"]).get("ridges", [])]
+        cam = "".join(p.title() for p in m["id"].split("_"))
+        cam = cam[0].lower() + cam[1:]
+        assert sw.get(cam, []) == ridges, m["id"]
 
 
 def test_gold_deposits_agree():

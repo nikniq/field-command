@@ -407,6 +407,54 @@ enum Debug {
 
     /// FC_REPLAYTEST=1: the simulation is a pure function of its seed and commands — the same seed and commands
     /// give the same game, a different seed a different one — and a recorded game replays exactly.
+    /// FC_HIGHTEST=1: high ground — plateaus are walkable and buildable, and whatever stands on one sees and
+    /// shoots further; matching linux/tests/test_highground.py.
+    static func runHighGroundTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        var withRidges: [String] = []
+        for m in SMapGen.catalog {
+            let spec = SMapGen.generate(m.id)
+            let ridges = Terrain.ridges(spec), walls = Terrain.walls(spec).map { $0.rect }
+            for r in ridges {
+                check(r.minX >= 0 && r.maxX <= CGFloat(jNum(spec["w"])) && r.minY >= 0 && r.maxY <= CGFloat(jNum(spec["h"])) && r.width > 0 && r.height > 0,
+                      "\(m.id): a plateau inside the world")
+                check(!walls.contains { $0.intersects(r) }, "\(m.id): clear of water and cliffs")
+                withRidges.append(m.id)
+            }
+        }
+        check(Set(withRidges) == ["twin_ridges", "highland_pass", "four_corners"], "three maps have high ground")
+        let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+        let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
+        let r = w.ridges[0]
+        let cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2
+        let up = SUnit(world: w, kind: .marine, team: 0, x: cx, y: cy)
+        let down = SUnit(world: w, kind: .marine, team: 0, x: r.x0 - 200, y: cy)
+        check(w.onHigh(cx, cy) && !w.onHigh(r.x0 - 200, cy), "the plateau is high ground; beside it is not")
+        check(up.attackRange == down.attackRange + highRange && up.attackRange == Double(UnitKind.marine.stats.range) + highRange, "a Ranger up there shoots further")
+        check(up.sight == down.sight * highSight, "and sees further")
+        w.startBuilding(.turret, cx, cy, 0)
+        let t = w.buildings.last!
+        t.built = true
+        check(t.turretRange == Double(BuildingKind.turret.stats.range) + highRange, "so does a turret")
+        let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        check(w.nav.reaches(hq.x, hq.y, cx, cy) && w.canPlace(.depot, cx, cy + 120), "plateaus are walkable and buildable")
+        for u in w.units { u.dead = true }
+        t.dead = true
+        w.cleanupDeadForTests()
+        let ranger = SUnit(world: w, kind: .marine, team: 0, x: cx, y: cy)
+        w.add(ranger)
+        w.updateVisibility()
+        let far = Double(UnitKind.marine.stats.sight) * 1.2
+        let team = w.players[0]!.team
+        check(w.fog[team]?.isVisible(cx + far, cy) == true, "from the high ground a Ranger reveals beyond its plain sight")
+        ranger.x = r.x0 - 200
+        w.updateVisibility()
+        check(w.fog[team]?.isVisible(r.x0 - 200 + far, cy) == false, "and not from the low ground")
+        print(ok ? "HIGH GROUND TEST PASSED" : "HIGH GROUND TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runReplayTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

@@ -112,6 +112,9 @@ if Debug.env["FC_CAMPAIGNTEST"] != nil {
 if Debug.env["FC_CRATETEST"] != nil {
     Debug.runCrateTest()
 }
+if Debug.env["FC_HIGHTEST"] != nil {
+    Debug.runHighGroundTest()
+}
 if Debug.env["FC_ARTYTEST"] != nil {
     Debug.runArtilleryTest()
 }

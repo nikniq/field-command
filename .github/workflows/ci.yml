@@ -144,6 +144,11 @@ jobs:
         run: |
           set -o pipefail
           FC_REPLAYTEST=1 "$BIN" | tee /dev/stderr | grep -q "REPLAY TEST PASSED"
+      - name: Headless High Ground
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_HIGHTEST=1 "$BIN" | tee /dev/stderr | grep -q "HIGH GROUND TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

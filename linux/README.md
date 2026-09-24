@@ -351,6 +351,14 @@ Internet play works the same way if the host forwards TCP port 47777 on their ro
 Settings (game speed, edge scrolling, sound, objectives, fullscreen, health bars always on) are saved to
 `~/.config/fieldcommand/settings.json`.
 
+## High ground
+
+Some maps have raised plateaus — drier, lighter grass with a lit rim and a shadow down the far side — on
+Twin Ridges (two flanking the gold), Highland Pass (one on the middle side of each outer pass) and Four
+Corners (either side of the gold). They are walkable and buildable, and anything standing on one, turrets
+included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
+briefing map shows them as the lighter patches.
+
 ## Gold deposits
 
 Every map has at least one **gold deposit** — nodes drawn in gold, each worth 150,000 crystal, a hundred times

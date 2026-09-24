@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (HIGH_SIGHT, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -76,6 +76,7 @@ class World:
         self.kits = {p.slot: set() for p in players}    # slot -> kit ids bought from the Armory
 
         self.map_walls = [tuple(w[:4]) for w in map_spec.get("walls", [])]
+        self.ridges = [tuple(r[:4]) for r in map_spec.get("ridges", [])]     # high ground: walkable plateaus
         self.bridges = []
         self.walls = list(self.map_walls)
         self.nav = NavGrid()
@@ -275,9 +276,15 @@ class World:
             self.update_visibility()
         self._check_victory()
 
+    def on_high(self, x, y):
+        """True on a plateau: sight and reach are better from up there (units apply it in their own sight
+        and range; buildings here, in the sight pass)."""
+        return any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in self.ridges)
+
     def update_visibility(self):
         for team, grid in self.fog.items():
-            viewers = [(e.x, e.y, e.sight) for e in self.units + self.buildings if self.players[e.team].team == team]
+            viewers = [(e.x, e.y, e.sight * (HIGH_SIGHT if e.is_building and self.on_high(e.x, e.y) else 1.0))
+                       for e in self.units + self.buildings if self.players[e.team].team == team]
             viewers += [(t.x, t.y, TOWER_SIGHT) for t in self.towers
                         if t.owner is not None and self.players[t.owner].team == team]
             active = self.reveals[team]

@@ -9,7 +9,7 @@ Orders are tuples:
 import math
 import random
 
-from .defs import CARRY_CAP
+from .defs import CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
 from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
@@ -323,7 +323,8 @@ class Unit(Entity):
 
     @property
     def sight(self):
-        return SIEGE_SIGHT if self.sieged else self._sight
+        base = SIEGE_SIGHT if self.sieged else self._sight
+        return base * (HIGH_SIGHT if self.game.on_high(self.x, self.y) else 1.0)
 
     @sight.setter
     def sight(self, v):
@@ -331,7 +332,8 @@ class Unit(Entity):
 
     @property
     def attack_range(self):
-        return (SIEGE_RANGE if self.sieged else self.stats.range) + self._kit("range")
+        return ((SIEGE_RANGE if self.sieged else self.stats.range) + self._kit("range")
+                + (HIGH_RANGE if self.game.on_high(self.x, self.y) else 0.0))
 
     @property
     def min_range(self):
@@ -932,7 +934,8 @@ class Building(Entity):
     def turret_range(self):
         if self.kind == "hq":
             return HQ_GUN_RANGE
-        return TURRET_UPGRADED_RANGE if "guns" in self.upgrades else self.stats.range
+        return ((TURRET_UPGRADED_RANGE if "guns" in self.upgrades else self.stats.range)
+                + (HIGH_RANGE if self.game.on_high(self.x, self.y) else 0.0))
 
     @property
     def turret_damage(self):

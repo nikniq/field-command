@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.21.0
+Version:        1.22.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.22.0-1
+- High ground: Twin Ridges, Highland Pass and Four Corners have raised plateaus; anything standing on one
+  sees 30% further and shoots 40 further, turrets included
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.21.0-1
 - Campaign scripting: every mission runs a script on its clock — word from Command, reinforcements walking
   in from your map edge, enemy columns from theirs, a raid on your ally — and is briefed before it is
