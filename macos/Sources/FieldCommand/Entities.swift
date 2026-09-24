@@ -379,9 +379,14 @@ final class Unit: Entity {
         }
     }
 
+    /// Entrenched and holding still, from the server.
+    var dugIn = false
+
     var statusText: String {
-        let text = baseStatusText
-        return game.inCover(self) ? text + " · in cover" : text
+        var text = baseStatusText
+        if game.inCover(self) { text += " · in cover" }
+        if dugIn { text += " · dug in" }
+        return text
     }
 
     /// In cover: a small green leaf-shaped badge beside the health bar while selected or hovered.

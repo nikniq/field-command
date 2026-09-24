@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -1588,6 +1588,8 @@ class GameScene:
                 installed = all(k in b.upgrades for b in targets)
                 busy = any(b.upgrading is not None for b in targets) and not installed
                 ok = not installed and any(b.can_upgrade(k) for b in targets)
+                if k in TECH and self.s.has_tech(k):
+                    installed, ok = True, False
                 tip = f"{u.name}: {u.desc}\n{int(u.time)}s to research; this building only."
                 if len(targets) > 1:
                     tip += f"\nApplies to {len(targets)} selected buildings, one price each."
@@ -1595,6 +1597,8 @@ class GameScene:
                     tip += "\nAlready installed."
                 elif busy:
                     tip += "\nAlready researching something."
+                if k in TECH:
+                    tip = tip.replace("this building only", "once, for the whole side")
                 out.append(CommandButton(("upgrade", k), u.button, u.hotkey, None if installed else cost, ok, tip,
                                          lambda k=k: self.upgrade(k)))
             return out

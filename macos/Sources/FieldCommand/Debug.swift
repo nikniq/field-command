@@ -412,6 +412,111 @@ enum Debug {
     /// FC_COVERTEST=1: cover among trees on the server simulation — matching linux/tests/test_cover.py.
     /// FC_DERELICTTEST=1: the derelict Siege Tank — placement, salvage, contest, the wire and the save —
     /// matching linux/tests/test_derelict.py.
+    /// FC_TECHTEST=1: side-wide tech — entrenchment and stabilisers — matching linux/tests/test_tech.py.
+    static func runTechTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func setup(_ kind: BuildingKind) -> (SWorld, SBuilding, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }
+            w.resources[0] = 5000
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            w.startBuilding(kind, hq.x + 400, hq.y, 0)
+            let b = w.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+            return (w, hq, b)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double, armed: Bool = false) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            u.command(.idle)
+            if !armed { u.cooldown = 1e9 }
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if done() { return true } }
+            return done()
+        }
+        func research(_ w: SWorld, _ b: SBuilding, _ k: UpgradeKind) -> Bool {
+            w.apply(0, ["upgrade", [b.id], k.wireName])
+            return b.upgrading == k && run(w, k.stats.time + 1) { b.upgrades.contains(k) }
+        }
+        check(techKinds == [.entrench, .stabilise] && UpgradeKind.allCases.suffix(2).elementsEqual(techKinds)
+              && UpgradeKind.entrench.applies(to: .barracks) && !UpgradeKind.entrench.applies(to: .factory)
+              && UpgradeKind.stabilise.applies(to: .factory) && !UpgradeKind.stabilise.applies(to: .barracks),
+              "the two techs are in the catalogue at their buildings")
+        do {
+            let (w, hq, bk) = setup(.barracks)
+            let r = unit(w, .marine, 0, hq.x + 200, hq.y + 300)
+            let foe = unit(w, .marine, 1, r.x + 100, r.y)
+            _ = run(w, entrenchTime + 1)
+            let none = !r.dugIn
+            var hp = r.hp
+            r.takeDamage(10, from: foe)
+            let full = abs(hp - r.hp - 10) < 1e-9
+            let got = research(w, bk, .entrench)
+            let dug = w.hasTech(.entrench, 0) && r.stillFor >= entrenchTime && r.dugIn
+            hp = r.hp
+            r.takeDamage(10, from: foe)
+            let less = abs(hp - r.hp - 10 * entrenchFactor) < 1e-9
+            r.command(.move(r.x + 200, r.y))
+            _ = run(w, 1)
+            let up = r.stillFor < entrenchTime && !r.dugIn
+            hp = r.hp
+            r.takeDamage(10, from: foe)
+            check(none && full && got && dug && less && up && abs(hp - r.hp - 10) < 1e-9, "entrenched infantry that holds still takes less; on the move it does not")
+            let t = unit(w, .tank, 0, hq.x + 200, hq.y + 500)
+            let e = unit(w, .worker, 0, hq.x + 260, hq.y + 500)
+            _ = run(w, entrenchTime + 1)
+            check(!t.dugIn && !e.dugIn, "tanks and Engineers do not dig in")
+        }
+        do {
+            let (w, hq, bk) = setup(.barracks)
+            w.startBuilding(.barracks, hq.x + 400, hq.y + 250, 0)
+            let bk2 = w.buildings.last!
+            bk2.built = true; bk2.progress = 1; bk2.hp = bk2.maxHp
+            let before = bk2.canUpgrade(.entrench)
+            let got = research(w, bk, .entrench)
+            let money = w.resources[0] ?? 0
+            w.apply(0, ["upgrade", [bk2.id], "entrench"])
+            check(before && got && !bk2.canUpgrade(.entrench) && bk2.upgrading == nil && w.resources[0] == money, "tech is bought once for the whole side")
+        }
+        do {
+            let (w, hq, fc) = setup(.factory)
+            let t = unit(w, .tank, 0, hq.x + 200, hq.y + 400, armed: true)
+            let target = unit(w, .marine, 1, hq.x + 500, hq.y + 520)
+            let hp = target.hp
+            t.command(.move(hq.x + 800, hq.y + 400))
+            _ = run(w, 4)
+            let held = target.hp == hp
+            t.command(.move(hq.x + 200, hq.y + 400))
+            _ = run(w, 10) { t.order.isIdle }
+            let got = research(w, fc, .stabilise)
+            t.command(.move(hq.x + 800, hq.y + 400))
+            let fired = run(w, 4) { target.hp < hp }
+            check(held && got && fired && t.order.isMove, "stabilised tanks fire on the move")
+        }
+        do {
+            let (w, hq, bk) = setup(.barracks)
+            w.startBuilding(.factory, hq.x + 400, hq.y + 250, 0)
+            let fc = w.buildings.last!
+            fc.built = true; fc.progress = 1; fc.hp = fc.maxHp
+            let ai = SAI(world: w, team: 0)
+            let bases = w.buildings.filter { $0.team == 0 }
+            for b in bases { b.upgrades.insert(.prod) }
+            w.resources[0] = 5000
+            ai.upgradeForTests(hq, bases)
+            let first = bk.upgrading == .entrench
+            bk.upgrades.insert(.entrench); bk.upgrading = nil
+            ai.upgradeForTests(hq, bases)
+            check(first && fc.upgrading == .stabilise, "the computer researches both")
+        }
+        print(ok ? "TECH TEST PASSED" : "TECH TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runDerelictTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

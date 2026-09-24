@@ -1817,6 +1817,9 @@ final class GameScene: SKScene {
         buildings.contains { $0.team == team && $0.kind == k && $0.built }
     }
 
+    /// Tech is side-wide: any of your standing buildings that researched it counts.
+    func hasTech(_ k: UpgradeKind) -> Bool { buildings.contains { $0.team.isLocal && !$0.dead && $0.upgrades.contains(k) } }
+
     func beginPlacement(_ k: BuildingKind) {
         if let req = k.stats.requires, !hasBuilt(req, team: Team.local) {
             hud.flash("Requires \(req.stats.name)", color: Palette.bad)
@@ -2270,10 +2273,10 @@ final class GameScene: SKScene {
                 let targets = bs.filter { k.applies(to: $0.kind) }
                 guard let target = targets.first else { continue }
                 let u = k.stats
-                let installed = targets.allSatisfy { $0.upgrades.contains(k) }
+                let installed = targets.allSatisfy { $0.upgrades.contains(k) } || (techKinds.contains(k) && hasTech(k))
                 let busy = targets.contains { $0.upgrading != nil } && !installed
                 let ok = !installed && targets.contains { $0.canUpgrade(k) }
-                var tip = "\(u.name): \(u.desc)\n\(Int(u.time))s to research; this building only."
+                var tip = "\(u.name): \(u.desc)\n\(Int(u.time))s to research; \(techKinds.contains(k) ? "once, for the whole side" : "this building only")."
                 if targets.count > 1 { tip += "\nApplies to \(targets.count) selected buildings, one price each." }
                 if installed { tip += "\nAlready installed." } else if busy { tip += "\nAlready researching something." }
                 list.append(CommandButton(icon: .upgrade(k), title: u.button, hotkey: u.hotkey,

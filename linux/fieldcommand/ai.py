@@ -319,6 +319,8 @@ class AI:
         if g.resources[self.team] < 500 or any(b.upgrading for b in bases):
             return
         wants = [(b, "prod") for b in bases if b.kind in ("barracks", "factory")]
+        wants += [(b, "entrench") for b in bases if b.kind == "barracks"][:1]
+        wants += [(b, "stabilise") for b in bases if b.kind == "factory"][:1]
         wants += [(hq, "armor"), (hq, "hp")]
         wants += [(b, "guns") for b in bases if b.kind == "turret"]
         wants += [(b, "defense") for b in bases if b.kind == "hq"]

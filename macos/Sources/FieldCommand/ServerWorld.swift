@@ -685,6 +685,10 @@ final class SUnit: SEntity {
     var cooldown = 0.0
     /// Seconds until this unit's ability (`abilities[kind]`) can be used again.
     var abilityCd = 0.0
+    /// Seconds without moving: entrenched infantry digs in after entrenchTime.
+    var stillFor = 0.0
+    /// Entrenched infantry that has held still long enough takes less damage.
+    var dugIn: Bool { entrenchKinds.contains(kind) && stillFor >= entrenchTime && world.hasTech(.entrench, team) }
     var carrying = 0
     var homeCrystal: SCrystal?
     var resumeGather: SCrystal?
@@ -875,6 +879,7 @@ final class SUnit: SEntity {
         abilityCd = max(0, abilityCd - dt)
         scan -= dt
         let moved = hyp(x - lastX, y - lastY)
+        stillFor = moved < 0.5 ? stillFor + dt : 0
         if wasMoving && moved < speed * dt * 0.3 { stuck += dt } else { stuck = max(0, stuck - dt * 2) }
         lastX = x
         lastY = y
@@ -907,6 +912,14 @@ final class SUnit: SEntity {
                 stuck = 0
             } else {
                 target = (px, py)
+                if kind == .tank && !sieged && cooldown <= 0 && scan <= 0 && g.hasTech(.stabilise, team) {
+                    // Stabilisers: a tank on the move fires at whatever comes within reach without stopping.
+                    scan = 0.3
+                    if let t = g.findTarget(self, attackRange, minRange: minRange) {
+                        gunAngle = atan2(t.y - y, t.x - x)
+                        fire(t)
+                    }
+                }
             }
         case .amove(let px, let py):
             var engaged = false
@@ -1293,6 +1306,7 @@ final class SBuilding: SEntity {
 
     func canUpgrade(_ k: UpgradeKind) -> Bool {
         built && !dead && k.applies(to: kind) && !upgrades.contains(k) && upgrading == nil
+            && !(techKinds.contains(k) && world.hasTech(k, team))
     }
 
     func startUpgrade(_ k: UpgradeKind) { upgrading = k; upgradeProgress = 0 }
@@ -2035,6 +2049,7 @@ final class SWorld {
     func modifyDamage(_ victim: SEntity, _ amount: Double, _ attacker: SEntity?) -> Double {
         var amount = amount
         if victim.markedUntil > elapsed { amount *= 1 + markBonus }
+        if let u = victim as? SUnit, u.dugIn { amount *= entrenchFactor }
         if let u = victim as? SUnit, let a = attacker, hyp(a.x - victim.x, a.y - victim.y) > smokeRanged {
             var factor = 1.0
             if !smokes.isEmpty, smokes.contains(where: { $0.until > elapsed && hyp($0.x - victim.x, $0.y - victim.y) <= smokeRadius }) {
@@ -2364,6 +2379,8 @@ final class SWorld {
     }
 
     func hasBuilt(_ k: BuildingKind, _ team: Int) -> Bool { buildings.contains { $0.team == team && $0.kind == k && $0.built } }
+    /// Tech is side-wide: any standing building of the side that researched it counts.
+    func hasTech(_ k: UpgradeKind, _ team: Int) -> Bool { buildings.contains { $0.team == team && !$0.dead && $0.upgrades.contains(k) } }
 
     func snapped(_ x: Double, _ y: Double) -> (Double, Double) { ((x / 16).rounded() * 16, (y / 16).rounded() * 16) }
 
@@ -2842,6 +2859,7 @@ final class SAI {
         }
     }
     var salvagerForTests: SUnit? { salvager }
+    func upgradeForTests(_ hq: SBuilding, _ bases: [SBuilding]) { upgrade(hq, bases) }
 
     /// Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt Siege
     /// Tank under fire pops smoke.
@@ -3132,6 +3150,8 @@ final class SAI {
         let g = world
         guard (g.resources[team] ?? 0) >= 500, !bases.contains(where: { $0.upgrading != nil }) else { return }
         var wants: [(SBuilding, UpgradeKind)] = bases.filter { $0.kind == .barracks || $0.kind == .factory }.map { ($0, .prod) }
+        wants += bases.filter { $0.kind == .barracks }.prefix(1).map { ($0, .entrench) }
+        wants += bases.filter { $0.kind == .factory }.prefix(1).map { ($0, .stabilise) }
         wants += [(hq, .armor), (hq, .hp)]
         wants += bases.filter { $0.kind == .turret }.map { ($0, .guns) }
         wants += bases.filter { $0.kind == .hq }.map { ($0, .defense) }

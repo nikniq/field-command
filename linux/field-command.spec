@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.36.0
+Version:        1.37.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.37.0-1
+- Tech that changes the army, researched once for the whole side: Entrenchment at the Barracks (150,
+  40 s; Rangers and Snipers that hold still for three seconds take 30% less damage, "dug in" on the
+  card) and Stabilisers at the Factory (200, 50 s; Siege Tanks fire on the move); the computer buys both
+- Protocol 19: the dug-in flag travels with each unit
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.36.0-1
 - The derelict Siege Tank: a wreck near the middle of every map; an Engineer alone beside it for twelve
   seconds salvages it into a working Siege Tank for its side, anything hostile inside the ring stalls the

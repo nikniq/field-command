@@ -209,9 +209,19 @@ UPGRADES = {
                     ("turret",), button="Twin gun"),
     "defense": Upgrade("Point defence", "Point defence", "The Command Center mounts a gun: damage 14 at range 240.", 0.5,
                        False, 35, "J", ("hq",), button="Defence"),
+    # Tech: researched once at one building, and the whole side's army changes.
+    "entrench": Upgrade("Entrenchment", "Entrenched", "Rangers and Snipers that hold still for 3s take 30% less damage.", 150,
+                        True, 40, "E", ("barracks",), button="Entrench"),
+    "stabilise": Upgrade("Stabilisers", "Stabilised", "Siege Tanks fire on the move.", 200, True, 50, "B", ("factory",),
+                         button="Stabilise"),
 }
 # Order matters: an installed set travels as a bitmask over this list, an upgrade in progress as its index.
-UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns", "defense"]
+UPGRADE_KINDS = ["hp", "armor", "prod", "supply", "guns", "defense", "entrench", "stabilise"]
+# Tech is side-wide: once any building of a side has it, every unit it names benefits and nobody buys it again.
+TECH = ("entrench", "stabilise")
+ENTRENCH_TIME = 3.0          # seconds still before a Ranger or Sniper counts as dug in
+ENTRENCH_FACTOR = 0.7        # damage taken while dug in
+ENTRENCH_KINDS = ("marine", "sniper")
 # The campaign: hand-authored missions played in order against the computer. `win` is "destroy" (the usual
 # rule), "survive" (be standing when `seconds` run out) or "hold" (keep the point at `hold` = (x, y, radius)
 # yours, with no enemy unit inside the ring, for `seconds` in a row). Same list in the macOS edition.

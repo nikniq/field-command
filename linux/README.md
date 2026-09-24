@@ -422,6 +422,18 @@ Corners (either side of the gold). They are walkable and buildable, and anything
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 
+## Tech: Entrenchment and Stabilisers
+
+Two upgrades are **tech**: researched once, at one building, and the whole side's army changes. Nobody can
+buy either twice; the button shows it installed on every Barracks or Factory you own once one has it.
+
+| Tech | Where | Cost | Time | Effect |
+|---|---|---|---|---|
+| **Entrenchment** (E) | Barracks | 150 | 40 s | Rangers and Snipers that hold still for 3 s are *dug in*: they take 30% less damage from everything until they move (it stacks with cover) |
+| **Stabilisers** (B) | Factory | 200 | 50 s | Siege Tanks fire on the move: a tank under a move order shoots whatever comes within reach without stopping, so it can fight its way out |
+
+The computer researches both once it is sitting on crystal, after its assembly lines.
+
 ## The derelict Siege Tank
 
 Every map has a **derelict Siege Tank** near the middle — on the nearest open ground to the gold that the

@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 18, so a 1.36.0 Mac and a 1.36.0 Linux client play together; neither accepts an
+Both editions speak protocol 19, so a 1.37.0 Mac and a 1.37.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -192,6 +192,12 @@ mixed by a threat meter fed by what the client sees and hears: the melody at the
 enemy comes into view, drums while your forces fight, brass at the top. Units answer with a radio call when
 selected and a quick acknowledgement on an order, each kind in its own voice with several lines. *Music:
 On/Off* beside *Sound*. Same recipe and numbers as the Linux edition (`FC_AUDIOTEST`).
+
+## Tech
+
+Entrenchment at the Barracks (150, 40 s: Rangers and Snipers that hold still for 3 s take 30% less
+damage, "dug in" on the card) and Stabilisers at the Factory (200, 50 s: Siege Tanks fire on the move);
+each is researched once for the whole side. Same numbers as the Linux edition (`FC_TECHTEST`).
 
 ## The derelict Siege Tank
 

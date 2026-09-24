@@ -202,6 +202,11 @@ jobs:
         run: |
           set -o pipefail
           FC_DERELICTTEST=1 "$BIN" | tee /dev/stderr | grep -q "DERELICT TEST PASSED"
+      - name: Headless Tech
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_TECHTEST=1 "$BIN" | tee /dev/stderr | grep -q "TECH TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

@@ -232,6 +232,9 @@ class LocalSession(_Base):
     def has_built(self, kind):
         return self.world.has_built(kind, self.slot)
 
+    def has_tech(self, kind):
+        return self.world.has_tech(kind, self.slot)
+
     def by_id(self, i):
         return self.world.by_id.get(i)
 
@@ -534,6 +537,9 @@ class NetSession(_Base):
     def has_built(self, kind):
         return any(b.team == self.slot and b.kind == kind and b.built for b in self.buildings)
 
+    def has_tech(self, kind):
+        return any(b.team == self.slot and kind in b.upgrades for b in self.buildings)
+
     def by_id(self, i):
         return (self._units.get(i) or self._buildings.get(i) or self._crystals_by_id.get(i)
                 or self._bridges_by_id.get(i))
@@ -611,6 +617,7 @@ class NetSession(_Base):
             u.hp, u.carrying, u.mode, u.rank = hp, carrying, mode, rank
             u.ability_cd = float(extra[0]) if extra else 0.0
             u.marked = bool(extra[1]) if len(extra) > 1 else False
+            u.dug_in = bool(extra[2]) if len(extra) > 2 else False
             u.max_hp = UNITS[u.kind].hp * (1 + VET_BONUS * rank)
             o = orders.get(str(i))
             if o:

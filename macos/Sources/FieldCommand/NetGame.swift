@@ -142,6 +142,7 @@ extension GameScene {
                 u.abilityCd = Double(jNum(v[11]))
                 u.setMarked(jInt(v[12]) == 1)
             }
+            if v.count > 13 { u.dugIn = jInt(v[13]) == 1 }
             let hp = jNum(v[7])
             if hp != u.hp {
                 if hp < u.hp { u.flashHit() }

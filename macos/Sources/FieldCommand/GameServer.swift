@@ -605,7 +605,7 @@ final class GameServer {
         for u in w.units where !u.dead && w.sees(slot, u) {
             units.append([u.id, u.team, NetProtocol.unitKinds.firstIndex(of: u.kind) ?? 0, r1(u.x), r1(u.y), deg(u.angle), deg(u.gunAngle),
                           Int(u.hp.rounded(.up)), u.carrying, u.mode.rawValue, u.rank,
-                          Int(u.abilityCd.rounded(.up)), u.markedUntil > w.elapsed ? 1 : 0])
+                          Int(u.abilityCd.rounded(.up)), u.markedUntil > w.elapsed ? 1 : 0, u.dugIn ? 1 : 0])
             if u.team == slot {
                 var pts: [Any] = []
                 for o in [u.order] + u.queued {

@@ -517,6 +517,25 @@ def icon_upgrade(kind):
             lit(c, base, rgb(0.5, 0.55, 0.62))
             stroke(c, base, rgb(0, 0, 0, 0.6), 1)
             fill(c, circle(-3, 0, 2), rgb(1, 0.35, 0.3))
+        elif kind == "entrench":
+            # Sandbags, three courses, a rifle resting over the top
+            for row, y in enumerate((8, 1, -6)):
+                for i in range(-2 + row % 2, 3):
+                    bag = rr(i * 9 - 4 + (4.5 if row % 2 else 0) - 4.5, y - 3.5, 8, 7, 3)
+                    lit(c, bag, rgb(0.62, 0.55, 0.38))
+                    stroke(c, bag, rgb(0, 0, 0, 0.5), 0.8)
+            lines(c, [((-14, -10), (12, -14))], rgb(0.2, 0.2, 0.22), 2.2)
+            fill(c, circle(-13, -10, 2), rgb(0.35, 0.36, 0.38))
+        elif kind == "stabilise":
+            # A tank hull driving right, speed lines behind it, a shell leaving the barrel
+            for y in (-9, -3, 3):
+                lines(c, [((-19, y), (-9 - abs(y) * 0.4, y))], rgb(0.8, 0.82, 0.85, 0.7), 1.5)
+            hull = rr(-8, -6, 20, 12, 3)
+            lit(c, hull, rgb(0.55, 0.6, 0.66))
+            stroke(c, hull, rgb(0, 0, 0, 0.6), 1)
+            fill(c, rr(0, -2, 17, 4, 1), rgb(0.35, 0.36, 0.38))
+            fill(c, circle(0, 0, 4.5), rgb(0.4, 0.44, 0.5))
+            fill(c, circle(19, 0, 2.2), AMBER)
         else:   # guns
             for y in (-5, 5):
                 linear(c, rr(-4, y - 2.2, 22, 4.4, 1.2), [rgb(0.7, 0.72, 0.74), rgb(0.3, 0.31, 0.33)], (0, y + 2), (0, y - 2))

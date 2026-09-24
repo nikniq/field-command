@@ -491,6 +491,8 @@ class HUD:
             status = e.status_text() if mine else ("Allied unit" if ally else "Hostile unit")
             if mine and " in cover" not in status and self.game.in_cover(e):
                 status += " · in cover"
+            if mine and " dug in" not in status and getattr(e, "dug_in", False):
+                status += " · dug in"
             if e.carrying and mine:
                 status += f" · carrying {e.carrying}"
             if e.queued and mine:

@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ABILITIES, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ABILITIES, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -597,6 +597,8 @@ class World:
         a distance (the two do not stack: the better of them applies)."""
         if victim.marked_until > self.elapsed:
             amount *= 1.0 + MARK_BONUS
+        if not victim.is_building and victim.dug_in:
+            amount *= ENTRENCH_FACTOR
         if not victim.is_building and attacker is not None \
                 and math.hypot(attacker.x - victim.x, attacker.y - victim.y) > SMOKE_RANGED:
             factor = 1.0
@@ -897,6 +899,10 @@ class World:
 
     def has_built(self, kind, team):
         return any(b.team == team and b.kind == kind and b.built for b in self.buildings)
+
+    def has_tech(self, kind, team):
+        """Tech is side-wide: any standing building of the side that researched it counts."""
+        return any(b.team == team and not b.dead and kind in b.upgrades for b in self.buildings)
 
     @staticmethod
     def snapped(x, y):

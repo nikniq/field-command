@@ -1342,6 +1342,28 @@ enum Art {
             // A plate, a shield, gears, a crate and a twin barrel — matching linux/fieldcommand/art.py:icon_upgrade.
             return texture("icon-upgrade-\(k.rawValue)", size: CGSize(width: 40, height: 40)) { ctx in
                 switch k {
+                case .entrench:
+                    // Sandbags, three courses, a rifle resting over the top
+                    for (row, y) in [(0, CGFloat(-8)), (1, -1), (2, 6)] {
+                        for i in (-2 + row % 2)...2 {
+                            let bag = rr(box(CGFloat(i) * 9 - 4 + (row % 2 == 1 ? 4.5 : 0) - 4.5, y - 3.5, 8, 7), 3)
+                            lit(ctx, bag, .rgb(0.62, 0.55, 0.38))
+                            stroke(ctx, bag, NSColor(white: 0, alpha: 0.5), 0.8)
+                        }
+                    }
+                    lines(ctx, [(CGPoint(x: -14, y: 10), CGPoint(x: 12, y: 14))], .rgb(0.2, 0.2, 0.22), 2.2)
+                    fill(ctx, circle(CGPoint(x: -13, y: 10), 2), .rgb(0.35, 0.36, 0.38))
+                case .stabilise:
+                    // A tank hull driving right, speed lines behind it, a shell leaving the barrel
+                    for y: CGFloat in [9, 3, -3] {
+                        lines(ctx, [(CGPoint(x: -19, y: y), CGPoint(x: -9 - abs(y) * 0.4, y: y))], .rgb(0.8, 0.82, 0.85, 0.7), 1.5)
+                    }
+                    let hull = rr(box(-8, -6, 20, 12), 3)
+                    lit(ctx, hull, .rgb(0.55, 0.6, 0.66))
+                    stroke(ctx, hull, NSColor(white: 0, alpha: 0.6), 1)
+                    fill(ctx, rr(box(0, -2, 17, 4), 1), .rgb(0.35, 0.36, 0.38))
+                    fill(ctx, circle(.zero, 4.5), .rgb(0.4, 0.44, 0.5))
+                    fill(ctx, circle(CGPoint(x: 19, y: 0), 2.2), Palette.amber)
                 case .hp:
                     let plate = rr(box(-13, -13, 26, 26), 4)
                     lit(ctx, plate, .rgb(0.5, 0.55, 0.6))

@@ -10,7 +10,7 @@ import math
 import random
 
 from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
-from .defs import (COVER_KINDS, DERELICT_RADIUS, DERELICT_TIME, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+from .defs import (COVER_KINDS, DERELICT_RADIUS, DERELICT_TIME, ENTRENCH_KINDS, ENTRENCH_TIME, TECH, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
@@ -305,6 +305,7 @@ class Unit(Entity):
         self.stuck = 0.0
         self.last_x, self.last_y = x, y
         self.was_moving = False
+        self.still_for = 0.0             # seconds without moving: entrenched infantry digs in after ENTRENCH_TIME
         self.scan = game.rng.uniform(0, 0.3)
         self.blocked = None
         self.slide_sign = 0
@@ -420,10 +421,18 @@ class Unit(Entity):
     def idle_worker(self):
         return self.kind == "worker" and self.order[0] == "idle" and not self.queued
 
+    @property
+    def dug_in(self):
+        """Entrenched infantry that has held still long enough takes less damage."""
+        return (self.kind in ENTRENCH_KINDS and self.still_for >= ENTRENCH_TIME
+                and self.game.has_tech("entrench", self.team))
+
     def status_text(self):
         text = self._status_text()
         if self.kind in COVER_KINDS and self.game.in_cover(self.x, self.y):
             text += " · in cover"
+        if self.dug_in:
+            text += " · dug in"
         return text
 
     def _status_text(self):
@@ -544,6 +553,7 @@ class Unit(Entity):
         self.ability_cd = max(0.0, self.ability_cd - dt)
         self.scan -= dt
         moved = math.hypot(self.x - self.last_x, self.y - self.last_y)
+        self.still_for = self.still_for + dt if moved < 0.5 else 0.0
         if self.was_moving and moved < self.speed * dt * 0.3:
             self.stuck += dt
         else:
@@ -581,6 +591,14 @@ class Unit(Entity):
                 self.stuck = 0
             else:
                 target = (o[1], o[2])
+                if self.kind == "tank" and not self.sieged and self.cooldown <= 0 and self.scan <= 0 \
+                        and g.has_tech("stabilise", self.team):
+                    # Stabilisers: a tank on the move fires at whatever comes within reach without stopping.
+                    self.scan = 0.3
+                    t = g.find_target(self, self.attack_range, min_range=self.min_range)
+                    if t is not None:
+                        self.gun_angle = math.atan2(t.y - self.y, t.x - self.x)
+                        self._fire(t)
 
         elif kind == "amove":
             engaged = False
@@ -995,7 +1013,8 @@ class Building(Entity):
 
     def can_upgrade(self, kind):
         return (self.built and not self.dead and kind in UPGRADES and upgrade_applies(kind, self.kind)
-                and kind not in self.upgrades and self.upgrading is None)
+                and kind not in self.upgrades and self.upgrading is None
+                and not (kind in TECH and self.game.has_tech(kind, self.team)))
 
     def start_upgrade(self, kind):
         self.upgrading, self.upgrade_progress = kind, 0.0

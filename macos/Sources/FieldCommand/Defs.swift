@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.36.0"
+let appVersion = "1.37.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -562,7 +562,7 @@ struct UpgradeStats {
 }
 
 enum UpgradeKind: Int, CaseIterable {
-    case hp = 0, armor, prod, supply, guns, defense
+    case hp = 0, armor, prod, supply, guns, defense, entrench, stabilise
 
     var stats: UpgradeStats {
         switch self {
@@ -578,13 +578,23 @@ enum UpgradeKind: Int, CaseIterable {
                                         cost: 0.9, flat: false, time: 35, hotkey: "U", appliesTo: [.turret], button: "Twin gun")
         case .defense: return UpgradeStats(name: "Point defence", short: "Point defence", desc: "The Command Center mounts a gun: damage 14 at range 240.",
                                            cost: 0.5, flat: false, time: 35, hotkey: "J", appliesTo: [.hq], button: "Defence")
+        case .entrench: return UpgradeStats(name: "Entrenchment", short: "Entrenched", desc: "Rangers and Snipers that hold still for 3s take 30% less damage.",
+                                            cost: 150, flat: true, time: 40, hotkey: "E", appliesTo: [.barracks], button: "Entrench")
+        case .stabilise: return UpgradeStats(name: "Stabilisers", short: "Stabilised", desc: "Siege Tanks fire on the move.",
+                                             cost: 200, flat: true, time: 50, hotkey: "B", appliesTo: [.factory], button: "Stabilise")
         }
     }
 
     func applies(to b: BuildingKind) -> Bool { stats.appliesTo.isEmpty || stats.appliesTo.contains(b) }
     func cost(for b: BuildingKind) -> Int { stats.flat ? Int(stats.cost) : Int((Double(b.stats.cost) * stats.cost).rounded()) }
-    var wireName: String { ["hp", "armor", "prod", "supply", "guns", "defense"][rawValue] }
+    var wireName: String { ["hp", "armor", "prod", "supply", "guns", "defense", "entrench", "stabilise"][rawValue] }
 }
+
+/// Tech is side-wide: once any building of a side has it, every unit it names benefits and nobody buys it again.
+let techKinds: [UpgradeKind] = [.entrench, .stabilise]
+let entrenchTime: Double = 3          // seconds still before a Ranger or Sniper counts as dug in
+let entrenchFactor: Double = 0.7      // damage taken while dug in
+let entrenchKinds: [UnitKind] = [.marine, .sniper]
 
 // MARK: - The Armory
 //

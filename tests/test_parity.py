@@ -340,6 +340,11 @@ def test_abilities_agree():
     from fieldcommand.defs import COVER_FACTOR, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME
     assert const("derelictRadius") == DERELICT_RADIUS
     assert const("derelictTime") == DERELICT_TIME
+    from fieldcommand.defs import ENTRENCH_FACTOR, ENTRENCH_KINDS, ENTRENCH_TIME, TECH
+    assert const("entrenchTime") == ENTRENCH_TIME
+    assert const("entrenchFactor") == ENTRENCH_FACTOR
+    assert tuple(re.findall(r"\.(\w+)", re.search(r"let entrenchKinds: \[UnitKind\] = \[(.*?)\]", src).group(1))) == ENTRENCH_KINDS
+    assert tuple(re.findall(r"\.(\w+)", re.search(r"let techKinds: \[UpgradeKind\] = \[(.*?)\]", src).group(1))) == TECH
     assert const("coverReach") == COVER_REACH
     assert const("coverFactor") == COVER_FACTOR
     assert tuple(re.findall(r"\.(\w+)", re.search(r"let coverKinds: \[UnitKind\] = \[(.*?)\]", src).group(1))) == COVER_KINDS
