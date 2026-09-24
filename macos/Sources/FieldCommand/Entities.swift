@@ -126,6 +126,13 @@ class Entity: SKNode {
         selectionMarker.zPosition = -1
         selectionMarker.isHidden = true
         addChild(selectionMarker)
+        selectionGlow.size = CGSize(width: markerSize.width * 1.7, height: markerSize.height * 1.7)
+        selectionGlow.colorBlendFactor = 1
+        selectionGlow.blendMode = .add
+        selectionGlow.alpha = 0.28
+        selectionGlow.zPosition = -1.5
+        selectionGlow.isHidden = true
+        addChild(selectionGlow)
 
         hpBack.position = CGPoint(x: 0, y: barY)
         hpBack.zPosition = 20
@@ -147,8 +154,13 @@ class Entity: SKNode {
         addChild(s)
     }
 
+    /// A soft glow in the side's colour under a selected unit of your own, so a picked squad reads at a glance.
+    let selectionGlow = SKSpriteNode(texture: Art.glow)
+
     private func refreshMarker() {
         let own = team.isLocal
+        selectionGlow.isHidden = !(isSelected && own && self is Unit)
+        selectionGlow.color = team.lightColor
         if isSelected {
             selectionMarker.isHidden = false
             selectionMarker.color = own ? Palette.good : Palette.bad
@@ -340,6 +352,32 @@ final class Unit: Entity {
     var netPoints: [(Int, CGPoint)] = []
     var netFrom: (CGPoint, CGFloat, CGFloat)?
     var netTo: (CGPoint, CGFloat, CGFloat)?
+    /// Where the unit was last drawn and how far it has gone since the last puff of dust.
+    private var travelFrom: CGPoint?
+    private var travelAcc: CGFloat = 0
+
+    /// Dust behind anything on the move, and tracks pressed into the ground behind a tank.
+    func trackTravel() {
+        defer { travelFrom = position }
+        guard let from = travelFrom, !stats.flies, mode == .mobile else { return }
+        travelAcc += position.distance(to: from)
+        let step: CGFloat = kind == .tank ? 26 : 22
+        guard travelAcc > step else { return }
+        travelAcc = 0
+        let a = body.zRotation
+        let behind = CGPoint(x: position.x - cos(a) * radius * 0.9, y: position.y - sin(a) * radius * 0.9)
+        game.emit(FX.dust(size: kind == .tank ? 9 : 6), at: behind, life: 1.2)
+        if kind == .tank {
+            let d = SKSpriteNode(texture: Art.tread)
+            d.size = CGSize(width: 30, height: 22)
+            d.position = behind
+            d.zRotation = a
+            d.zPosition = 0.2
+            d.alpha = 0.9
+            game.world.addChild(d)
+            d.run(.sequence([.wait(forDuration: 5), .fadeOut(withDuration: 4), .removeFromParent()]))
+        }
+    }
 
     var statusText: String {
         if mode == .sieging { return "Digging in" }

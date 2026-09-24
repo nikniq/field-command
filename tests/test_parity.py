@@ -207,6 +207,12 @@ def test_music_agrees():
     assert [tuple(float(v) for v in c) for c in chords] == [tuple(c) for c in music.CHORDS]
     pitches = dict(re.findall(r'"(\w+)": (\d+)', re.search(r"static let voicePitch: \[String: Double\] = \[(.*?)\]", src).group(1)))
     assert {k: float(v) for k, v in pitches.items()} == audio.VOICE_PITCH
+    timbres = dict(re.findall(r'"(\w+)": "(\w+)"', re.search(r"static let voiceTimbre: \[String: String\] = \[(.*?)\]", src).group(1)))
+    assert timbres == audio.VOICE_TIMBRE
+    for name, key in (("voiceLinesSelect", "select"), ("voiceLinesAck", "ack")):
+        body = re.search(r"static let %s: \[\[\(Double, Double\)\]\] = \[(.*?)\]\n" % name, src).group(1)
+        lines = [[(float(a), float(b)) for a, b in re.findall(r"\(([\d.]+), ([\d.]+)\)", part)] for part in re.findall(r"\[(.*?)\]", body)]
+        assert lines == audio.VOICE_LINES[key]
     assert re.findall(r'"(\w+)"', re.search(r"static let layers = \[(.*?)\]", src).group(1)) == music.LAYERS
     rise, fall = re.search(r"static let rise = ([\d.]+), fall = ([\d.]+)", src).groups()
     assert (float(rise), float(fall)) == (music.RISE, music.FALL)

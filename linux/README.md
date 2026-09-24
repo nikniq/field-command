@@ -504,8 +504,11 @@ yields as the threat climbs), a bass **pulse** on the roots (up as enemies come 
 a fill at the turn (up while your forces are fighting and when the base is under attack) and a **brass**
 swell only at the very top.
 
-Units have **voices**: a radio call when selected — two rising notes — and a quick acknowledgement when
-given an order, each kind at a pitch of its own, synthesised like everything else. The meter climbs in about a
+Units have **voices**: a radio call when selected and a quick acknowledgement when given an order, each
+kind in a voice of its own — the Engineer's clean chirp, the Ranger's buzz, the Siege Tank's growl an
+octave down, the Sniper's thin whistle, the Medic's soft warble and the Gunship's rotor-chopped call — with
+three lines on selection and two on an order, never the same one twice running, synthesised like
+everything else. The meter climbs in about a
 second and settles over six, so the music breathes rather than flickers. The title screen plays the pad
 alone. *Music: On/Off* sits beside *Sound* on the title screen and in the pause settings; both editions use
 the same recipe (`music.py`, `Audio.swift`).
@@ -521,7 +524,9 @@ tints break the grass into straw, forest floor and scrub, cloud shadows drift ac
 wheel ruts, and the ground under a stand of trees is darker than open grass. Combat leaves marks: craters
 stay for a minute and a half, tanks leave wrecks, anyone on foot who falls stays where they dropped for a
 while, and anything hit flashes white for a few frames. Buildings smoke below half health and burn below a
-quarter. The macOS edition draws the same scene from the same recipes.
+quarter. The ground is strewn with pebbles, tufts and wildflowers; anything on the move kicks up dust and
+tanks press tracks into the ground behind them; a selected unit of yours glows softly in your colour. The
+macOS edition draws the same scene from the same recipes.
 
 ## Screen size and UI scale
 

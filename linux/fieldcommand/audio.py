@@ -1,5 +1,6 @@
 """Procedurally synthesised sound effects (no audio files needed), and the music mixer (see music.py)."""
 import numpy as np
+import random
 import pygame
 
 from . import music
@@ -15,6 +16,12 @@ MUSIC_CHANNELS = 5       # the first channels are kept for the loops; effects us
 # Unit voices: a radio acknowledgement per kind — two tones when selected, a quick one on an order. The base
 # pitch tells the kinds apart; the same numbers live in Audio.swift.
 VOICE_PITCH = {"worker": 520.0, "marine": 440.0, "tank": 200.0, "sniper": 660.0, "medic": 590.0, "gunship": 360.0}
+# Each kind speaks in its own voice: the base pitch above, a timbre, and a handful of lines picked at random
+# so the same unit does not say the same thing twice running. Audio.swift has the same tables.
+VOICE_TIMBRE = {"worker": "clean", "marine": "buzz", "tank": "growl", "sniper": "thin", "medic": "soft", "gunship": "rotor"}
+VOICE_LINES = {"select": [[(1.0, 0.09), (1.25, 0.12)], [(1.0, 0.07), (0.9, 0.06), (1.35, 0.12)], [(1.2, 0.08), (1.0, 0.14)]],
+               "ack": [[(1.5, 0.07), (1.1, 0.09)], [(1.25, 0.06), (1.25, 0.06)]]}
+_last_line = {}
 
 
 def _env(n, attack=0.005, decay=None):
@@ -89,28 +96,64 @@ def init():
     _sounds["victory"] = _make(win, 0.3)
     lose = np.concatenate([_tone(f, n(0.3), "square") * 0.4 * _env(n(0.3), decay=0.3) for f in (392, 330, 262)])
     _sounds["defeat"] = _make(lose, 0.25)
-    for kind, f0 in VOICE_PITCH.items():
-        _sounds[f"voice_{kind}"] = _make(voice(f0, False, rng), 0.3)
-        _sounds[f"ack_{kind}"] = _make(voice(f0, True, rng), 0.3)
+    for kind in VOICE_PITCH:
+        for i in range(len(VOICE_LINES["select"])):
+            _sounds[f"voice_{kind}_{i}"] = _make(voice(kind, i, False, rng), 0.3)
+        for i in range(len(VOICE_LINES["ack"])):
+            _sounds[f"ack_{kind}_{i}"] = _make(voice(kind, i, True, rng), 0.3)
     _enabled = True
 
 
-def voice(f0, ack, rng):
-    """A radio call: a squelch click, then tones with a little vibrato through a band-limited 'speaker' — two
-    rising notes for a selection, one quick falling note for an acknowledgement."""
+def pick_line(prefix, kind, rnd=random):
+    """Which of the kind's lines to say next: never the one it said last."""
+    n = len(VOICE_LINES["ack" if prefix == "ack_" else "select"])
+    last = _last_line.get(prefix + kind)
+    choices = [i for i in range(n) if i != last] or [0]
+    i = rnd.choice(choices)
+    _last_line[prefix + kind] = i
+    return i
+
+
+def play_voice(prefix, kind):
+    """A unit's radio call: `voice_` on selection, `ack_` on an order; a different line each time."""
+    if not _enabled or not settings.sound:
+        return
+    now = pygame.time.get_ticks() / 1000
+    if now - _last_played.get(prefix + kind, -1) < 0.3:
+        return
+    _last_played[prefix + kind] = now
+    play(f"{prefix}{kind}_{pick_line(prefix, kind)}")
+
+
+# Timbre: (buzz, speaker lowpass, vibrato Hz, vibrato depth, sub-octave, rotor chop Hz)
+_TIMBRES = {"clean": (0.15, 0.5, 40.0, 0.02, 0.0, 0.0), "buzz": (0.35, 0.35, 40.0, 0.02, 0.0, 0.0),
+            "growl": (0.45, 0.18, 6.0, 0.03, 0.5, 0.0), "thin": (0.1, 0.7, 60.0, 0.015, 0.0, 0.0),
+            "soft": (0.0, 0.25, 5.0, 0.025, 0.0, 0.0), "rotor": (0.3, 0.35, 40.0, 0.02, 0.0, 24.0)}
+
+
+def voice(kind, line, ack, rng):
+    """A radio call in the kind's voice: a squelch click, then the line's notes with vibrato through a
+    band-limited 'speaker' — the Siege Tank growls an octave down, the Gunship's is chopped by its rotor."""
     n = lambda s: int(RATE * s)
+    f0 = VOICE_PITCH[kind]
+    buzz, lp, vib_hz, vib_depth, sub, chop = _TIMBRES[VOICE_TIMBRE[kind]]
     parts = [_noise(n(0.03), rng) * _env(n(0.03), attack=0.001, decay=0.008) * 0.6]
-    notes = [(f0 * 1.5, 0.07), (f0 * 1.1, 0.09)] if ack else [(f0, 0.09), (f0 * 1.25, 0.12)]
-    for f, secs in notes:
+    for ratio, secs in VOICE_LINES["ack" if ack else "select"][line]:
+        f = f0 * ratio
         m = n(secs)
         t = np.arange(m) / RATE
-        vib = f * (1 + 0.02 * np.sin(2 * np.pi * 40 * t))
+        vib = f * (1 + vib_depth * np.sin(2 * np.pi * vib_hz * t))
         tone = np.sin(2 * np.pi * np.cumsum(vib) / RATE)
-        tone += 0.35 * np.sign(tone) * (1 - t / secs)                # a buzz that fades out of the note
-        parts.append(_lowpass(tone, 0.35) * _env(m, attack=0.006, decay=secs * 0.6))
+        tone += buzz * np.sign(tone) * (1 - t / secs)                # a buzz that fades out of the note
+        if sub:
+            tone += sub * np.sin(2 * np.pi * np.cumsum(vib / 2) / RATE)
+        if chop:
+            tone *= 0.6 + 0.4 * np.sin(2 * np.pi * chop * t)
+        parts.append(_lowpass(tone, lp) * _env(m, attack=0.006, decay=secs * 0.6))
         parts.append(np.zeros(n(0.02)))
     parts.append(_noise(n(0.02), rng) * _env(n(0.02), attack=0.001, decay=0.006) * 0.4)
-    return np.concatenate(parts)
+    out = np.concatenate(parts)
+    return out / max(1e-6, np.abs(out).max())                          # every voice as loud as the next
 
 
 def music_update(threat):

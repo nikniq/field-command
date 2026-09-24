@@ -962,6 +962,18 @@ enum Art {
         }
     }
 
+    /// A short pair of tank tracks pressed into the ground: two dark dashed bands, fading at the ends.
+    static var tread: SKTexture {
+        texture("tread", size: CGSize(width: 32, height: 24), scale: 1) { ctx in
+            for sy: CGFloat in [-7, 7] {
+                for i in -3...3 {
+                    let a = 0.4 * (1 - CGFloat(abs(i)) / 4)
+                    fill(ctx, rr(box(CGFloat(i) * 4 - 1.5, sy - 2.5, 3, 5), 0.8), NSColor.rgb(0.06, 0.05, 0.04, a))
+                }
+            }
+        }
+    }
+
     static var rubble: SKTexture {
         texture("rubble", size: CGSize(width: 96, height: 96)) { ctx in
             var rng = SeededRNG(13)
@@ -1096,6 +1108,47 @@ enum Art {
                       ctx.setStrokeColor(c.cgColor)
                       ctx.setLineWidth(1)
                       ctx.strokePath()
+                  }
+                  // Ground clutter, also wrapped: pebbles with a lit edge, tufts of darker grass, and a few wildflowers.
+                  func wrapped(_ p: CGPoint, _ r: CGFloat, _ draw: (CGPoint) -> Void) {
+                      for dx in [-f, 0, f] {
+                          for dy in [-f, 0, f] {
+                              let q = CGPoint(x: p.x + dx, y: p.y + dy)
+                              if abs(q.x) > f / 2 + r + 2 || abs(q.y) > f / 2 + r + 2 { continue }
+                              draw(q)
+                          }
+                      }
+                  }
+                  for _ in 0..<150 {
+                      let p = CGPoint(x: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng), y: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng))
+                      let w = CGFloat.random(in: 3...7, using: &rng), h = CGFloat.random(in: 2...4, using: &rng)
+                      let shade = CGFloat.random(in: 0.78...1.0, using: &rng)
+                      wrapped(p, 8) { q in
+                          fill(ctx, CGPath(ellipseIn: CGRect(x: q.x - w / 2, y: q.y - h / 2 - 1, width: w, height: h), transform: nil),
+                               NSColor.rgb(0.376 * shade, 0.353 * shade, 0.32 * shade, 0.82))
+                          fill(ctx, CGPath(ellipseIn: CGRect(x: q.x - w / 2, y: q.y - h / 2, width: w, height: h - 1), transform: nil),
+                               NSColor.rgb(0.59, 0.57, 0.53, 0.5))
+                      }
+                  }
+                  for _ in 0..<320 {
+                      let p = CGPoint(x: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng), y: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng))
+                      let segs = (0..<3).map { _ in CGPoint(x: CGFloat.random(in: -3...3, using: &rng), y: CGFloat.random(in: 4...8, using: &rng)) }
+                      wrapped(p, 10) { q in
+                          for (i, d) in segs.enumerated() {
+                              ctx.move(to: CGPoint(x: q.x + CGFloat(i) * 1.5 - 1.5, y: q.y))
+                              ctx.addLine(to: CGPoint(x: q.x + CGFloat(i) * 1.5 - 1.5 + d.x, y: q.y + d.y))
+                          }
+                          ctx.setStrokeColor(NSColor.rgb(0.08, 0.16, 0.06, 0.47).cgColor)
+                          ctx.setLineWidth(1)
+                          ctx.strokePath()
+                      }
+                  }
+                  let petals: [NSColor] = [.rgb(0.91, 0.82, 0.35), .rgb(0.87, 0.47, 0.55), .rgb(0.93, 0.93, 0.94), .rgb(0.59, 0.47, 0.86)]
+                  for _ in 0..<200 {
+                      let p = CGPoint(x: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng), y: CGFloat.random(in: -f / 2 ..< f / 2, using: &rng))
+                      let c = petals[Int(rng.next() % 4)]
+                      let r: CGFloat = rng.next() % 3 == 2 ? 2 : 1
+                      wrapped(p, 3) { q in fill(ctx, circle(q, r), c.withAlphaComponent(0.78)) }
                   }
               }) else { return SKTexture() }
         let t = SKTexture(cgImage: img)

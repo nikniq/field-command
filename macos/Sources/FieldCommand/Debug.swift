@@ -1492,7 +1492,7 @@ enum Debug {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
         let sounds = Audio.synthesise()
-        check(Set(sounds.keys) == Set(Audio.names) && Audio.names.count == 25, "thirteen effects and twelve unit voices")
+        check(Set(sounds.keys) == Set(Audio.names) && Audio.names.count == 43, "thirteen effects and thirty unit voice lines")
         let expected: [String: Double] = ["rifle": 0.08, "cannon": 0.5, "explosion": 0.9, "turret": 0.1, "complete": 0.37,
                                           "alert": 0.45, "wave": 0.75, "snipe": 0.35, "siege": 0.68, "pop": 0.08,
                                           "click": 0.03, "victory": 0.72, "defeat": 0.9]
@@ -1508,10 +1508,22 @@ enum Debug {
         let loops = Audio.Music.synthesise()
         check(Set(loops.keys) == Set(Audio.Music.layers) && Audio.Music.layers.count == 5 && Audio.Music.chords.count == 4, "five music layers over four chords")
         for kind in Audio.voicePitch.keys.sorted() {
-            let sel = sounds["voice_\(kind)"]!, ack = sounds["ack_\(kind)"]!
-            let ls = Double(sel.count) / Audio.rate, la = Double(ack.count) / Audio.rate
-            check(ls > 0.2 && ls < 0.4 && la > 0.15 && la < 0.3 && ack.count < sel.count && sel.map { abs($0) }.max()! > 0.3,
-                  String(format: "%@ answers in %.2fs, acknowledges in %.2fs", kind as NSString, ls, la))
+            let sels = Audio.voiceLinesSelect.indices.map { sounds["voice_\(kind)_\($0)"]! }
+            let acks = Audio.voiceLinesAck.indices.map { sounds["ack_\(kind)_\($0)"]! }
+            var good = Set(sels.map { $0.count }).count == 3 && acks.map { $0.count }.max()! < sels.map { $0.count }.min()!
+            for s in sels { let l = Double(s.count) / Audio.rate; good = good && l > 0.2 && l < 0.4 && s.map { abs($0) }.max()! > 0.29 }
+            for a in acks { let l = Double(a.count) / Audio.rate; good = good && l > 0.15 && l < 0.3 && a.map { abs($0) }.max()! > 0.29 }
+            check(good, "\(kind) has three lines and two quicker acknowledgements in its own voice (\(Audio.voiceTimbre[kind]!))")
+        }
+        do {
+            let a = sounds["voice_tank_0"]!, b = sounds["voice_sniper_0"]!
+            let ma = a.reduce(0, +) / Float(a.count), mb = b.reduce(0, +) / Float(b.count)
+            var num: Float = 0, da: Float = 0, db: Float = 0
+            for i in 0..<min(a.count, b.count) { num += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) * (a[i] - ma); db += (b[i] - mb) * (b[i] - mb) }
+            var rng = SeededRNG(1)
+            let seen = (0..<40).map { _ in Audio.pickLine("voice_", "marine", &rng) }
+            let varied = zip(seen, seen.dropFirst()).allSatisfy { $0 != $1 } && Set(seen) == [0, 1, 2]
+            check(a.count == b.count && num / (da * db).squareRoot() < 0.5 && varied, "two kinds do not sound alike, and a unit never repeats itself")
         }
         let n = Int(Audio.rate * Audio.Music.loopSeconds)
         for name in Audio.Music.layers {

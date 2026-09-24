@@ -7,10 +7,41 @@ import Foundation
 enum Audio {
     static let rate = 22050.0
     static let names = ["rifle", "cannon", "explosion", "turret", "complete", "alert", "wave", "snipe", "siege",
-                        "pop", "click", "victory", "defeat"] + voicePitch.keys.sorted().flatMap { ["voice_\($0)", "ack_\($0)"] }
+                        "pop", "click", "victory", "defeat"]
+        + voicePitch.keys.sorted().flatMap { k in voiceLinesSelect.indices.map { "voice_\(k)_\($0)" } + voiceLinesAck.indices.map { "ack_\(k)_\($0)" } }
     /// Unit voices: a radio acknowledgement per kind — two tones when selected, a quick one on an order. The
     /// base pitch tells the kinds apart; audio.py's VOICE_PITCH has the same numbers.
     static let voicePitch: [String: Double] = ["worker": 520, "marine": 440, "tank": 200, "sniper": 660, "medic": 590, "gunship": 360]
+    /// Each kind speaks in its own voice: the base pitch above, a timbre, and a handful of lines picked at random
+    /// so the same unit does not say the same thing twice running. audio.py has the same tables.
+    static let voiceTimbre: [String: String] = ["worker": "clean", "marine": "buzz", "tank": "growl", "sniper": "thin", "medic": "soft", "gunship": "rotor"]
+    static let voiceLinesSelect: [[(Double, Double)]] = [[(1.0, 0.09), (1.25, 0.12)], [(1.0, 0.07), (0.9, 0.06), (1.35, 0.12)], [(1.2, 0.08), (1.0, 0.14)]]
+    static let voiceLinesAck: [[(Double, Double)]] = [[(1.5, 0.07), (1.1, 0.09)], [(1.25, 0.06), (1.25, 0.06)]]
+    /// Timbre: (buzz, speaker lowpass, vibrato Hz, vibrato depth, sub-octave, rotor chop Hz)
+    private static let timbres: [String: (Double, Float, Double, Double, Double, Double)] = [
+        "clean": (0.15, 0.5, 40, 0.02, 0, 0), "buzz": (0.35, 0.35, 40, 0.02, 0, 0), "growl": (0.45, 0.18, 6, 0.03, 0.5, 0),
+        "thin": (0.1, 0.7, 60, 0.015, 0, 0), "soft": (0, 0.25, 5, 0.025, 0, 0), "rotor": (0.3, 0.35, 40, 0.02, 0, 24)]
+    private static var lastLine: [String: Int] = [:]
+
+    /// Which of the kind's lines to say next: never the one it said last.
+    static func pickLine(_ prefix: String, _ kind: String, _ rng: inout SeededRNG) -> Int {
+        let n = prefix == "ack_" ? voiceLinesAck.count : voiceLinesSelect.count
+        let last = lastLine[prefix + kind]
+        let choices = (0..<n).filter { $0 != last }
+        let i = choices.isEmpty ? 0 : choices[Int(rng.next() % UInt64(choices.count))]
+        lastLine[prefix + kind] = i
+        return i
+    }
+
+    private static var voiceRNG = SeededRNG(UInt64(Date().timeIntervalSince1970))
+
+    /// A unit's radio call: "voice_" on selection, "ack_" on an order; a different line each time.
+    static func playVoice(_ prefix: String, _ kind: String) {
+        let now = CACurrentMediaTime()
+        if let last = lastPlayed[prefix + kind], now - last < 0.3 { return }
+        lastPlayed[prefix + kind] = now
+        play("\(prefix)\(kind)_\(pickLine(prefix, kind, &voiceRNG))")
+    }
     /// How soon the same effect may play again, in seconds — gunfire otherwise stacks into a wall.
     static let minGaps: [String: Double] = ["rifle": 0.05, "cannon": 0.08, "turret": 0.06, "explosion": 0.08, "snipe": 0.05]
 
@@ -87,32 +118,38 @@ enum Audio {
         make("victory", [523.0, 659, 784, 1046].flatMap { mul(tone($0, n(0.18)), env(n(0.18), decay: 0.2)) }, 0.3)
         make("defeat", [392.0, 330, 262].flatMap { gain(mul(tone($0, n(0.3), square: true), env(n(0.3), decay: 0.3)), 0.4) }, 0.25)
         for kind in voicePitch.keys.sorted() {
-            make("voice_\(kind)", voice(voicePitch[kind]!, ack: false, &rng), 0.3)
-            make("ack_\(kind)", voice(voicePitch[kind]!, ack: true, &rng), 0.3)
+            for i in voiceLinesSelect.indices { make("voice_\(kind)_\(i)", voice(kind, line: i, ack: false, &rng), 0.3) }
+            for i in voiceLinesAck.indices { make("ack_\(kind)_\(i)", voice(kind, line: i, ack: true, &rng), 0.3) }
         }
         return out
     }
 
-    /// A radio call: a squelch click, then tones with a little vibrato through a band-limited 'speaker' — two
-    /// rising notes for a selection, one quick falling note for an acknowledgement.
-    private static func voice(_ f0: Double, ack: Bool, _ rng: inout Noise) -> [Float] {
+    /// A radio call in the kind's voice: a squelch click, then the line's notes with vibrato through a
+    /// band-limited 'speaker' — the Siege Tank growls an octave down, the Gunship's is chopped by its rotor.
+    private static func voice(_ kind: String, line: Int, ack: Bool, _ rng: inout Noise) -> [Float] {
         var parts: [Float] = mul(noise(n(0.03), &rng), env(n(0.03), attack: 0.001, decay: 0.008)).map { $0 * 0.6 }
-        let notes: [(Double, Double)] = ack ? [(f0 * 1.5, 0.07), (f0 * 1.1, 0.09)] : [(f0, 0.09), (f0 * 1.25, 0.12)]
-        for (f, secs) in notes {
+        let f0 = voicePitch[kind] ?? 440
+        let (buzz, lp, vibHz, vibDepth, sub, chop) = timbres[voiceTimbre[kind] ?? "buzz"]!
+        for (ratio, secs) in (ack ? voiceLinesAck : voiceLinesSelect)[line] {
+            let f = f0 * ratio
             let m = n(secs)
             var phase = 0.0
             var t = [Float](repeating: 0, count: m)
             for i in 0..<m {
                 let tt = Double(i) / rate
-                phase += f * (1 + 0.02 * sin(2 * .pi * 40 * tt))
+                phase += f * (1 + vibDepth * sin(2 * .pi * vibHz * tt))
                 let s = sin(2 * .pi * phase / rate)
-                t[i] = Float(s + 0.35 * (s > 0 ? 1 : (s < 0 ? -1 : 0)) * (1 - tt / secs))
+                var v = s + buzz * (s > 0 ? 1 : (s < 0 ? -1 : 0)) * (1 - tt / secs)
+                if sub > 0 { v += sub * sin(2 * .pi * phase / 2 / rate) }
+                if chop > 0 { v *= 0.6 + 0.4 * sin(2 * .pi * chop * tt) }
+                t[i] = Float(v)
             }
-            parts += mul(lowpass(t, 0.35), env(m, attack: 0.006, decay: secs * 0.6))
+            parts += mul(lowpass(t, lp), env(m, attack: 0.006, decay: secs * 0.6))
             parts += [Float](repeating: 0, count: n(0.02))
         }
         parts += mul(noise(n(0.02), &rng), env(n(0.02), attack: 0.001, decay: 0.006)).map { $0 * 0.4 }
-        return parts
+        let peak = max(1e-6, parts.map { abs($0) }.max() ?? 1)
+        return parts.map { $0 / peak }                                   // every voice as loud as the next
     }
 
     // MARK: Playback

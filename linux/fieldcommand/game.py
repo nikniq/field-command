@@ -167,6 +167,7 @@ class GameScene:
         self.placing = None
         self.attack_pending = False
         self.ability_pending = None     # the ability spec awaiting a click on the ground or a target
+        self._travel = {}               # unit id -> [last x, last y, distance since the last puff of dust]
         self.drag_start = self.drag_now = None
         self.pan_drag = None
         self.minimap_dragging = False
@@ -1116,7 +1117,7 @@ class GameScene:
         es = self.selection if es is None else es
         u = next((e for e in es if not e.is_building and self.mine(e) and not e.dead), None)
         if u is not None:
-            audio.play(f"{prefix}{u.kind}", 0.3)
+            audio.play_voice(prefix, u.kind)
 
     def set_selection(self, es):
         if es and not (len(es) == len(self.selection) and all(a is b for a, b in zip(es, self.selection))):
@@ -1611,6 +1612,12 @@ class GameScene:
                 img = art.sprites.get(("ring", col), base, 0, size / (64 * art.SCALE) / z, tint=(*col, 255),
                                       fade=255 if e.selected else 150)
                 sx, sy = cam.to_screen(e.x, e.y)
+                if e.selected and not e.is_building and self.mine(e):
+                    # A soft glow in the side's colour under the unit, so a picked squad reads at a glance.
+                    gc = to255(TEAM_LIGHT[e.team])
+                    gl = art.sprites.get(("selglow", gc), art.glow(), 0, (e.radius * 2 + 30) / 64 / z, tint=(*gc, 255), fade=70,
+                                         squash=TILT)
+                    screen.blit(gl, (sx - gl.get_width() / 2, sy - gl.get_height() / 2), special_flags=pygame.BLEND_ADD)
                 screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
         for b in getattr(s, "bridges", ()):
             if visible(b.x, b.y):
@@ -1810,9 +1817,23 @@ class GameScene:
         if flying:
             sy -= FLY_HEIGHT / z                          # drawn up in the air, the shadow left on the ground
         ca, sa = math.cos(u.angle), math.sin(u.angle)
+        mode = getattr(u, "mode", 0)
+        if not flying and mode == 0 and not self.paused:
+            # Dust behind anything on the move, and tracks pressed into the ground behind a tank.
+            tr = self._travel.get(u.id)
+            if tr is None:
+                self._travel[u.id] = [u.x, u.y, 0.0]
+            else:
+                tr[2] += math.hypot(u.x - tr[0], u.y - tr[1])
+                tr[0], tr[1] = u.x, u.y
+                if tr[2] > (26 if u.kind == "tank" else 22):
+                    tr[2] = 0.0
+                    bxw, byw = u.x - ca * u.radius * 0.9, u.y - sa * u.radius * 0.9
+                    self.fx.dust(bxw, byw, 9 if u.kind == "tank" else 6)
+                    if u.kind == "tank":
+                        self.fx.decal("tread", bxw, byw, 30, 5, angle=math.degrees(u.angle))
         bob = -1.5 * u.recoil if u.kind == "marine" else (1.5 * u.pulse if u.kind == "worker" else 0.0)
         bx, by = sx + ca * bob / z, sy - sa * bob / z
-        mode = getattr(u, "mode", 0)
         if u.kind == "tank" and mode != 0:
             # Outriggers fold out over the transition and stay out while sieged.
             timer = getattr(u, "mode_timer", 0.0)

@@ -1192,10 +1192,43 @@ def ground_tile():
                 px, py = x + ox, y + oy
                 if -8 < px < n + 8 and -8 < py < n + 8:
                     pygame.draw.line(blades, col, (px, py), (px + dx, py + dy))
+    # Ground clutter, also wrapped: pebbles with a lit edge, tufts of darker grass, and a few wildflowers.
+    def wrapped(x, y, r, draw):
+        for ox in (-n, 0, n):
+            for oy in (-n, 0, n):
+                px, py = x + ox, y + oy
+                if -r - 2 < px < n + r + 2 and -r - 2 < py < n + r + 2:
+                    draw(px, py)
+    for _ in range(150):
+        x, y = rnd.uniform(0, n), rnd.uniform(0, n)
+        w, h = rnd.uniform(3, 7), rnd.uniform(2, 4)
+        shade = rnd.uniform(0.78, 1.0)
+        base = (int(96 * shade), int(90 * shade), int(82 * shade))
+        wrapped(x, y, 8, lambda px, py: (pygame.draw.ellipse(blades, (*base, 210), (px - w / 2, py - h / 2 + 1, w, h)),
+                                         pygame.draw.ellipse(blades, (150, 145, 135, 130), (px - w / 2, py - h / 2, w, h - 1))))
+    for _ in range(320):
+        x, y = rnd.uniform(0, n), rnd.uniform(0, n)
+        segs = [(rnd.uniform(-3, 3), -rnd.uniform(4, 8)) for _ in range(3)]
+        wrapped(x, y, 10, lambda px, py: [pygame.draw.line(blades, (20, 40, 16, 120), (px + i * 1.5 - 1.5, py), (px + i * 1.5 - 1.5 + dx, py + dy))
+                                          for i, (dx, dy) in enumerate(segs)])
+    for _ in range(200):
+        x, y = rnd.uniform(0, n), rnd.uniform(0, n)
+        col = rnd.choice(((232, 210, 90), (222, 120, 140), (238, 238, 240), (150, 120, 220)))
+        wrapped(x, y, 3, lambda px, py: pygame.draw.circle(blades, (*col, 200), (px, py), rnd.choice((1, 1, 2))))
     surf.blit(blades, (0, 0))
     t = surf.convert() if pygame.display.get_surface() else surf
     _cache["ground"] = t
     return t
+
+
+def tread():
+    """A short pair of tank tracks pressed into the ground: two dark dashed bands, fading at the ends."""
+    def d(c):
+        for sy in (-7, 7):
+            for i in range(-3, 4):
+                a = 0.4 * (1 - abs(i) / 4.0)
+                fill(c, rr(i * 4 - 1.5, sy - 2.5, 3, 5, 0.8), rgb(0.06, 0.05, 0.04, a))
+    return texture("tread", (32, 24), d, 1)
 
 
 # ---------------------------------------------------------------- interface

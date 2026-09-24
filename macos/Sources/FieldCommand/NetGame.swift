@@ -75,6 +75,7 @@ extension GameScene {
                 u.position = p0 + (p1 - p0) * k
                 u.body.zRotation = angleLerp(a0, a1, k)
                 u.gun?.zRotation = angleLerp(g0, g1, k)
+                if !gamePaused { u.trackTravel() }
             }
         }
         elapsed = net.serverTime

@@ -50,6 +50,27 @@ enum FX {
         return e
     }
 
+    /// A puff of dry earth kicked up by a unit on the move.
+    static func dust(size: CGFloat) -> SKEmitterNode {
+        let e = base(Art.blob)
+        e.numParticlesToEmit = 2
+        e.particleBirthRate = 40
+        e.particleLifetime = 0.7
+        e.particleLifetimeRange = 0.3
+        e.particleSpeed = 10
+        e.particleSpeedRange = 6
+        e.emissionAngle = .pi / 2
+        e.emissionAngleRange = 1.2
+        e.particleScale = size / 64 * 0.9
+        e.particleScaleRange = size / 64 * 0.3
+        e.particleScaleSpeed = size / 64 * 1.2
+        e.particleAlpha = 0.3
+        e.particleAlphaSpeed = -0.4
+        e.particleColor = .rgb(0.66, 0.59, 0.46)
+        e.yAcceleration = 4
+        return e
+    }
+
     static func sparks(count: Int, speed: CGFloat, color: NSColor) -> SKEmitterNode {
         let e = base()
         e.numParticlesToEmit = count

@@ -1522,7 +1522,7 @@ final class GameScene: SKScene {
     func unitVoice(_ prefix: String, _ es: [Entity]? = nil) {
         let list = es ?? selection
         guard let u = list.first(where: { !($0 is Building) && $0.team.isLocal && !$0.dead }) as? Unit else { return }
-        Audio.play("\(prefix)\(NetProtocol.name(u.kind))", minGap: 0.3)
+        Audio.playVoice(prefix, NetProtocol.name(u.kind))
     }
 
     func setSelection(_ es: [Entity]) {

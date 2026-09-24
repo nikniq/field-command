@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 17, so a 1.32.0 Mac and a 1.32.0 Linux client play together; neither accepts an
+Both editions speak protocol 17, so a 1.33.0 Mac and a 1.33.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -189,7 +189,7 @@ clock, rebindable keys (Keys… in the game menu) and first-run arrows — as th
 Five synthesised loops over four chords — a pad, a plucked melody, a bass pulse, drums and a brass swell —
 mixed by a threat meter fed by what the client sees and hears: the melody at the base, the pulse as the
 enemy comes into view, drums while your forces fight, brass at the top. Units answer with a radio call when
-selected and a quick acknowledgement on an order. *Music:
+selected and a quick acknowledgement on an order, each kind in its own voice with several lines. *Music:
 On/Off* beside *Sound*. Same recipe and numbers as the Linux edition (`FC_AUDIOTEST`).
 
 ## High ground
@@ -257,7 +257,8 @@ The camera is tilted (its y scale is the zoom over the tilt), buildings stand on
 outline, and entities are depth-sorted by their y each frame. Otherwise the same procedural scene as the
 Linux edition: a sun from the upper left with biome tints (a multiply layer
 over the ground), drifting cloud shadows, wheel ruts along roads, pebbles, darker forest floors, craters that
-stay, wrecks and the fallen, and a white flash on anything hit.
+stay, wrecks and the fallen, and a white flash on anything hit; pebbles, tufts and wildflowers on the ground,
+dust behind anything on the move and tracks behind tanks, and a soft glow in your colour under selected units.
 
 ## Screenshots
 

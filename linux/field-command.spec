@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.32.0
+Version:        1.33.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.33.0-1
+- Every unit kind speaks in its own voice (a clean chirp, a buzz, a growl, a thin whistle, a soft warble,
+  a rotor-chopped call) with three lines on selection and two on an order, never the same one twice running
+- Graphics: pebbles, tufts and wildflowers on the ground; dust behind anything on the move and tracks
+  behind tanks; a soft glow in your colour under selected units
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.32.0-1
 - Unit abilities on Q: the Ranger's Grenade (40 damage in a 60 burst up to 200 away, every 20 s), the
   Sniper's Mark Target (the target takes 50% more damage for 8 s, every 25 s) and the Siege Tank's Smoke

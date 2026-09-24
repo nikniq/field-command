@@ -106,6 +106,13 @@ class Effects:
                            random.uniform(2.0, 3.2), random.uniform(13, 25), 22, "smoke",
                            (31, 28, 26) if dark else (178, 178, 184), 0.55 if dark else 0.35, 0.22 if dark else 0.14, ax=8))
 
+    def dust(self, x, y, size):
+        """A puff of dry earth kicked up by a unit on the move."""
+        a = math.pi / 2 + random.uniform(-0.6, 0.6)
+        sp = random.uniform(6, 14)
+        self._add(Particle(x + random.uniform(-4, 4), y + random.uniform(-3, 3), math.cos(a) * sp, math.sin(a) * sp,
+                           random.uniform(0.5, 0.9), size, 18, "smoke", (168, 150, 118), 0.3, 0.12, ax=4))
+
     def flame(self, x, y):
         a = math.pi / 2 + random.uniform(-0.25, 0.25)
         sp = random.uniform(18, 42)
@@ -140,7 +147,9 @@ class Effects:
     def decal(self, kind, x, y, size, life, angle=None, team=0):
         self.decals.append([kind, x, y, size, random.uniform(0, 360) if angle is None else angle, 0.0, life, team])
         if len(self.decals) > 160:
-            self.decals.pop(0)
+            # Tank tracks go first: craters and wrecks are the ones worth keeping.
+            i = next((i for i, d in enumerate(self.decals) if d[0] == "tread"), 0)
+            self.decals.pop(i)
 
     def ring(self, x, y, size_from, size_to, color, life=0.4, delay=0.0):
         self.rings.append([x, y, size_from, size_to, to255(color), -delay, life])
@@ -216,8 +225,9 @@ class Effects:
                 img = art.sprites.get(("fallen", kind[1], team), base, angle, 1 / (art.SCALE * z), tint=(25, 20, 18, 165),
                                       fade=min(fade, 190))
             else:
-                base = art.scorch() if kind == "scorch" else art.rubble()
-                s = size / (base.get_width() / (1 if kind == "scorch" else art.SCALE)) / (1 if kind == "scorch" else art.SCALE)
+                flat = kind in ("scorch", "tread")                      # drawn at one texel per world unit
+                base = art.scorch() if kind == "scorch" else art.tread() if kind == "tread" else art.rubble()
+                s = size / (base.get_width() / (1 if flat else art.SCALE)) / (1 if flat else art.SCALE)
                 img = art.sprites.get((kind,), base, angle, s / z, fade=fade)
             sx, sy = cam.to_screen(x, y)
             screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
