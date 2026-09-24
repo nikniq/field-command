@@ -41,7 +41,8 @@ def _order_out(o):
     if k in ("move", "amove"):
         return [k, o[1], o[2]]
     if k in ("attack", "gather", "rebuild", "repair", "heal"):
-        return [k, o[1].id]
+        # A target that died this very tick is not in the file; the unit would find itself idle next tick anyway.
+        return [k, o[1].id] if not getattr(o[1], "dead", False) else ["idle"]
     if k == "build":
         return [k, o[1], o[2], o[3]]
     return [k]
@@ -101,7 +102,10 @@ def world_to_dict(world, label=""):
         if p.ai is not None:
             a = p.ai
             ai[str(s)] = {"wave_size": a.wave_size, "next_wave": a.next_wave, "attackers": [u.id for u in a.attackers if not u.dead],
-                          "seen": dict(a.seen), "next_raid": a.next_raid}
+                          "seen": dict(a.seen), "next_raid": a.next_raid, "opening": a.opening,
+                          "scout": a.scout.id if a.scout is not None and not a.scout.dead else None,
+                          "scout_route": [list(p) for p in a.scout_route], "next_scout": a.next_scout,
+                          "guards": [u.id for u in a.guards if not u.dead], "home_crystal_start": a.home_crystal_start}
     return {
         "format": SAVE_FORMAT, "game": "field-command", "version": __version__, "label": label,
         "saved_at": int(time.time()), "map": w.map, "difficulty": w.difficulty.index, "elapsed": w.elapsed,
@@ -205,10 +209,15 @@ def world_from_dict(data):
     w.trained_kinds = {int(s): dict(v) for s, v in data["trained_kinds"].items()}
     for s, a in data["ai"].items():
         p = w.players[int(s)]
-        p.ai = AI(w, p.slot)
+        p.ai = AI(w, p.slot, opening=a.get("opening"))
         p.ai.wave_size, p.ai.next_wave, p.ai.next_raid = a["wave_size"], a["next_wave"], a["next_raid"]
         p.ai.seen = {k: float(v) for k, v in a["seen"].items()}
         p.ai.attackers = [w.by_id[i] for i in a["attackers"] if i in w.by_id]
+        p.ai.scout = w.by_id.get(a.get("scout")) if a.get("scout") is not None else None
+        p.ai.scout_route = [tuple(pt) for pt in a.get("scout_route", [])]
+        p.ai.next_scout = a.get("next_scout", p.ai.next_scout)
+        p.ai.guards = [w.by_id[i] for i in a.get("guards", []) if i in w.by_id]
+        p.ai.home_crystal_start = a.get("home_crystal_start")
     for t, r in data["reveals"].items():
         w.reveals[int(t)] = {int(i): until for i, until in r.items()}
     for t, bits in data["fog"].items():

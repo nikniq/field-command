@@ -21,13 +21,14 @@ enum SaveGame {
         case .idle: return ["idle"]
         case .move(let x, let y): return ["move", x, y]
         case .amove(let x, let y): return ["amove", x, y]
-        case .attack(let t): return ["attack", t.id]
-        case .gather(let c): return ["gather", c.id]
+        // A target that died this very tick is not in the file; the unit would find itself idle next tick anyway.
+        case .attack(let t): return t.dead ? ["idle"] : ["attack", t.id]
+        case .gather(let c): return c.dead ? ["idle"] : ["gather", c.id]
         case .ret: return ["return"]
         case .build(let k, let x, let y): return ["build", NetProtocol.name(k), x, y]
         case .rebuild(let b): return ["rebuild", b.id]
-        case .repair(let b): return ["repair", b.id]
-        case .heal(let u): return ["heal", u.id]
+        case .repair(let b): return b.dead ? ["idle"] : ["repair", b.id]
+        case .heal(let u): return u.dead ? ["idle"] : ["heal", u.id]
         }
     }
 
@@ -197,7 +198,7 @@ enum SaveGame {
         for (s, v) in jDict(d["crystals_mined"]) { w.crystalsMined[Int(s) ?? -1] = jInt(v) }
         for (s, a) in jDict(d["ai"]) {
             guard let slot = Int(s), let p = w.players[slot] else { continue }
-            let ai = SAI(world: w, team: slot)
+            let ai = SAI(world: w, team: slot, opening: jDict(a)["opening"] as? String)
             ai.restore(jDict(a), w)
             p.ai = ai
         }

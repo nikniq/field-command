@@ -1,7 +1,7 @@
 """The balance runner: plays computer-only games headless and writes what happened, so balance is decided on
 evidence.  python -m fieldcommand.batch --games 4 --maps twin_ridges,river_crossing --difficulty 1 --out runs.csv
 
-Each row is one player in one game: map, seed, slot, team, difficulty, winner or not, game length, units
+Each row is one player in one game: map, seed, slot, team, difficulty, opening, winner or not, game length, units
 trained by kind, units lost, buildings built by kind, crystal mined, kit bought, upgrades bought. The
 summary printed afterwards gives win rate by start slot per map, average length, and the unit mix.
 """
@@ -38,7 +38,8 @@ def play(map_id, seed, difficulty, limit=3000.0):
         row = {"map": map_id, "seed": seed, "slot": s, "team": p.team, "difficulty": DIFFICULTIES[difficulty].name,
                "won": int(w.game_over and w.winner_team == p.team), "over": int(w.game_over), "length": round(w.elapsed),
                "units_trained": w.units_trained[s], "units_lost": w.units_lost[s], "mined": w.crystals_mined[s],
-               "kits": len(w.kits.get(s, ())), "upgrades": upgrades[s], "real_seconds": round(time.time() - t0, 1)}
+               "kits": len(w.kits.get(s, ())), "upgrades": upgrades[s], "real_seconds": round(time.time() - t0, 1),
+               "opening": p.ai.opening if p.ai is not None else ""}
         for k in UNIT_KINDS:
             row[f"trained_{k}"] = w.trained_kinds[s].get(k, 0)
         for k in BUILDING_KINDS:
@@ -60,6 +61,10 @@ def summarise(rows):
         lengths = [r["length"] for r in rs if r["slot"] == slots[0]]
         lines.append(f"{m}: {len(games)} games, avg {sum(lengths) / len(lengths):.0f}s, {unfinished} unfinished")
         lines.append("  wins by start slot: " + ", ".join(f"{s}:{wins[s]}" for s in slots))
+        openings = sorted({r["opening"] for r in rs if r.get("opening")})
+        if openings:
+            lines.append("  wins by opening: " + ", ".join(
+                f"{o} {sum(r['won'] for r in rs if r['opening'] == o)}/{sum(1 for r in rs if r['opening'] == o)}" for o in openings))
         mix = collections.Counter()
         for r in rs:
             for k in UNIT_KINDS:

@@ -6,24 +6,65 @@ to build towards: tanks answer massed Rangers, Snipers answer tanks, tanks and R
 Snipers. Snipers in a wave hang back behind the main body so they fight at their range, and between waves
 a couple of troops raid the enemy's nearest outlying building.
 
+From 1.20 it is a strategist as well: it picks an opening for the first minutes (a rush, an economy or a
+turtle), sends a scout to the enemy's door, expands when the home field runs low or its Engineers crowd
+it, and keeps a turret and a garrison at every expansion it takes.
+
 Works for any slot; enemies are every player outside its alliance."""
 import math
-import random
 
 from . import defs
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
+# Openings: how the first minutes are played. Each factor bends the timed plan — `barracks` and `turret`
+# multiply the plan times for those buildings (turret also covers the shield), `attack` multiplies the time
+# of the first wave, `wave` adds to its size, `workers` to the Engineer target, and `expand` multiplies the
+# time before the first expansion. The same table lives in ServerWorld.swift (SAI.openings).
+OPENINGS = {
+    "rush": {"barracks": 0.55, "turret": 1.4, "attack": 0.6, "wave": -2, "workers": -3, "expand": 1.4},
+    "economy": {"barracks": 1.0, "turret": 1.0, "attack": 1.3, "wave": 2, "workers": 4, "expand": 0.6},
+    "turtle": {"barracks": 1.0, "turret": 0.5, "attack": 1.5, "wave": 4, "workers": 0, "expand": 1.0},
+}
+OPENING_ORDER = ["rush", "economy", "turtle"]
+# Odds of each opening by difficulty (easy, normal, hard); a giant map never rushes.
+OPENING_WEIGHTS = [[0, 1, 2], [1, 2, 1], [2, 2, 1]]
+GIANT_W = 6000.0             # a world at least this wide counts as giant
+GARRISON = [2, 3, 4]         # troops kept at every expansion, by difficulty
+SCOUT_AT = 45.0              # the first scout leaves at this time (times the difficulty's pace)
+SCOUT_EVERY = 150.0          # and another goes out this long after one comes home
+EXPAND_AT = 300.0            # the timed expansion (times the opening's factor and the pace)
+
+
+def choose_opening(rng, difficulty, giant):
+    """One draw from the seeded stream, weighted by difficulty; identical in both editions."""
+    weights = list(OPENING_WEIGHTS[difficulty])
+    if giant:
+        weights[0] = 0
+    r = rng.random() * sum(weights)
+    for name, w in zip(OPENING_ORDER, weights):
+        r -= w
+        if r < 0:
+            return name
+    return OPENING_ORDER[-1]
+
 
 class AI:
-    def __init__(self, game, team):
+    def __init__(self, game, team, opening=None):
         self.game = game
         self.team = team
         self.think = 1.0
         d = game.difficulty
-        self.wave_size = d.initial_wave
-        self.next_wave = d.first_attack
+        self.opening = opening or choose_opening(game.rng, d.index, defs.WORLD_W >= GIANT_W)
+        o = OPENINGS[self.opening]
+        self.wave_size = max(3, d.initial_wave + o["wave"])
+        self.next_wave = d.first_attack * o["attack"]
         self.attackers = []
+        self.scout = None                # the trooper out looking, and where it still has to go
+        self.scout_route = []
+        self.next_scout = SCOUT_AT * d.pace
+        self.guards = []                 # troops posted at expansions; not part of the home army
+        self.home_crystal_start = None   # crystal near the Command Center when the game began
         self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0}     # decaying count of enemy units seen
         self.answered_ping = -1.0        # time of the last allied alert point this side sent troops to
         # The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
@@ -50,8 +91,11 @@ class AI:
         workers = [u for u in mine if u.kind == "worker"]
         army = [u for u in mine if u.kind != "worker"]
         self.attackers = [u for u in self.attackers if not u.dead]
-        attacking = set(id(u) for u in self.attackers)
-        home = [u for u in army if id(u) not in attacking]
+        self.guards = [u for u in self.guards if not u.dead]
+        away = set(id(u) for u in self.attackers + self.guards)
+        if self.scout is not None:
+            away.add(id(self.scout))
+        home = [u for u in army if id(u) not in away]
 
         dropoffs = [b for b in bases if b.kind == "hq" and b.built]
         for w in workers:
@@ -70,9 +114,103 @@ class AI:
         self._upgrade(hq, bases)
         self._shop(army)
         self._defend(bases, home)
+        self._garrison(hq, bases, home)
+        self._scout(hq, home)
         self._grab_crates(hq, home)
         self._open_route(hq, home, workers)
         self._attack(hq, home)
+
+    # ------------------------------------------------------------ strategy
+
+    def _plan(self, t):
+        """The timed build plan, bent by the opening: (kind, how many by now)."""
+        o = OPENINGS[self.opening]
+        base = [("barracks", 35, 1), ("turret", 140, 1), ("factory", 170, 1), ("barracks", 230, 2),
+                ("radar", 260, 1), ("turret", 300, 2), ("shield", 380, 1), ("factory", 420, 2),
+                ("artillery", 480, 1), ("barracks", 520, 3), ("turret", 560, 4), ("artillery", 720, 2)]
+        out = []
+        for k, at, n in base:
+            f = o["barracks"] if k == "barracks" else o["turret"] if k in ("turret", "shield") else 1.0
+            out.append((k, n if t > at * f else 0))
+        return out
+
+    def _should_expand(self, t, bases, workers):
+        """Take a new field on the clock, when the home field is running low, or when the Engineers crowd it."""
+        left = self._home_crystal_left(bases)
+        if self.home_crystal_start is None:
+            self.home_crystal_start = max(1, left)
+        hqs = [b for b in bases if b.kind == "hq"]
+        live = sum(1 for c in self.game.crystals if not c.dead and any(math.hypot(h.x - c.x, h.y - c.y) < 700 for h in hqs))
+        return (t > EXPAND_AT * OPENINGS[self.opening]["expand"] or left < 5000
+                or left < 0.45 * self.home_crystal_start or len(workers) > 2.5 * live + 2)
+
+    def _expansions(self, hq, bases):
+        return [b for b in bases if b.kind == "hq" and b.built and not b.dead and b is not hq]
+
+    def _unguarded_expansion(self, hq, bases):
+        """The first expansion with no turret of its own."""
+        for e in self._expansions(hq, bases):
+            if not any(b.kind == "turret" and math.hypot(b.x - e.x, b.y - e.y) < 450 for b in bases):
+                return e
+        return None
+
+    def _garrison(self, hq, bases, home):
+        """Every expansion keeps a few troops of its own, so a raid on it meets more than Engineers."""
+        exps = self._expansions(hq, bases)
+        if not exps:
+            self.guards = []
+            return
+        need = GARRISON[self.diff.index]
+        for e in exps:
+            posted = [u for u in self.guards if math.hypot(u.x - e.x, u.y - e.y) < 500 or u.order[0] == "amove"]
+            missing = need - len(posted)
+            if missing <= 0:
+                continue
+            idle = [u for u in home if u.order[0] == "idle"]
+            if len(idle) < missing + 2:              # never strip the main base bare
+                continue
+            party = sorted(idle, key=lambda u: math.hypot(u.x - e.x, u.y - e.y))[:missing]
+            for i, u in enumerate(party):
+                a = len(posted) + i
+                u.command(("amove", e.x + math.cos(a * 2.1) * 130, e.y + math.sin(a * 2.1) * 130))
+                self.guards.append(u)
+        # A guard whose post has fallen goes back to the home army.
+        self.guards = [u for u in self.guards if any(math.hypot(u.x - e.x, u.y - e.y) < 900 for e in exps) or u.order[0] == "amove"]
+
+    def _scout_route(self, hq):
+        """The nearest enemy Command Center's ground, then the two fields nearest the way there."""
+        g = self.game
+        starts = [tuple(g.map["starts"][p.start][:2]) for p in g.players.values() if p.alive and g.enemies(p.slot, self.team)]
+        if not starts:
+            return []
+        ex, ey = min(starts, key=lambda s: math.hypot(s[0] - hq.x, s[1] - hq.y))
+        mx, my = (hq.x + ex) / 2, (hq.y + ey) / 2
+        fields = sorted((tuple(e[:2]) for e in g.map.get("expansions", [])), key=lambda e: math.hypot(e[0] - mx, e[1] - my))[:2]
+        return [(ex, ey)] + fields
+
+    def _scout(self, hq, home):
+        """A single trooper walks the enemy's door and the fields between, so `seen` has something to see."""
+        g = self.game
+        if self.scout is not None and self.scout.dead:
+            self.scout = None
+        if self.scout is not None:
+            if self.scout.order[0] == "idle":
+                if self.scout_route:
+                    x, y = self.scout_route.pop(0)
+                    self.scout.command(("move", x, y))
+                else:
+                    self.scout = None
+                    self.next_scout = g.elapsed + SCOUT_EVERY
+            return
+        if g.elapsed < self.next_scout:
+            return
+        idle = [u for u in home if u.order[0] == "idle" and u.kind == "marine"]
+        route = self._scout_route(hq)
+        if not idle or not route:
+            return
+        self.scout = min(idle, key=lambda u: math.hypot(u.x - route[0][0], u.y - route[0][1]))
+        self.scout_route = route[1:] + [(hq.x, hq.y)]
+        self.scout.command(("move", *route[0]))
 
     @staticmethod
     def _pending(kind, workers):
@@ -99,16 +237,19 @@ class AI:
         want, site = None, None
         if cap < 200 and cap - used < 4 + producers * 3 and self._pending("depot", workers) < (2 if bank > 400 else 1):
             want = "depot"
-        elif count("hq") < 3 and (t > 300 or self._home_crystal_left(bases) < 5000):
+        elif count("hq") < (4 if defs.WORLD_W >= GIANT_W else 3) and self._should_expand(t, bases, workers):
             e = self._expansion_site(hq.x, hq.y)
             if e:
                 want, site = "hq", e
+        if want is None and t > 120:
+            # An expansion without a turret of its own gets one before the plan goes on.
+            e = self._unguarded_expansion(hq, bases)
+            if e is not None and self._pending("turret", workers) == 0:
+                spot = self._find_spot("turret", e.x, e.y)
+                if spot:
+                    want, site = "turret", spot
         if want is None:
-            plan = [("barracks", 1 if t > 35 else 0), ("turret", 1 if t > 140 else 0), ("factory", 1 if t > 170 else 0),
-                    ("barracks", 2 if t > 230 else 0), ("radar", 1 if t > 260 else 0), ("turret", 2 if t > 300 else 0),
-                    ("shield", 1 if t > 380 else 0), ("factory", 2 if t > 420 else 0), ("artillery", 1 if t > 480 else 0),
-                    ("barracks", 3 if t > 520 else 0), ("turret", 4 if t > 560 else 0), ("artillery", 2 if t > 720 else 0)]
-            for k, n in plan:
+            for k, n in self._plan(t):
                 if n > 0 and count(k) < n:
                     req = BUILDINGS[k].requires
                     if req and not g.has_built(req, self.team):
@@ -285,7 +426,8 @@ class AI:
         g = self.game
         money = lambda: g.resources[self.team] - reserve
         queued_workers = sum(1 for k in hq.queue if k == "worker")
-        if hq.kind == "hq" and hq.built and len(workers) + queued_workers < self.diff.worker_target and len(hq.queue) < 2:
+        target = self.diff.worker_target + OPENINGS[self.opening]["workers"]
+        if hq.kind == "hq" and hq.built and len(workers) + queued_workers < target and len(hq.queue) < 2:
             if len(workers) < 8 or money() >= 50:
                 g.train("worker", [hq], self.team)
         tx, ty = defs.WORLD_W / 2 - hq.x, defs.WORLD_H / 2 - hq.y
@@ -322,6 +464,10 @@ class AI:
             return
         for u in home:
             if u.order[0] in ("idle", "move"):
+                u.command(("amove", *self._standoff(u, threat.x, threat.y)))
+        # A garrison answers what comes at its own post.
+        for u in self.guards:
+            if u.order[0] == "idle" and math.hypot(u.x - threat.x, u.y - threat.y) < 700:
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
 
     STANDOFF = {"sniper": 200.0, "medic": 120.0}

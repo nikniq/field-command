@@ -944,6 +944,81 @@ enum Debug {
         let (rx, ry) = ai.standoff(r, hq.x - 1000, hq.y)
         check(abs(sx - (hq.x - 1000)) == 200 && sy == hq.y && rx == hq.x - 1000 && ry == hq.y, "Snipers stop 200 short; Rangers go all the way")
 
+        // The strategist: openings by difficulty, seed and map size.
+        do {
+            func picks(_ d: Difficulty, giant: Bool) -> Set<String> {
+                var out = Set<String>()
+                for s in 0..<40 { simRNG = SeededRNG(UInt64(s)); out.insert(chooseOpening(d, giant: giant)) }
+                return out
+            }
+            let easy = picks(.easy, giant: false), hard = picks(.hard, giant: false), giant = picks(.hard, giant: true)
+            check(!easy.contains("rush") && hard.contains("rush") && hard.count == 3, "Easy never rushes; Hard tries every opening")
+            check(!giant.contains("rush"), "nobody rushes across a giant map")
+            func seeded(_ seed: UInt64) -> String {
+                let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: true, start: $0) }
+                return SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .hard, seed: seed).players[1]!.ai!.opening
+            }
+            let a = (0..<12).map { seeded(UInt64($0)) }, b = (0..<12).map { seeded(UInt64($0)) }
+            check(a == b && Set(a).count > 1, "the opening comes from the seed: a replay picks the same one")
+            let rush = SAI(world: w, team: 1, opening: "rush"), turtle = SAI(world: w, team: 1, opening: "turtle")
+            func by(_ ai: SAI, _ t: Double, _ k: BuildingKind) -> Int { ai.plan(t).filter { $0.0 == k }.map { $0.1 }.max() ?? 0 }
+            check(by(rush, 25, .barracks) == 1 && by(turtle, 25, .barracks) == 0 && by(turtle, 80, .turret) == 1, "the opening bends the build plan")
+            check(rush.nextWave < turtle.nextWave && rush.waveSize < turtle.waveSize, "a rush attacks earlier with less; a turtle later with more")
+        }
+        // A scout walks to the enemy's door and comes home.
+        do {
+            let ai = SAI(world: w, team: 1, opening: "economy")
+            let home = (0..<3).map { SUnit(world: w, kind: .marine, team: 1, x: hq.x + 100 + Double($0) * 20, y: hq.y) }
+            for u in home { w.add(u) }
+            w.elapsed = ai.nextScout
+            ai.scoutRun(hq, home)
+            let start = jArr(jArr(w.map["starts"])[0])
+            let ex = Double(jNum(start[0])), ey = Double(jNum(start[1]))
+            var toDoor = false
+            if let s = ai.scout, case .move(let x, let y) = s.order { toDoor = abs(x - ex) < 1 && abs(y - ey) < 1 }
+            check(toDoor, "a scout is sent to the enemy Command Center's ground")
+            ai.scout?.command(.idle)
+            for _ in 0..<4 { ai.scoutRun(hq, home); ai.scout?.command(.idle) }   // walks the rest of the route
+            check(ai.scout == nil && ai.nextScout > w.elapsed, "and once home the next one waits")
+        }
+        // The expansion comes early when the home field runs low or the Engineers crowd it.
+        do {
+            let ai = SAI(world: w, team: 1, opening: "turtle")
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            check(!ai.shouldExpand(50, [hq], workers), "no expansion at 50s with a full field")
+            for c in w.crystals where abs(c.x - hq.x) < 700 && abs(c.y - hq.y) < 700 { c.amount = Int(Double(c.amount) * 0.3) }
+            check(ai.shouldExpand(50, [hq], workers), "but at once when the field is under 45% of what it was")
+            let crowd = (0..<40).map { _ in SUnit(world: w, kind: .worker, team: 1, x: hq.x, y: hq.y) }
+            let ai2 = SAI(world: w, team: 1, opening: "turtle")
+            check(ai2.shouldExpand(50, [hq], crowd), "or with more Engineers than the field can feed")
+        }
+        // An expansion gets a turret and a garrison.
+        do {
+            let map = SMapGen.generate("twin_ridges")
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: map, players: ps, difficulty: .normal)
+            let ai = SAI(world: w, team: 1, opening: "turtle")
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            w.startBuilding(.hq, hq.x + 900, hq.y, 1)
+            let e = w.buildings.last!
+            e.built = true
+            let bases = w.buildings.filter { $0.team == 1 }
+            check(ai.unguardedExpansion(hq, bases) === e, "a new expansion has no turret of its own")
+            w.resources[1] = 2000
+            w.elapsed = 200 * Double(w.difficulty.pace)
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            _ = ai.constructForTest(hq, bases, workers)
+            var turretNear = false
+            for u in workers { if case .build(.turret, let x, let y) = u.order { turretNear = abs(x - e.x) < 500 && abs(y - e.y) < 500 } }
+            check(turretNear, "so an Engineer goes to put one up beside it")
+            let home = (0..<8).map { SUnit(world: w, kind: .marine, team: 1, x: hq.x + 100 + Double($0) * 20, y: hq.y) }
+            for u in home { w.add(u) }
+            ai.garrisonRun(hq, bases, home)
+            var posted = true
+            for u in ai.guards { if case .amove(let x, _) = u.order { posted = posted && abs(x - e.x) < 200 } else { posted = false } }
+            check(ai.guards.count == 3 && posted, "and three troops are posted at it on Normal")
+        }
+
         // A game between two reacting opponents still finishes.
         let map2 = SMapGen.generate("twin_ridges")
         let bots = (0..<2).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }

@@ -260,3 +260,23 @@ def test_status_codes_agree():
     for name, code in net.STATUS.items():
         if code != 0:
             assert code in known, f"status {name}={code} unknown to the Mac client"
+
+
+def test_openings_agree():
+    """The computer's openings, their odds and the strategist's numbers match in both editions."""
+    from fieldcommand.ai import EXPAND_AT, GARRISON, GIANT_W, OPENING_ORDER, OPENING_WEIGHTS, OPENINGS, SCOUT_AT, SCOUT_EVERY
+    src = swift("ServerWorld.swift")
+    block = re.search(r"let openings: \[String: \[String: Double\]\] = \[(.*?)\n\]", src, re.S).group(1)
+    for name, factors in OPENINGS.items():
+        row = re.search(r'"%s": \[(.*?)\]' % name, block).group(1)
+        got = {k: float(v) for k, v in re.findall(r'"(\w+)": (-?[\d.]+)', row)}
+        assert got == {k: float(v) for k, v in factors.items()}, name
+    order = re.findall(r'"(\w+)"', re.search(r"let openingOrder = \[(.*?)\]", src).group(1))
+    assert order == OPENING_ORDER
+    weights = re.search(r"let openingWeights: \[\[Double\]\] = \[(.*?)\]\n", src).group(1)
+    assert [[int(x) for x in re.findall(r"\d+", row)] for row in re.findall(r"\[([\d, ]+)\]", weights)] == OPENING_WEIGHTS
+    assert [int(x) for x in re.findall(r"\d+", re.search(r"let garrison = \[(.*?)\]", src).group(1))] == GARRISON
+    assert float(re.search(r"let giantW: Double = ([\d.]+)", src).group(1)) == GIANT_W
+    assert float(re.search(r"let scoutAt: Double = ([\d.]+)", src).group(1)) == SCOUT_AT
+    assert float(re.search(r"let scoutEvery: Double = ([\d.]+)", src).group(1)) == SCOUT_EVERY
+    assert float(re.search(r"let expandAt: Double = ([\d.]+)", src).group(1)) == EXPAND_AT

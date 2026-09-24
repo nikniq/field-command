@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.19.0
+Version:        1.20.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.20.0-1
+- The computer is a strategist: it opens with a rush, an economy or a turtle (by difficulty, seed and map
+  size), sends a scout to your door, expands when its home field runs low or its Engineers crowd it, and
+  keeps a turret and a garrison at every expansion; the batch runner reports wins by opening
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.19.0-1
 - Replays: every single-player game is recorded on its way out and can be watched again from the title
   screen (R); the simulation is now deterministic and fixed-step, so a replay is the seed plus your commands

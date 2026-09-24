@@ -2301,13 +2301,52 @@ final class SWorld {
 
 // MARK: - Computer player
 
+/// The openings, as linux/fieldcommand/ai.py has them: how the first minutes are played. `barracks` and
+/// `turret` multiply the plan times for those buildings (turret covers the shield too), `attack` the time of
+/// the first wave; `wave` adds to its size, `workers` to the Engineer target; `expand` multiplies the time
+/// before the first expansion.
+let openings: [String: [String: Double]] = [
+    "rush": ["barracks": 0.55, "turret": 1.4, "attack": 0.6, "wave": -2, "workers": -3, "expand": 1.4],
+    "economy": ["barracks": 1.0, "turret": 1.0, "attack": 1.3, "wave": 2, "workers": 4, "expand": 0.6],
+    "turtle": ["barracks": 1.0, "turret": 0.5, "attack": 1.5, "wave": 4, "workers": 0, "expand": 1.0],
+]
+let openingOrder = ["rush", "economy", "turtle"]
+/// Odds of each opening by difficulty (easy, normal, hard); a giant map never rushes.
+let openingWeights: [[Double]] = [[0, 1, 2], [1, 2, 1], [2, 2, 1]]
+let giantW: Double = 6000
+let garrison = [2, 3, 4]
+let scoutAt: Double = 45
+let scoutEvery: Double = 150
+let expandAt: Double = 300
+
+/// One draw from the seeded stream, weighted by difficulty; the same rule as the Python edition's.
+func chooseOpening(_ difficulty: Difficulty, giant: Bool) -> String {
+    var weights = openingWeights[difficulty.rawValue]
+    if giant { weights[0] = 0 }
+    var r = Double.random(in: 0..<1, using: &simRNG) * weights.reduce(0, +)
+    for (name, w) in zip(openingOrder, weights) {
+        r -= w
+        if r < 0 { return name }
+    }
+    return openingOrder[openingOrder.count - 1]
+}
+
 final class SAI {
     unowned let world: SWorld
     let team: Int
     private var think = 1.0
-    private var waveSize: Int
-    private var nextWave: Double
+    private(set) var waveSize: Int
+    private(set) var nextWave: Double
     private var attackers: [SUnit] = []
+    /// The opening being played, the scout and the way it still has to go, the troops posted at expansions,
+    /// and the crystal that lay near the Command Center when the game began.
+    private(set) var opening: String
+    private(set) var scout: SUnit?
+    private var scoutRoute: [(Double, Double)] = []
+    private(set) var nextScout: Double
+    private(set) var guards: [SUnit] = []
+    private var homeCrystalStart: Int?
+    private var factor: [String: Double] { openings[opening]! }
     /// A decaying tally of enemy units this side has seen, by kind — what the army is built to answer.
     var seen: [UnitKind: Double] = [.marine: 0, .sniper: 0, .tank: 0]
     private var nextRaid = 240.0
@@ -2320,11 +2359,14 @@ final class SAI {
     func forceRouteCheck() { nextRouteCheck = 0 }
     var attackersCount: Int { attackers.count }
 
-    init(world: SWorld, team: Int) {
+    init(world: SWorld, team: Int, opening: String? = nil) {
         self.world = world
         self.team = team
-        waveSize = world.difficulty.initialWave
-        nextWave = Double(world.difficulty.firstAttack)
+        self.opening = opening ?? chooseOpening(world.difficulty, giant: worldW >= giantW)
+        let o = openings[self.opening]!
+        waveSize = max(3, world.difficulty.initialWave + Int(o["wave"]!))
+        nextWave = Double(world.difficulty.firstAttack) * o["attack"]!
+        nextScout = scoutAt * Double(world.difficulty.pace)
     }
 
     // MARK: Saving
@@ -2333,13 +2375,22 @@ final class SAI {
         var seenOut: [String: Double] = [:]
         for (k, v) in seen { seenOut[NetProtocol.name(k)] = v }
         return ["wave_size": waveSize, "next_wave": nextWave, "attackers": attackers.filter { !$0.dead }.map { $0.id },
-                "seen": seenOut, "next_raid": nextRaid]
+                "seen": seenOut, "next_raid": nextRaid, "opening": opening,
+                "scout": scout.flatMap { $0.dead ? nil : $0.id as Any } ?? NSNull(),
+                "scout_route": scoutRoute.map { [$0.0, $0.1] }, "next_scout": nextScout,
+                "guards": guards.filter { !$0.dead }.map { $0.id }, "home_crystal_start": homeCrystalStart as Any? ?? NSNull()]
     }
 
     func restore(_ d: [String: Any], _ w: SWorld) {
         waveSize = jInt(d["wave_size"]); nextWave = Double(jNum(d["next_wave"])); nextRaid = Double(jNum(d["next_raid"]))
         attackers = jArr(d["attackers"]).compactMap { w.byId[jInt($0)] as? SUnit }
         for (k, v) in jDict(d["seen"]) { if let kind = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == k }) { seen[kind] = Double(jNum(v)) } }
+        if let o = d["opening"] as? String, openings[o] != nil { opening = o }
+        scout = (d["scout"] as? NSNumber).flatMap { w.byId[$0.intValue] as? SUnit }
+        scoutRoute = jArr(d["scout_route"]).map { let p = jArr($0); return (Double(jNum(p[0])), Double(jNum(p[1]))) }
+        if let t = d["next_scout"] as? NSNumber { nextScout = t.doubleValue }
+        guards = jArr(d["guards"]).compactMap { w.byId[jInt($0)] as? SUnit }
+        homeCrystalStart = (d["home_crystal_start"] as? NSNumber)?.intValue
     }
 
     // MARK: Intelligence
@@ -2404,7 +2455,9 @@ final class SAI {
         let workers = mine.filter { $0.kind == .worker }
         let army = mine.filter { $0.kind != .worker }
         attackers.removeAll { $0.dead }
-        let home = army.filter { u in !attackers.contains { $0 === u } }
+        guards.removeAll { $0.dead }
+        if let s = scout, s.dead { scout = nil }
+        let home = army.filter { u in !attackers.contains { $0 === u } && !guards.contains { $0 === u } && u !== scout }
         let dropoffs = bases.filter { $0.kind == .hq && $0.built }
         for w in workers where w.order.isIdle {
             let served = g.crystals.filter { c in !c.dead && dropoffs.contains { hyp($0.x - c.x, $0.y - c.y) < 700 } }
@@ -2420,9 +2473,107 @@ final class SAI {
         upgrade(hq, bases)
         shop(army)
         defend(bases, home)
+        garrisonRun(hq, bases, home)
+        scoutRun(hq, home)
         grabCrates(hq, home)
         openRoute(hq, home, workers)
         attack(hq, home)
+    }
+
+    // MARK: Strategy
+
+    /// The timed build plan, bent by the opening: (kind, how many by now).
+    func plan(_ t: Double) -> [(BuildingKind, Int)] {
+        let o = factor
+        let base: [(BuildingKind, Double, Int)] = [(.barracks, 35, 1), (.turret, 140, 1), (.factory, 170, 1), (.barracks, 230, 2),
+                                                   (.radar, 260, 1), (.turret, 300, 2), (.shield, 380, 1), (.factory, 420, 2),
+                                                   (.artillery, 480, 1), (.barracks, 520, 3), (.turret, 560, 4), (.artillery, 720, 2)]
+        return base.map { k, at, n in
+            let f = k == .barracks ? o["barracks"]! : (k == .turret || k == .shield) ? o["turret"]! : 1.0
+            return (k, t > at * f ? n : 0)
+        }
+    }
+
+    /// Take a new field on the clock, when the home field is running low, or when the Engineers crowd it.
+    func shouldExpand(_ t: Double, _ bases: [SBuilding], _ workers: [SUnit]) -> Bool {
+        let left = homeCrystalLeft(bases)
+        if homeCrystalStart == nil { homeCrystalStart = max(1, left) }
+        let hqs = bases.filter { $0.kind == .hq }
+        let live = world.crystals.filter { c in !c.dead && hqs.contains { hyp($0.x - c.x, $0.y - c.y) < 700 } }.count
+        if t > expandAt * factor["expand"]! || left < 5000 { return true }
+        if Double(left) < 0.45 * Double(homeCrystalStart!) { return true }
+        return Double(workers.count) > 2.5 * Double(live) + 2
+    }
+
+    private func expansions(_ hq: SBuilding, _ bases: [SBuilding]) -> [SBuilding] {
+        bases.filter { $0.kind == .hq && $0.built && !$0.dead && $0 !== hq }
+    }
+
+    /// The first expansion with no turret of its own.
+    func unguardedExpansion(_ hq: SBuilding, _ bases: [SBuilding]) -> SBuilding? {
+        expansions(hq, bases).first { e in !bases.contains { $0.kind == .turret && hyp($0.x - e.x, $0.y - e.y) < 450 } }
+    }
+
+    /// Every expansion keeps a few troops of its own, so a raid on it meets more than Engineers.
+    func garrisonRun(_ hq: SBuilding, _ bases: [SBuilding], _ home: [SUnit]) {
+        let exps = expansions(hq, bases)
+        if exps.isEmpty { guards = []; return }
+        let need = garrison[diff.rawValue]
+        for e in exps {
+            let posted = guards.filter { u in hyp(u.x - e.x, u.y - e.y) < 500 || { if case .amove = u.order { return true }; return false }() }
+            let missing = need - posted.count
+            if missing <= 0 { continue }
+            let idle = home.filter { $0.order.isIdle }
+            if idle.count < missing + 2 { continue }                 // never strip the main base bare
+            let party = idle.sorted { hyp($0.x - e.x, $0.y - e.y) < hyp($1.x - e.x, $1.y - e.y) }.prefix(missing)
+            for (i, u) in party.enumerated() {
+                let a = Double(posted.count + i) * 2.1
+                u.command(.amove(e.x + cos(a) * 130, e.y + sin(a) * 130))
+                guards.append(u)
+            }
+        }
+        // A guard whose post has fallen goes back to the home army.
+        guards = guards.filter { u in exps.contains { hyp(u.x - $0.x, u.y - $0.y) < 900 } || { if case .amove = u.order { return true }; return false }() }
+    }
+
+    /// The nearest enemy Command Center's ground, then the two fields nearest the way there.
+    func scoutRoute(_ hq: SBuilding) -> [(Double, Double)] {
+        let g = world
+        let startList = jArr(g.map["starts"]).map { jArr($0) }
+        var starts: [(Double, Double)] = []
+        for p in g.players.values.sorted(by: { $0.slot < $1.slot }) where p.alive && g.enemies(p.slot, team) && p.start < startList.count {
+            starts.append((Double(jNum(startList[p.start][0])), Double(jNum(startList[p.start][1]))))
+        }
+        guard let (ex, ey) = starts.min(by: { hyp($0.0 - hq.x, $0.1 - hq.y) < hyp($1.0 - hq.x, $1.1 - hq.y) }) else { return [] }
+        let mx = (hq.x + ex) / 2, my = (hq.y + ey) / 2
+        let fields = jArr(g.map["expansions"]).map { e -> (Double, Double) in let a = jArr(e); return (Double(jNum(a[0])), Double(jNum(a[1]))) }
+        let near = fields.sorted { hyp($0.0 - mx, $0.1 - my) < hyp($1.0 - mx, $1.1 - my) }.prefix(2)
+        return [(ex, ey)] + near
+    }
+
+    /// A single trooper walks the enemy's door and the fields between, so `seen` has something to see.
+    func scoutRun(_ hq: SBuilding, _ home: [SUnit]) {
+        let g = world
+        if let s = scout, s.dead { scout = nil }
+        if let s = scout {
+            if s.order.isIdle {
+                if !scoutRoute.isEmpty {
+                    let (x, y) = scoutRoute.removeFirst()
+                    s.command(.move(x, y))
+                } else {
+                    scout = nil
+                    nextScout = g.elapsed + scoutEvery
+                }
+            }
+            return
+        }
+        guard g.elapsed >= nextScout else { return }
+        let idle = home.filter { $0.order.isIdle && $0.kind == .marine }
+        let route = scoutRoute(hq)
+        guard !idle.isEmpty, let first = route.first else { return }
+        scout = idle.min { hyp($0.x - first.0, $0.y - first.1) < hyp($1.x - first.0, $1.y - first.1) }
+        scoutRoute = Array(route.dropFirst()) + [(hq.x, hq.y)]
+        scout!.command(.move(first.0, first.1))
     }
 
     private func pending(_ k: BuildingKind, _ workers: [SUnit]) -> Int {
@@ -2430,6 +2581,8 @@ final class SAI {
             n + ([w.order] + w.queued).filter { if case .build(let bk, _, _) = $0 { return bk == k }; return false }.count
         }
     }
+
+    func constructForTest(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit]) -> Double { construct(hq, bases, workers) }
 
     private func construct(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit]) -> Double {
         let g = world
@@ -2444,16 +2597,18 @@ final class SAI {
         var site: (Double, Double)?
         if cap < 200 && cap - used < 4 + producers * 3 && pending(.depot, workers) < (bank > 400 ? 2 : 1) {
             want = .depot
-        } else if count(.hq) < 3, t > 300 || homeCrystalLeft(bases) < 5000, let e = expansionSite(hq.x, hq.y) {
+        } else if count(.hq) < (worldW >= giantW ? 4 : 3), shouldExpand(t, bases, workers), let e = expansionSite(hq.x, hq.y) {
             want = .hq
             site = e
         }
+        if want == nil && t > 120, let e = unguardedExpansion(hq, bases), pending(.turret, workers) == 0,
+           let spot = findSpot(.turret, e.x, e.y) {
+            // An expansion without a turret of its own gets one before the plan goes on.
+            want = .turret
+            site = spot
+        }
         if want == nil {
-            let plan: [(BuildingKind, Int)] = [(.barracks, t > 35 ? 1 : 0), (.turret, t > 140 ? 1 : 0), (.factory, t > 170 ? 1 : 0),
-                                               (.barracks, t > 230 ? 2 : 0), (.radar, t > 260 ? 1 : 0), (.turret, t > 300 ? 2 : 0),
-                                               (.shield, t > 380 ? 1 : 0), (.factory, t > 420 ? 2 : 0), (.artillery, t > 480 ? 1 : 0),
-                                               (.barracks, t > 520 ? 3 : 0), (.turret, t > 560 ? 4 : 0), (.artillery, t > 720 ? 2 : 0)]
-            for (k, n) in plan where n > 0 && count(k) < n {
+            for (k, n) in plan(t) where n > 0 && count(k) < n {
                 if let r = k.stats.requires, !g.hasBuilt(r, team) { continue }
                 want = k
                 break
@@ -2579,7 +2734,8 @@ final class SAI {
         let g = world
         func money() -> Double { (g.resources[team] ?? 0) - reserve }
         let queuedWorkers = hq.queue.filter { $0 == .worker }.count
-        if hq.kind == .hq && hq.built && workers.count + queuedWorkers < diff.workerTarget && hq.queue.count < 2 {
+        let target = diff.workerTarget + Int(factor["workers"]!)
+        if hq.kind == .hq && hq.built && workers.count + queuedWorkers < target && hq.queue.count < 2 {
             if workers.count < 8 || money() >= 50 { _ = g.train(.worker, [hq], team) }
         }
         let tx = worldW / 2 - hq.x, ty = worldH / 2 - hq.y
@@ -2615,6 +2771,11 @@ final class SAI {
                 u.command(.amove(x, y))
             default: break
             }
+        }
+        // A garrison answers what comes at its own post.
+        for u in guards where u.order.isIdle && hyp(u.x - threat.x, u.y - threat.y) < 700 {
+            let (x, y) = standoff(u, threat.x, threat.y)
+            u.command(.amove(x, y))
         }
     }
 

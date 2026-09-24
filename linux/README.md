@@ -71,6 +71,18 @@ arrive; the server enforces fog of war, so this vision is the only way to watch 
 
 ## The computer opponent
 
+It plays an opening. Before the first minute is out it has settled on a **rush** (Barracks at once, a
+small early wave, fewer Engineers), an **economy** (more Engineers, an early expansion, a later and larger
+first wave) or a **turtle** (turrets and a shield generator early, the largest and latest first wave). Easy
+never rushes, Hard tries all three, and nobody rushes across a giant map; which one it picks comes from the
+game's seed, so a replay sees the same opening. A single trooper goes scouting at about 45 seconds: to your
+Command Center's ground, past the two fields nearest the way there, and home, so its tally of your army
+has something to count. It expands on the clock, or earlier when the field by its Command Center is under
+45% of what it started with or its Engineers outnumber what the field can feed, and every expansion it
+takes gets a turret of its own and a standing garrison (two, three or four troops by difficulty) that
+answers raids on that post instead of leaving with the next wave. The balance runner reports wins by
+opening, so its openings are tuned on evidence.
+
 When every crossing to you is down, it knows its route is cut: an Engineer goes to rebuild the bridge on
 the way, an escort holds the near bank, and the attack wave waits for the span instead of bouncing off the
 water.
@@ -364,7 +376,7 @@ per game, and the world always steps by exactly 1/30 s (game speed changes how m
 `./cx.sh batch --games 5 --maps twin_ridges,river_crossing --difficulty 1 --out runs.csv` (or
 `python -m fieldcommand.batch`) plays computer-only games headless and writes a row per player per game —
 who won, how long it took, what was trained, built, lost and mined — then prints win rates by start slot,
-average length and the unit mix per map. Balance changes are judged on those numbers.
+average length and the unit mix, and from 1.20 the wins by opening (rush, economy, turtle) per map. Balance changes are judged on those numbers.
 
 ## Saving and loading
 
