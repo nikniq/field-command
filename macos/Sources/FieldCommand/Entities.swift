@@ -352,8 +352,14 @@ final class Unit: Entity {
                    barWidth: max(22, r * 2.2), barY: r + 10)
         position = p
         lastPos = p
-        zPosition = 3
-        addShadow(size: CGSize(width: r * 2.8, height: r * 2.4), offset: CGPoint(x: 3, y: -4))
+        zPosition = kind.stats.flies ? 5 : 3
+        if kind.stats.flies {
+            // Drawn up in the air, the shadow left on the ground.
+            addShadow(size: CGSize(width: r * 2.2, height: r * 1.9), offset: CGPoint(x: 14, y: -16))
+            body.position = CGPoint(x: 0, y: 22)
+        } else {
+            addShadow(size: CGSize(width: r * 2.8, height: r * 2.4), offset: CGPoint(x: 3, y: -4))
+        }
         bodySprite.size = Art.unitSize(kind)
         body.addChild(bodySprite)
         addChild(body)
@@ -379,7 +385,7 @@ final class Unit: Entity {
             c.isHidden = true
             body.addChild(c)
             cargoNode = c
-        case .marine, .sniper, .medic:
+        case .marine, .sniper, .medic, .gunship:
             break
         }
         body.zRotation = CGFloat.random(in: 0...(2 * .pi))
@@ -676,7 +682,7 @@ final class Unit: Entity {
                 game.impact(at: t.position)
                 playSound("snipe")
             }
-        case .marine:
+        case .marine, .gunship:
             let side = CGPoint(x: dir.y, y: -dir.x) * 4.5
             let muzzle = position + dir * 20 + side
             t.takeDamage(stats.damage, from: self)

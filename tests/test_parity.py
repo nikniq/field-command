@@ -54,6 +54,8 @@ def test_unit_stats_agree():
         for pf, sf in UNIT_FIELDS:
             assert float(getattr(p, pf)) == float(sw[p.name][sf]), f"unit {k}.{pf}"
         assert p.hotkey == sw[p.name]["hotkey"].strip('"')
+        assert p.flies == (sw[p.name].get("flies", "false") == "true"), f"unit {k}.flies"
+        assert p.hits_air == (sw[p.name].get("hitsAir", "true") == "true"), f"unit {k}.hits_air"
 
 
 def test_building_stats_agree():

@@ -25,7 +25,7 @@ final class HUD: SKNode {
     private var lastCounter = ""
     private let tutorialLayer = SKNode()
     var rebinding: String?
-    static let armyKinds: [UnitKind] = [.marine, .sniper, .tank, .medic]
+    static let armyKinds: [UnitKind] = [.marine, .sniper, .tank, .medic, .gunship]
     static let tutorialTargets: [Int: String] = [0: "hq", 1: "worker", 2: "worker", 3: "barracks", 4: "worker", 5: "factory", 6: "barracks", 7: "worker"]
 
     /// (kind, count) for every combat kind present, in catalogue order — the top bar's unit counter.
@@ -55,6 +55,8 @@ final class HUD: SKNode {
     private let cardLayer = SKNode()
     private(set) var currentButtons: [CommandButton] = []
     private var buttonRects: [CGRect] = []
+    var buttonRectsForTests: [CGRect] { buttonRects }
+    var currentButtonsForTests: [CommandButton] { currentButtons }
     private var buttonBGs: [SKSpriteNode] = []
     private var cardSignature = ""
     /// Blank command-card icons caught and redrawn (see rebuildCard).
@@ -422,13 +424,22 @@ final class HUD: SKNode {
         return "\(m.title): \(verb) — \(left / 60):\(String(format: "%02d", left % 60)) to go"
     }
 
+    private var objectivesSignature = ""
+
     private func rebuildObjectives() {
-        objectivesLayer.removeAllChildren()
         if let net = game.net {
+            let sig = overlayVisible ? "hidden" : "board|" + net.players.values.sorted { $0.slot < $1.slot }
+                .map { "\($0.slot):\($0.name):\($0.team):\($0.alive)" }.joined(separator: ",")
+            guard sig != objectivesSignature else { return }
+            objectivesSignature = sig
+            objectivesLayer.removeAllChildren()
             if !overlayVisible { drawScoreboard(net) }
             return
         }
-        guard Settings.objectives, !overlayVisible else { return }
+        guard Settings.objectives, !overlayVisible else {
+            if objectivesSignature != "hidden" { objectivesSignature = "hidden"; objectivesLayer.removeAllChildren() }
+            return
+        }
         var rows: [(String, Bool)] = []
         if let mr = missionRow() { rows.append((mr, false)) }
         for (i, o) in objectives.enumerated() {
@@ -444,6 +455,10 @@ final class HUD: SKNode {
             rows.append((o.text, done))
             if rows.count >= 3 { break }
         }
+        let sig = rows.map { "\($0.0):\($0.1)" }.joined(separator: "|")
+        guard sig != objectivesSignature else { return }
+        objectivesSignature = sig
+        objectivesLayer.removeAllChildren()
         guard !rows.isEmpty else { return }
         let w: CGFloat = 360, rowH: CGFloat = 22
         let h = 30 + CGFloat(rows.count) * rowH
@@ -645,7 +660,28 @@ final class HUD: SKNode {
 
     private func hpColor(_ f: CGFloat) -> NSColor { f > 0.6 ? Palette.good : (f > 0.3 ? Palette.amber : Palette.bad) }
 
+    private var infoSignature = ""
+
+    /// Everything the info panel prints, as one string: rebuilt only when it changes, so SpriteKit is not
+    /// asked for fresh labels five times a second while nothing moves (its text cache drops glyphs under churn).
+    private func infoSignatureNow() -> String {
+        var s = "\(Int(infoRect.minX)),\(Int(infoRect.maxY))|"
+        for e in game.selection {
+            s += "\(e.netId):\(Int(ceil(e.hp)))/\(Int(e.maxHp)):\(e.team.rawValue)"
+            if let u = e as? Unit { s += ":\(u.statusText):\(u.carrying):\(u.queuedCount)" }
+            if let b = e as? Building {
+                s += ":\(b.built):\(Int(b.progress * 100)):\(b.queue.map { NetProtocol.name($0) }.joined(separator: ",")):\(Int(b.queueProgress * 100))"
+                s += ":\(b.upgrades.map { $0.rawValue }.sorted()):\(b.upgrading.map { $0.rawValue } ?? -1):\(Int(b.upgradeProgress * 100))"
+            }
+            s += "|"
+        }
+        return s
+    }
+
     private func rebuildInfo() {
+        let sig = infoSignatureNow()
+        guard sig != infoSignature else { return }
+        infoSignature = sig
         infoLayer.removeAllChildren()
         queueRects = []
         upgradeRect = nil
@@ -796,8 +832,8 @@ final class HUD: SKNode {
             // Locked, not missing: a greyscale icon keeps saying what the button builds. (At the old 35% alpha
             // the art vanished into the dark disabled button.)
             var iconTex = b.enabled ? Art.icon(b.icon) : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)")
-            if iconTex.size().width < 1 || iconTex.size().height < 1 {
-                // A blank icon: throw the cached art away and draw it fresh — and count it for the F12 note.
+            if iconTex.size().width < 1 || iconTex.size().height < 1 || Art.isBlank(iconTex) {
+                // A blank icon (no size, or no pixels): throw the cached art away and draw it fresh — and count it for the F12 note.
                 Art.forgetIcon(b.icon)
                 iconTex = b.enabled ? Art.icon(b.icon) : Art.greyscale(Art.icon(b.icon), key: "\(b.icon)-\(Team.local.rawValue)")
                 iconRepairs += 1
@@ -988,37 +1024,53 @@ final class HUD: SKNode {
         return n
     }
 
+    private var tutorialSignature = ""
+    private let tutorialWorldArrow = SKNode()      // the arrow and hint over the target: moved each frame, rebuilt on change
+    private let tutorialCardArrow = SKNode()       // the arrow over the card button
+
     private func updateTutorial() {
-        tutorialLayer.removeAllChildren()
-        guard !overlayVisible, let step = tutorialStep() else { return }
+        guard !overlayVisible, let step = tutorialStep(), let target = tutorialTarget(step) else {
+            if tutorialSignature != "" { tutorialSignature = ""; tutorialLayer.removeAllChildren() }
+            return
+        }
         let text = objectives[step].text
         let bob = CGFloat(sin(Double(game.elapsed) * 6)) * 5
-        guard let target = tutorialTarget(step) else { return }
         let p = game.convert(target.position, to: self)
         let selected = game.selection.contains { $0 === target }
-        if p.y < size.height / 2 - Self.topHeight && p.y > -size.height / 2 + Self.panelHeight && abs(p.x) < size.width / 2 {
-            let lift: CGFloat = (target as? Building).map { $0.half + 30 } ?? 36
-            let top = p.y + lift + bob
-            tutorialLayer.addChild(arrow(at: p.x, top: top + 22))
-            let hint = selected ? (text.components(separatedBy: " — ").last ?? text) : "Click to select"
-            let l = makeLabel(hint, size: 12, color: Palette.text, font: Fonts.bold, align: .center, valign: .center)
-            let bg = SKSpriteNode(texture: Art.panel(CGSize(width: l.frame.width + 16, height: 22), radius: 6, accent: Palette.amber))
-            bg.size = CGSize(width: l.frame.width + 16, height: 22)
-            bg.position = CGPoint(x: p.x, y: top + 36)
-            l.position = bg.position
-            tutorialLayer.addChild(bg)
-            tutorialLayer.addChild(l)
-        }
-        // With the target selected, a second arrow points at the card button the objective names.
-        guard selected else { return }
+        let onScreen = p.y < size.height / 2 - Self.topHeight && p.y > -size.height / 2 + Self.panelHeight && abs(p.x) < size.width / 2
         var key = ""
         if let r = text.range(of: "press ") { key = String(text[r.upperBound...].prefix(1)) }
         else if let r = text.range(of: "(") { key = String(text[r.upperBound...].prefix(1)) }
-        guard !key.isEmpty else { return }
-        for (r, b) in zip(buttonRects, currentButtons) where b.hotkey.uppercased() == key.uppercased() {
-            tutorialLayer.addChild(arrow(at: r.midX, top: r.maxY + 26 + bob, half: 11))
-            break
+        let cardRect = selected && !key.isEmpty ? zip(buttonRects, currentButtons).first { $0.1.hotkey.uppercased() == key.uppercased() }?.0 : nil
+        let hint = selected ? (text.components(separatedBy: " — ").last ?? text) : "Click to select"
+        let sig = "\(step):\(target.netId):\(selected):\(onScreen):\(hint):\(cardRect.map { "\(Int($0.midX))" } ?? "-")"
+        if sig != tutorialSignature {
+            tutorialSignature = sig
+            tutorialLayer.removeAllChildren()
+            tutorialWorldArrow.removeAllChildren()
+            tutorialCardArrow.removeAllChildren()
+            if onScreen {
+                tutorialWorldArrow.addChild(arrow(at: 0, top: 22))
+                let l = makeLabel(hint, size: 12, color: Palette.text, font: Fonts.bold, align: .center, valign: .center)
+                let bg = SKSpriteNode(texture: Art.panel(CGSize(width: l.frame.width + 16, height: 22), radius: 6, accent: Palette.amber))
+                bg.size = CGSize(width: l.frame.width + 16, height: 22)
+                bg.position = CGPoint(x: 0, y: 36)
+                l.position = bg.position
+                tutorialWorldArrow.addChild(bg)
+                tutorialWorldArrow.addChild(l)
+                tutorialLayer.addChild(tutorialWorldArrow)
+            }
+            if let r = cardRect {
+                tutorialCardArrow.addChild(arrow(at: 0, top: 20, half: 11))
+                tutorialCardArrow.position = CGPoint(x: r.midX, y: r.maxY + 26)
+                tutorialLayer.addChild(tutorialCardArrow)
+            }
         }
+        if onScreen {
+            let lift: CGFloat = (target as? Building).map { $0.half + 30 } ?? 36
+            tutorialWorldArrow.position = CGPoint(x: p.x, y: p.y + lift + bob)
+        }
+        if let r = cardRect { tutorialCardArrow.position = CGPoint(x: r.midX, y: r.maxY + 26 + bob) }
     }
 
     private func settingsRows() -> [[(String, () -> Void)]] {

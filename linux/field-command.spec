@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.25.0
+Version:        1.26.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,18 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.26.0-1
+- The Gunship: an aircraft from the Factory (needs a Radar Station, Q) that flies straight over cliffs,
+  water, walls and other units with a fast chain gun; Siege Tanks and Artillery cannot fire at it,
+  Rangers, Snipers, turrets and the Command Center's gun can
+- Undo the last placement moves from U to Backspace, so U is free for the Assembly line and the other
+  building upgrades again
+- Mac: the HUD no longer recreates its labels and icons several times a second while nothing changes
+  (the selection panel, objectives and tutorial arrows now rebuild only on change); SpriteKit drops
+  glyphs and pictures under that churn, which is the likely cause of icons and menu text dropping out.
+  Both editions gain an icon soak test (FC_ICONSOAK, test_ux.py) that plays minutes of a real game
+  through the client and checks every card icon renders
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.25.0-1
 - Barricades: a 30-crystal block of wall (V on the Engineer card, Shift places a run) that nothing walks
   through until it is shot down; attackers stop and shoot it, and the computer still comes for a walled base

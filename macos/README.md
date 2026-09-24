@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 13, so a 1.25.0 Mac and a 1.25.0 Linux client play together; neither accepts an
+Both editions speak protocol 14, so a 1.26.0 Mac and a 1.26.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -90,7 +90,7 @@ range, and raids between waves on Normal and Hard. Same reasoning as the Linux e
 
 ## The Armory
 
-**Y** opens the store: fifteen pieces of kit, three per unit type, bought once with crystal and worn by every
+**Y** opens the store: eighteen pieces of kit, three per unit type, bought once with crystal and worn by every
 unit of that type all match. The catalogue and effects match the Linux edition (`FC_STORETEST`).
 
 ## Attackers reveal themselves
@@ -139,6 +139,12 @@ mission, the objective, the timeline; Enter deploys) and runs a script on its cl
 reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
 and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
 
+## The Gunship
+
+An aircraft from the Factory (needs a Radar Station, Q) that flies straight over cliffs, water, walls and
+units with a chain gun; tanks and artillery cannot fire at it, Rangers, Snipers, turrets and the Command
+Center's gun can. Same numbers and rules as the Linux edition (`FC_AIRTEST`).
+
 ## Barricades
 
 A 30-crystal block of wall (V on the Engineer card, Shift for a run) that blocks movement until it is shot
@@ -147,7 +153,7 @@ as the Linux edition (`FC_WALLTEST`).
 
 ## Polish
 
-The end screen's army-size timeline, U to undo the last placement, a unit counter by type right of the
+The end screen's army-size timeline, Backspace to undo the last placement, a unit counter by type right of the
 clock, rebindable keys (Keys… in the game menu) and first-run arrows — as the Linux edition has them
 (`FC_POLISHTEST`).
 

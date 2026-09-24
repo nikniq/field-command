@@ -26,7 +26,7 @@ from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_I
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 13
+PROTOCOL_VERSION = 14
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30

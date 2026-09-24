@@ -819,6 +819,7 @@ final class GameScene: SKScene {
         case 48: return "tab"
         case 49: return "space"
         case 53: return "escape"
+        case 51: return "backspace"
         case 36, 76: return "return"
         case 122: return "f1"
         case 120: return "f2"

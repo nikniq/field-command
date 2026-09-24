@@ -139,6 +139,9 @@ def build_ground(map_spec):
     return ground
 
 
+FLY_HEIGHT = 22          # how far above the ground an aircraft is drawn
+
+
 class GameScene:
     def __init__(self, app, session):
         from .music import Threat
@@ -1667,8 +1670,11 @@ class GameScene:
         cam = self.cam
         z = cam.zoom
         sx, sy = cam.to_screen(u.x, u.y)
-        sh = art.sprites.get("shadow", art.shadow(), 0, u.radius * 2.8 / 64 / z)
-        screen.blit(sh, (sx + 3 / z - sh.get_width() / 2, sy + 4 / z - sh.get_height() / 2))
+        flying = u.stats.flies
+        sh = art.sprites.get("shadow", art.shadow(), 0, u.radius * (2.2 if flying else 2.8) / 64 / z)
+        screen.blit(sh, (sx + (14 if flying else 3) / z - sh.get_width() / 2, sy + (16 if flying else 4) / z - sh.get_height() / 2))
+        if flying:
+            sy -= FLY_HEIGHT / z                          # drawn up in the air, the shadow left on the ground
         ca, sa = math.cos(u.angle), math.sin(u.angle)
         bob = -1.5 * u.recoil if u.kind == "marine" else (1.5 * u.pulse if u.kind == "worker" else 0.0)
         bx, by = sx + ca * bob / z, sy - sa * bob / z

@@ -330,6 +330,8 @@ class World:
                     neighbours.extend(n)
             for i, a in enumerate(cell):
                 for b in cell[i + 1:] + neighbours:
+                    if a.stats.flies != b.stats.flies:
+                        continue                          # aircraft pass over everything on the ground
                     dx, dy = b.x - a.x, b.y - a.y
                     min_d = a.radius + b.radius
                     if abs(dx) > min_d or abs(dy) > min_d:
@@ -352,6 +354,10 @@ class World:
         rects = [b.rect for b in self.buildings] + self.walls
         for u in units:
             r = u.radius
+            if u.stats.flies:
+                u.x = clamp(u.x, r + 4, defs.WORLD_W - r - 4)
+                u.y = clamp(u.y, r + 4, defs.WORLD_H - r - 4)
+                continue
             for rect in rects:
                 x0, y0, x1, y1 = rect
                 if u.x < x0 - r or u.x > x1 + r or u.y < y0 - r or u.y > y1 + r:
@@ -883,6 +889,8 @@ class World:
             d = e.distance_to(u)
             if d > radius or d < min_range or not u.targetable_by(e.team):
                 continue
+            if u.stats.flies and not e.hits_air:
+                continue                                  # a tank cannot lift its gun that far
             score = d + (60 if u.kind == "worker" else 0)
             if score < best_score:
                 best, best_score = u, score

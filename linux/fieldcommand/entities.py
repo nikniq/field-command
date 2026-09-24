@@ -9,7 +9,7 @@ Orders are tuples:
 import math
 import random
 
-from .defs import CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
+from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
 from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
@@ -740,9 +740,18 @@ class Unit(Entity):
             return 120
         return 0
 
+    @property
+    def hits_air(self):
+        return self.stats.hits_air
+
     def _navigate(self, tx, ty, dt):
-        """Walks straight at the goal when the way is clear, otherwise follows an A* path around obstacles."""
+        """Walks straight at the goal when the way is clear, otherwise follows an A* path around obstacles.
+        Aircraft fly straight: nothing on the ground is in their way."""
         g = self.game
+        if self.stats.flies:
+            self.path = None
+            self._move_toward(tx, ty, dt)
+            return
         nav = g.nav
         self.repath -= dt
         goal_moved = self.path_goal is None or math.hypot(tx - self.path_goal[0], ty - self.path_goal[1]) > 60
@@ -848,6 +857,14 @@ class Unit(Entity):
             if g.rng.random() < 0.5:
                 g.emit("sparks", t.x + jx, t.y + jy, 4, 60, "hit")
             g.emit("sound", "rifle", self.x, self.y)
+        elif self.kind == "gunship":
+            # The chain gun under the nose: a bright tracer and a spark on every hit.
+            mx, my = self.x + ux * 16, self.y + uy * 16
+            t.take_damage(self.stats.damage * self.vet_mult, self)
+            g.emit("tracer", mx, my, t.x + jx, t.y + jy, 1)
+            g.emit("muzzle", mx, my, ang, 10)
+            g.emit("sparks", t.x + jx, t.y + jy, 3, 50, "hit")
+            g.emit("sound", "turret", self.x, self.y)
         else:
             t.take_damage(self.stats.damage * self.vet_mult, self)
             g.emit("sparks", self.x + ux * (self.radius + 5), self.y + uy * (self.radius + 5), 3, 35, "amber")
@@ -998,6 +1015,10 @@ class Building(Entity):
     @property
     def min_range(self):
         return ARTILLERY_MIN_RANGE if self.kind == "artillery" else 0.0
+
+    @property
+    def hits_air(self):
+        return self.kind in AIR_GUNS
 
     def _update_gun(self, dt):
         """Turrets and artillery: acquire, turn, fire. Artillery lobs shells and cannot hit inside its

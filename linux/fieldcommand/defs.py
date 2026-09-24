@@ -67,7 +67,7 @@ TEAM_DARK = {i: mix(TEAM_COLOR[i], BLACK, 0.68) for i in range(MAX_PLAYERS)}
 COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
 # Order matters: the network protocol sends a kind as its index here, so new kinds are appended
 # at the end and the macOS edition's NetProtocol lists must match exactly.
-UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic"]
+UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic", "gunship"]
 BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall"]
 
 
@@ -91,6 +91,8 @@ class UnitStats:
     hotkey: str
     desc: str
     requires: str = None      # building kind that must be finished before this unit can be trained
+    flies: bool = False       # an aircraft: moves in a straight line over terrain, walls and units
+    hits_air: bool = True     # can this unit's weapon reach an aircraft?
 
 
 UNITS = {
@@ -99,13 +101,18 @@ UNITS = {
     "marine": UnitStats("Ranger", "RG", 50, 1, 60, 88, 150, 7, 0.75, 10, 12, 260, 0, "R",
                         "Versatile rifle infantry."),
     "tank": UnitStats("Siege Tank", "TK", 150, 3, 220, 62, 230, 32, 2.2, 17, 22, 280, 45, "T",
-                      "Long-range armor. Shells deal splash damage."),
+                      "Long-range armor. Shells deal splash damage. Cannot fire at aircraft.", hits_air=False),
     "sniper": UnitStats("Sniper", "SN", 125, 2, 55, 74, 330, 55, 3.2, 10, 24, 360, 0, "N",
                         "Outranges tanks and turrets, one heavy shot at a time. Helpless up close.",
                         requires="factory"),
     "medic": UnitStats("Medic", "MD", 75, 1, 50, 90, 0, 0, 0.0, 10, 14, 240, 0, "M",
                        "Heals wounded infantry nearby. Unarmed: keep it behind the line."),
+    "gunship": UnitStats("Gunship", "GS", 200, 3, 260, 150, 130, 22, 0.7, 14, 30, 300, 0, "Q",
+                         "Flies straight over cliffs, water and walls; a fast chain gun. Tanks and artillery cannot touch it.",
+                         requires="radar", flies=True),
 }
+# Buildings that can shoot aircraft; the rest (artillery) fire at the ground only.
+AIR_GUNS = ("turret", "hq")
 
 # Healing: a Medic restores HEAL_RATE hit points a second to one wounded ally on foot (Engineers, Rangers,
 # Snipers, other Medics) within HEAL_RANGE, and looks for the wounded as far as it can see. Vehicles are
@@ -141,7 +148,7 @@ BUILDINGS = {
                            "Provides +8 supply."),
     "barracks": BuildingStats("Barracks", "Barracks", "BK", 150, 900, 64, 35, 0, ("marine", "sniper", "medic"), "hq", 0, 0, 0, 240, "B",
                               "Trains Rangers and Medics, and Snipers once a Factory is up."),
-    "factory": BuildingStats("Factory", "Factory", "FC", 200, 1100, 70, 45, 0, ("tank",), "barracks", 0, 0, 0, 240, "F",
+    "factory": BuildingStats("Factory", "Factory", "FC", 200, 1100, 70, 45, 0, ("tank", "gunship"), "barracks", 0, 0, 0, 240, "F",
                              "Builds Siege Tanks."),
     "turret": BuildingStats("Gun Turret", "Turret", "GT", 100, 380, 30, 22, 0, (), "barracks", 210, 11, 0.7, 270, "T",
                             "Static defense. Fires on nearby enemies."),
@@ -273,7 +280,7 @@ KEY_ACTIONS = [
     ("satellite", "Satellite view", "tab"), ("jump", "Jump to the last alert", "space"),
     ("army", "Select the army", "f2"), ("idle", "Select an idle Engineer", "i"),
     ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
-    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "u"),
+    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "backspace"),
     ("pause", "Game menu", "p"), ("help", "Help", "h"),
 ]
 DEFAULT_KEYS = {a: k for a, _l, k in KEY_ACTIONS}
@@ -348,6 +355,9 @@ KITS = [
     Kit("trauma", "medic", "Trauma kit", 200, "Medics heal 50% faster.", (("heal", 0.5),)),
     Kit("plates", "medic", "Ceramic plates", 150, "+30% hit points for every Medic.", (("hp", 0.3),)),
     Kit("litter", "medic", "Field litter", 150, "Medics move 15% faster.", (("speed", 0.15),)),
+    Kit("bellyplate", "gunship", "Belly armour", 300, "+25% hit points for every Gunship.", (("hp", 0.25),)),
+    Kit("piercing", "gunship", "Piercing rounds", 300, "+20% Gunship damage.", (("damage", 0.2),)),
+    Kit("rotortune", "gunship", "Rotor tune", 250, "Gunships fly 15% faster.", (("speed", 0.15),)),
 ]
 KIT_BY_ID = {k.id: k for k in KITS}
 KIT_IDS = [k.id for k in KITS]

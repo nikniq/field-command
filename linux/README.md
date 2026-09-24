@@ -164,6 +164,15 @@ a second. Overlapping generators do not stack. If the generator falls, the field
 few seconds. Armour plating applies before the shield, so an armoured, shielded Command Center is a very hard
 nut. Computer players build one from about six minutes in.
 
+## The Gunship
+
+The **Gunship** (200 crystal, 3 supply, hotkey **Q** at the Factory once you have a Radar Station) is an
+aircraft: it flies in a straight line over cliffs, water, Barricades and other units, fast, with a chain
+gun (22 damage at range 130, seven shots every five seconds). It is drawn up in the air with its shadow on
+the ground. Siege Tanks and Artillery cannot fire at it; Rangers, Snipers, turrets, the Command Center's
+point-defence gun and other Gunships can. Use it to reach a walled expansion, hunt Engineers on a far
+field, or pick off tanks from where they cannot answer — and keep it away from turrets.
+
 ## Barricades
 
 The **Barricade** (30 crystal, hotkey **V** on the Engineer card, no requirements) is a block of wall: 700
@@ -408,7 +417,7 @@ average length and the unit mix, and from 1.20 the wins by opening (rush, econom
 ## Polish: the timeline, undo, the counter, keys, the first run
 
 The end screen carries a **timeline**: every side's army size over the game, one line per side in its
-colour, sampled every 15 seconds (it travels in saves and over the wire). **U** takes back the last
+colour, sampled every 15 seconds (it travels in saves and over the wire). **Backspace** takes back the last
 placement within 20 seconds — the site if it has barely started, for a full refund, or the Engineer's
 pending order — and a **unit counter** right of the clock shows how many of each combat kind you field.
 **Keys…** in the game menu opens the bindings: click an action, press a key; one key per action, *Reset

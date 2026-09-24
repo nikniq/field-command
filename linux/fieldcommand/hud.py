@@ -18,7 +18,7 @@ GAP = 7
 MM_W = 236
 
 
-ARMY_KINDS = ("marine", "sniper", "tank", "medic")
+ARMY_KINDS = ("marine", "sniper", "tank", "medic", "gunship")
 TUTORIAL_TARGETS = {0: "hq", 1: "worker", 2: "worker", 3: "barracks", 4: "worker", 5: "factory", 6: "barracks", 7: "worker"}
 
 

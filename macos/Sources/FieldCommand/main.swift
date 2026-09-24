@@ -121,6 +121,12 @@ if Debug.env["FC_POLISHTEST"] != nil {
 if Debug.env["FC_WALLTEST"] != nil {
     Debug.runWallTest()
 }
+if Debug.env["FC_AIRTEST"] != nil {
+    Debug.runAirTest()
+}
+if Debug.env["FC_ICONSOAK"] != nil {
+    Debug.runIconSoak()
+}
 if Debug.env["FC_ARTYTEST"] != nil {
     Debug.runArtilleryTest()
 }

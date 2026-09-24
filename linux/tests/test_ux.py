@@ -133,7 +133,7 @@ def test_undo_the_keys_screen_and_the_first_run_arrows(game):
     frame(app, g, 2.0)
     site = next((b for b in g.s.buildings if g.mine(b) and b.kind == "depot"), None)
     assert site is not None or worker.order[0] == "build"
-    g.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_u, mod=0, unicode="u"))
+    g.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_BACKSPACE, mod=0, unicode=""))
     frame(app, g, 0.5)
     assert not any(b.kind == "depot" and not b.built for b in g.s.buildings if g.mine(b))
     assert g.s.resources == before
@@ -150,4 +150,38 @@ def test_undo_the_keys_screen_and_the_first_run_arrows(game):
     assert g.ping_pending
     g.cancel_modes()
     settings.reset_keys()
+    g.to_menu()
+
+
+def test_command_card_icons_survive_a_long_game(game):
+    """A soak: minutes of a real game through the real client, selecting everything in turn, and every
+    command-card icon must still render as a picture (not a blank plate) each time."""
+    import random
+    app, _g = game
+    from fieldcommand.defs import DIFFICULTIES
+    from fieldcommand.game import GameScene
+    from fieldcommand.session import LocalSession
+    from fieldcommand.settings import settings
+    settings.set("tutorial_done", True)
+    g = GameScene(app, LocalSession(DIFFICULTIES[1], autoplay=True, map_id="twin_ridges", opponents=1, teams=0))
+    app.set_scene(g)
+    rnd = random.Random(5)
+    blanks, checks = [], 0
+    for frame_no in range(5400):                                    # three minutes of the simulation
+        g.update(1 / 30, None)
+        if frame_no % 45 == 0:
+            own = [e for e in list(g.s.units) + list(g.s.buildings) if g.mine(e) and not e.dead]
+            if own:
+                pick = rnd.choice(own)
+                g.set_selection([pick] if rnd.random() < 0.7 else [e for e in own if e.kind == pick.kind][:12])
+            g.draw(app.screen, None)
+            for r, b in zip(g.hud.button_rects, g.hud.current_buttons):
+                checks += 1
+                plate = app.screen.subsurface((r.centerx - 15, r.centery - 20, 30, 30))
+                colours = len({tuple(c) for row in pygame.surfarray.array3d(plate)[::3, ::3] for c in row})
+                if colours < 8:
+                    blanks.append((round(g.elapsed), b.icon, b.enabled, colours))
+    assert checks > 500
+    assert not blanks, blanks[:8]
+    assert g.hud.icon_repairs == 0, g.hud.icon_repairs
     g.to_menu()

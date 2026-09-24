@@ -497,7 +497,7 @@ enum Debug {
         Settings.bind("undo", "x")
         check(moved && Settings.key("undo") == "x" && Settings.key("ping") == "", "a key moves between actions: one key per action")
         Settings.resetKeys()
-        check(Settings.key("ping") == "z" && Settings.key("undo") == "u", "and reset brings the defaults back")
+        check(Settings.key("ping") == "z" && Settings.key("undo") == "backspace", "and reset brings the defaults back")
         print(ok ? "POLISH TEST PASSED" : "POLISH TEST FAILED")
         exit(ok ? 0 : 1)
     }
@@ -560,6 +560,122 @@ enum Debug {
         while el3 < 7 { w3.step(1.0 / 30); w3.events.removeAll(); el3 += 1.0 / 30 }
         check(cut && ai.routeOpen && ai.routeBridge == nil, "the computer still attacks a walled base: nothing to rebuild, so the wave goes")
         print(ok ? "WALL TEST PASSED" : "WALL TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
+    /// FC_AIRTEST=1: the Gunship flies straight over walls, tanks cannot shoot it, and it passes over ground
+    /// units without pushing them — matching linux/tests/test_gunship.py.
+    static func runAirTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
+            for u in w.units { u.command(.idle) }
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func run(_ w: SWorld, _ seconds: Double) { var t = 0.0; while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 } }
+        let s = UnitKind.gunship.stats
+        check(s.flies && s.hitsAir && s.requires == .radar && s.speed > UnitKind.marine.stats.speed
+              && BuildingKind.factory.stats.produces.contains(.gunship) && NetProtocol.unitKinds.last == .gunship
+              && !UnitKind.tank.stats.hitsAir && UnitKind.marine.stats.hitsAir && airGuns == [.turret, .hq], "the Gunship is in the catalogue: flies, trained at the Factory after a Radar")
+        do {
+            let (w, hq) = fresh()
+            let x = hq.x + 500
+            var y = 0.0
+            while y <= worldH { w.startBuilding(.wall, x, y, 1); w.buildings.last!.built = true; w.buildings.last!.progress = 1; y += Double(BuildingKind.wall.stats.half) * 2 }
+            w.rebuildNavForTests()
+            let ship = SUnit(world: w, kind: .gunship, team: 0, x: hq.x, y: hq.y + 300)
+            let tank = SUnit(world: w, kind: .tank, team: 0, x: hq.x, y: hq.y - 300)
+            w.add(ship); w.add(tank)
+            ship.command(.move(x + 400, hq.y + 300))
+            tank.command(.move(x + 400, hq.y - 300))
+            run(w, 12)
+            check(ship.x > x + 300 && ship.path == nil && tank.x < x, "it flies straight over a wall that stops a tank")
+        }
+        do {
+            let (w, hq) = fresh()
+            let ship = SUnit(world: w, kind: .gunship, team: 1, x: hq.x + 400, y: hq.y + 500)
+            w.add(ship); ship.command(.idle)
+            let tank = SUnit(world: w, kind: .tank, team: 0, x: hq.x + 400, y: hq.y + 380)
+            w.add(tank); tank.command(.idle)
+            w.updateVisibility()
+            let tankBlind = w.findTarget(tank, 400) == nil
+            let ranger = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 400, y: hq.y + 400)
+            w.add(ranger); ranger.command(.idle)
+            let rangerSees = w.findTarget(ranger, 400) === ship
+            w.startBuilding(.turret, hq.x + 400, hq.y + 300, 0)
+            let t = w.buildings.last!; t.built = true
+            w.startBuilding(.artillery, hq.x + 600, hq.y + 300, 0)
+            let a = w.buildings.last!; a.built = true
+            check(tankBlind && rangerSees && t.hitsAir && w.findTarget(t, 400) === ship && !a.hitsAir && w.findTarget(a, 600) == nil,
+                  "tanks and artillery cannot shoot it; Rangers and turrets can")
+        }
+        do {
+            let (w, hq) = fresh()
+            let crowd = (0..<6).map { SUnit(world: w, kind: .marine, team: 0, x: hq.x + 300 + Double($0) * 22, y: hq.y + 400) }
+            for u in crowd { w.add(u); u.command(.idle) }
+            let before = crowd.map { ($0.x, $0.y) }
+            let ship = SUnit(world: w, kind: .gunship, team: 0, x: hq.x + 100, y: hq.y + 400)
+            w.add(ship)
+            ship.command(.move(hq.x + 700, hq.y + 400))
+            run(w, 6)
+            let still = zip(crowd, before).allSatisfy { hypot($0.x - $1.0, $0.y - $1.1) < 1 }
+            check(ship.x > hq.x + 600 && still, "it passes over ground units without pushing them")
+        }
+        print(ok ? "AIR TEST PASSED" : "AIR TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
+    /// FC_ICONSOAK=1: minutes of a real game through the real client, selecting everything in turn; every
+    /// command-card icon must still render as a picture in the view each time (linux/tests/test_ux.py has the same).
+    static func runIconSoak() -> Never {
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 1400, height: 880))
+        let scene = GameScene(size: view.bounds.size, difficulty: .normal)
+        view.presentScene(scene)
+        if !scene.didSetup { scene.didMove(to: view) }
+        var rng = SeededRNG(5)
+        var t: TimeInterval = 1
+        var blanks: [String] = [], checks = 0
+        var next = 0.0
+        while scene.elapsed < 180 {
+            t += 1.0 / 60
+            scene.update(t)
+            guard scene.elapsed >= next else { continue }
+            next = Double(scene.elapsed) + 1.5
+            let own: [Entity] = (scene.units as [Entity] + scene.buildings as [Entity]).filter { $0.team.isLocal && !$0.dead }
+            if let pick = own.randomElement(using: &rng) {
+                scene.setSelection(Double.random(in: 0..<1, using: &rng) < 0.7 ? [pick] : Array(own.filter { type(of: $0) == type(of: pick) }.prefix(12)))
+            }
+            scene.hud.update(0.3, mouse: nil)
+            guard let tex = view.texture(from: scene) else { continue }
+            let img = tex.cgImage()
+            guard let data = img.dataProvider?.data, let p = CFDataGetBytePtr(data) else { continue }
+            let bpp = img.bitsPerPixel / 8, row = img.bytesPerRow
+            let sx = CGFloat(img.width) / view.bounds.width, sy = CGFloat(img.height) / view.bounds.height
+            for (r, b) in zip(scene.hud.buttonRectsForTests, scene.hud.currentButtonsForTests) {
+                checks += 1
+                let cx = Int((r.midX + view.bounds.width / 2) * sx), cy = Int((view.bounds.height / 2 - (r.midY + 5)) * sy)
+                var colours = Set<UInt32>()
+                var yy = cy - 15
+                while yy < cy + 15 {
+                    var xx = cx - 15
+                    while xx < cx + 15 {
+                        if xx >= 0 && yy >= 0 && xx < img.width && yy < img.height {
+                            let o = yy * row + xx * bpp
+                            colours.insert(UInt32(p[o]) << 16 | UInt32(p[o + 1]) << 8 | UInt32(p[o + 2]))
+                        }
+                        xx += 3
+                    }
+                    yy += 3
+                }
+                if colours.count < 8 { blanks.append("t=\(Int(scene.elapsed)) \(b.icon) enabled=\(b.enabled) colours=\(colours.count)") }
+            }
+        }
+        print("  icon soak: \(checks) icon checks over \(Int(scene.elapsed))s, \(blanks.count) blank, \(scene.hud.iconRepairs) repairs")
+        for line in blanks.prefix(10) { print("  BLANK " + line) }
+        let ok = checks > 300 && blanks.isEmpty
+        print(ok ? "ICON SOAK PASSED" : "ICON SOAK FAILED")
         exit(ok ? 0 : 1)
     }
 
@@ -1326,7 +1442,7 @@ enum Debug {
             w.resources[0] = bank
             return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
         }
-        check(kits.count == 15 && Set(kitIds).count == 15, "fifteen distinct kits")
+        check(kits.count == 18 && Set(kitIds).count == 18, "eighteen distinct kits")
 
         var (w, hq) = fresh()
         let vet = SUnit(world: w, kind: .marine, team: 0, x: hq.x + 100, y: hq.y)

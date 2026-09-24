@@ -560,6 +560,8 @@ final class SWatchtower {
 }
 
 class SEntity {
+    /// Can this thing shoot an aircraft? Units answer from their stats, buildings from airGuns.
+    var hitsAir: Bool { true }
     unowned let world: SWorld
     let id: Int
     let team: Int
@@ -1064,8 +1066,15 @@ final class SUnit: SEntity {
     }
 
     /// Walks straight at the goal when the way is clear, otherwise follows an A* path around obstacles.
+    override var hitsAir: Bool { stats.hitsAir }
+
     private func navigate(_ tx: Double, _ ty: Double, _ dt: Double) {
         let g = world, nav = g.nav
+        if stats.flies {                       // aircraft fly straight: nothing on the ground is in their way
+            path = nil
+            moveToward(tx, ty, dt)
+            return
+        }
         repath -= dt
         let goalMoved = pathGoal.map { hyp(tx - $0.0, ty - $0.1) > 60 } ?? true
         let need = goalMoved || pathVersion != nav.version || (stuck > 0.7 && path != nil)
@@ -1170,6 +1179,14 @@ final class SUnit: SEntity {
         case .worker:
             t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["sparks", x + ux * (radius + 5), y + uy * (radius + 5), 3, 35, "amber"])
+        case .gunship:
+            // The chain gun under the nose: a bright tracer and a spark on every hit.
+            let mx = x + ux * 16, my = y + uy * 16
+            t.takeDamage(Double(stats.damage) * vetMult, from: self)
+            g.emit(["tracer", mx, my, t.x + jx, t.y + jy, 1])
+            g.emit(["muzzle", mx, my, ang, 10])
+            g.emit(["sparks", t.x + jx, t.y + jy, 3, 50, "hit"])
+            g.emit(["sound", "turret", x, y])
         case .medic:
             break                       // unarmed
         }
@@ -1233,6 +1250,8 @@ final class SBuilding: SEntity {
 
     var supply: Int { stats.supply + (upgrades.contains(.supply) ? depotUpgradedSupply : 0) }
     var trainSpeed: Double { upgrades.contains(.prod) ? 2 : 1 }
+    override var hitsAir: Bool { airGuns.contains(kind) }
+
     var turretRange: Double {
         (kind == .hq ? hqGunRange : (upgrades.contains(.guns) ? turretUpgradedRange : Double(stats.range))) + (world.onHigh(x, y) ? highRange : 0)
     }
@@ -1735,6 +1754,7 @@ final class SWorld {
             for (ox, oy) in [(0, 1), (1, -1), (1, 0), (1, 1)] { neighbours += grid[(gx + ox) * 1000 + (gy + oy)] ?? [] }
             for (i, a) in cell.enumerated() {
                 for b in cell[(i + 1)...] + neighbours {
+                    if a.stats.flies != b.stats.flies { continue }      // aircraft pass over everything on the ground
                     let dx = b.x - a.x, dy = b.y - a.y
                     let minD = a.radius + b.radius
                     if abs(dx) > minD || abs(dy) > minD { continue }
@@ -1755,6 +1775,11 @@ final class SWorld {
         let rects = buildings.map { $0.rect } + walls
         for u in units {
             let r = u.radius
+            if u.stats.flies {
+                u.x = clampD(u.x, r + 4, worldW - r - 4)
+                u.y = clampD(u.y, r + 4, worldH - r - 4)
+                continue
+            }
             for br in rects {
                 if u.x < br.x0 - r || u.x > br.x1 + r || u.y < br.y0 - r || u.y > br.y1 + r { continue }
                 let cx = clampD(u.x, br.x0, br.x1), cy = clampD(u.y, br.y0, br.y1)
@@ -2238,6 +2263,7 @@ final class SWorld {
         for u in units where !u.dead && !allied(u.team, e.team) && abs(u.x - e.x) <= lim && abs(u.y - e.y) <= lim {
             let d = e.distanceTo(u)
             if d > radius || d < minRange || !u.targetable(by: e.team) { continue }
+            if u.stats.flies && !e.hitsAir { continue }         // a tank cannot lift its gun that far
             let score = d + (u.kind == .worker ? 60 : 0)
             if score < bestScore {
                 best = u

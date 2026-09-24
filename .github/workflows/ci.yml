@@ -159,6 +159,11 @@ jobs:
         run: |
           set -o pipefail
           FC_WALLTEST=1 "$BIN" | tee /dev/stderr | grep -q "WALL TEST PASSED"
+      - name: Headless Air
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_AIRTEST=1 "$BIN" | tee /dev/stderr | grep -q "AIR TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

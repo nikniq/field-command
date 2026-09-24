@@ -59,4 +59,4 @@ def test_keys_have_defaults_and_can_be_rebound_one_key_per_action():
     settings.bind("undo", "x")                                          # X moves to undo; ping is left unbound
     assert settings.key("undo") == "x" and settings.key("ping") == ""
     settings.reset_keys()
-    assert settings.key("ping") == "z" and settings.key("undo") == "u"
+    assert settings.key("ping") == "z" and settings.key("undo") == "backspace"

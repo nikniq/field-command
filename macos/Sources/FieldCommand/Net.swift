@@ -7,12 +7,12 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 13     // … 11 supply crates; 12 unbuild, history; 13 Barricades
+    static let version = 14     // … 12 unbuild, history; 13 Barricades; 14 Gunships
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
     /// `defs.UNIT_KINDS` / `defs.BUILDING_KINDS` in the Python edition must match exactly.
-    static let unitKinds: [UnitKind] = [.worker, .marine, .tank, .sniper, .medic]
+    static let unitKinds: [UnitKind] = [.worker, .marine, .tank, .sniper, .medic, .gunship]
     static let buildingKinds: [BuildingKind] = [.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall]
 
     static func name(_ k: BuildingKind) -> String {
@@ -36,6 +36,7 @@ enum NetProtocol {
         case .tank: return "tank"
         case .sniper: return "sniper"
         case .medic: return "medic"
+        case .gunship: return "gunship"
         }
     }
 

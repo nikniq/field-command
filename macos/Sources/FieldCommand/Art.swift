@@ -191,6 +191,7 @@ enum Art {
         case .tank: return CGSize(width: 54, height: 42)
         case .sniper: return CGSize(width: 44, height: 36)
         case .medic: return CGSize(width: 38, height: 36)
+        case .gunship: return CGSize(width: 56, height: 56)
         }
     }
 
@@ -202,6 +203,7 @@ enum Art {
             case .tank: drawTankHull(ctx, team)
             case .sniper: drawSniper(ctx, team)
             case .medic: drawMedic(ctx, team)
+            case .gunship: drawGunship(ctx, team)
             }
         }
     }
@@ -251,6 +253,31 @@ enum Art {
     }
 
     /// A Ranger's build without the rifle: a white aid pack with a red cross on the back, a bag in hand.
+    /// A Gunship seen from above: a slim fuselage with stub wings, a tail boom and a spinning rotor disc.
+    private static func drawGunship(_ ctx: CGContext, _ team: Team) {
+        let c = team.color
+        let wing = rr(box(-6, -17, 10, 34), 2)
+        lit(ctx, wing, c.mix(.black, 0.35))
+        stroke(ctx, wing, NSColor(white: 0, alpha: 0.5), 0.8)
+        for y: CGFloat in [-15.5, 15.5] { fill(ctx, rr(box(-3, y - 1.2, 8, 2.4), 0.8), steel) }      // the gun pods
+        let boom = rr(box(-24, -2.2, 16, 4.4), 1.5)
+        lit(ctx, boom, c.mix(.black, 0.25))
+        stroke(ctx, boom, NSColor(white: 0, alpha: 0.5), 0.7)
+        fill(ctx, rr(box(-26, -6, 3, 12), 1), .rgb(0.30, 0.31, 0.33))                                // tail rotor
+        let body = ellipse(box(-12, -7, 30, 14))
+        lit(ctx, body, c)
+        rim(ctx, body)
+        stroke(ctx, body, c.mix(.black, 0.55), 1)
+        let canopy = ellipse(box(6, -4.5, 11, 9))
+        lit(ctx, canopy, .rgb(0.25, 0.45, 0.6))
+        fill(ctx, ellipse(box(8, -3.5, 5, 3)), NSColor(white: 1, alpha: 0.4))
+        fill(ctx, rr(box(15, -1.3, 8, 2.6), 0.9), steel)                                            // the chain gun under the nose
+        fill(ctx, circle(CGPoint(x: -2, y: 0), 26), NSColor(white: 0.85, alpha: 0.16))               // the rotor disc, a blur
+        lines(ctx, [(CGPoint(x: -2, y: -26), CGPoint(x: -2, y: 26)), (CGPoint(x: -28, y: 0), CGPoint(x: 24, y: 0))],
+              NSColor(white: 0.2, alpha: 0.35), 1.4)
+        fill(ctx, circle(CGPoint(x: -2, y: 0), 2.6), .rgb(0.2, 0.2, 0.22))
+    }
+
     private static func drawMedic(_ ctx: CGContext, _ team: Team) {
         let c = team.color
         let white = NSColor.rgb(0.93, 0.93, 0.9), red = NSColor.rgb(0.85, 0.15, 0.15)
@@ -1123,6 +1150,26 @@ enum Art {
         case .stop: stem = "icon-stop"
         }
         for k in cache.keys where k.hasPrefix(stem) || k.hasPrefix("grey-\(icon)") { cache[k] = nil }
+    }
+
+    /// True when a texture's pixels are all transparent — the picture is gone, whatever its size says.
+    static func isBlank(_ tex: SKTexture) -> Bool {
+        let img = tex.cgImage()
+        guard img.width > 0, img.height > 0, let data = img.dataProvider?.data, let p = CFDataGetBytePtr(data) else { return true }
+        let bpp = img.bitsPerPixel / 8, row = img.bytesPerRow
+        let alphaFirst = img.alphaInfo == .premultipliedFirst || img.alphaInfo == .first
+        let ai = alphaFirst ? 0 : bpp - 1
+        if img.alphaInfo == .none || img.alphaInfo == .noneSkipLast || img.alphaInfo == .noneSkipFirst { return false }
+        var y = 0
+        while y < img.height {
+            var x = 0
+            while x < img.width {
+                if p[y * row + x * bpp + ai] > 8 { return false }
+                x += 3
+            }
+            y += 3
+        }
+        return true
     }
 
     static func greyscale(_ tex: SKTexture, key: String) -> SKTexture {

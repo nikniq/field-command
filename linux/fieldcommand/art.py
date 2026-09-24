@@ -20,7 +20,8 @@ CONCRETE = rgb(0.47, 0.48, 0.46)
 STEEL = rgb(0.36, 0.38, 0.41)
 GUNMETAL = rgb(0.22, 0.23, 0.25)
 
-UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42), "sniper": (44, 36), "medic": (38, 36)}
+UNIT_SIZE = {"worker": (34, 34), "marine": (38, 36), "tank": (54, 42), "sniper": (44, 36), "medic": (38, 36),
+             "gunship": (56, 56)}
 TURRET_SIZE = (68, 30)
 CHIMNEYS = [(0.58, 0.55), (0.28, 0.62)]
 
@@ -239,7 +240,8 @@ def square_ring():
 
 def unit(kind, team):
     def d(c):
-        {"worker": _worker, "marine": _marine, "tank": _tank_hull, "sniper": _sniper, "medic": _medic}[kind](c, team)
+        {"worker": _worker, "marine": _marine, "tank": _tank_hull, "sniper": _sniper, "medic": _medic,
+         "gunship": _gunship}[kind](c, team)
     return texture(("unit", kind, team), UNIT_SIZE[kind], d)
 
 
@@ -308,6 +310,31 @@ def _medic(c, team):
     fill(c, rr(-1.1, -3.2, 2.2, 6.4, 0.3), rgb(0.85, 0.15, 0.15))      # cross on the helmet
     fill(c, rr(-3.2, -1.1, 6.4, 2.2, 0.3), rgb(0.85, 0.15, 0.15))
     fill(c, ellipse(-3, 0.8, 3.2, 2), alpha(WHITE, 0.35))
+
+
+def _gunship(c, team):
+    """A Gunship seen from above: a slim fuselage with stub wings, a tail boom and a spinning rotor disc."""
+    col = TEAM_COLOR[team]
+    wing = rr(-6, -17, 10, 34, 2)
+    lit(c, wing, mix(col, BLACK, 0.35))
+    stroke(c, wing, rgb(0, 0, 0, 0.5), 0.8)
+    for y in (-15.5, 15.5):
+        fill(c, rr(-3, y - 1.2, 8, 2.4, 0.8), STEEL)          # the gun pods
+    boom = rr(-24, -2.2, 16, 4.4, 1.5)
+    lit(c, boom, mix(col, BLACK, 0.25))
+    stroke(c, boom, rgb(0, 0, 0, 0.5), 0.7)
+    fill(c, rr(-26, -6, 3, 12, 1), rgb(0.30, 0.31, 0.33))     # tail rotor
+    body = ellipse(-12, -7, 30, 14)
+    lit(c, body, col)
+    rim(c, body)
+    stroke(c, body, mix(col, BLACK, 0.55), 1)
+    canopy = ellipse(6, -4.5, 11, 9)
+    lit(c, canopy, rgb(0.25, 0.45, 0.6))
+    fill(c, ellipse(8, -3.5, 5, 3), alpha(WHITE, 0.4))
+    fill(c, rr(15, -1.3, 8, 2.6, 0.9), STEEL)                # the chain gun under the nose
+    fill(c, circle(-2, 0, 26), rgb(0.85, 0.85, 0.85, 0.16))  # the rotor disc, a blur
+    lines(c, [((-2, -26), (-2, 26)), ((-28, 0), (24, 0))], rgb(0.2, 0.2, 0.2, 0.35), 1.4)
+    fill(c, circle(-2, 0, 2.6), rgb(0.2, 0.2, 0.22))
 
 
 def _sniper(c, team):

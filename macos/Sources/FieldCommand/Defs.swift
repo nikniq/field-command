@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.25.0"
+let appVersion = "1.26.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -195,12 +195,16 @@ struct UnitStats {
     let splash: CGFloat
     let hotkey: String
     let desc: String
+    /// An aircraft: moves in a straight line over terrain, walls and units.
+    var flies = false
+    /// Can this unit's weapon reach an aircraft?
+    var hitsAir = true
     /// Building that must be finished before this unit can be trained.
     var requires: BuildingKind? = nil
 }
 
 enum UnitKind: CaseIterable {
-    case worker, marine, tank, sniper, medic
+    case worker, marine, tank, sniper, medic, gunship
 
     var stats: UnitStats {
         switch self {
@@ -215,7 +219,7 @@ enum UnitKind: CaseIterable {
         case .tank:
             return UnitStats(name: "Siege Tank", glyph: "TK", cost: 150, supply: 3, hp: 220, speed: 62, range: 230,
                              damage: 32, cooldown: 2.2, radius: 17, buildTime: 22, sight: 280, splash: 45, hotkey: "T",
-                             desc: "Long-range armor. Shells deal splash damage.")
+                             desc: "Long-range armor. Shells deal splash damage. Cannot fire at aircraft.", hitsAir: false)
         case .sniper:
             return UnitStats(name: "Sniper", glyph: "SN", cost: 125, supply: 2, hp: 55, speed: 74, range: 330,
                              damage: 55, cooldown: 3.2, radius: 10, buildTime: 24, sight: 360, splash: 0, hotkey: "N",
@@ -225,6 +229,11 @@ enum UnitKind: CaseIterable {
             return UnitStats(name: "Medic", glyph: "MD", cost: 75, supply: 1, hp: 50, speed: 90, range: 0,
                              damage: 0, cooldown: 0.0, radius: 10, buildTime: 14, sight: 240, splash: 0, hotkey: "M",
                              desc: "Heals wounded infantry nearby. Unarmed: keep it behind the line.")
+        case .gunship:
+            return UnitStats(name: "Gunship", glyph: "GS", cost: 200, supply: 3, hp: 260, speed: 150, range: 130,
+                              damage: 22, cooldown: 0.7, radius: 14, buildTime: 30, sight: 300, splash: 0, hotkey: "Q",
+                              desc: "Flies straight over cliffs, water and walls; a fast chain gun. Tanks and artillery cannot touch it.",
+                             flies: true, requires: .radar)
         }
     }
 }
@@ -271,7 +280,7 @@ enum BuildingKind: CaseIterable {
                                  desc: "Trains Rangers and Medics, and Snipers once a Factory is up.")
         case .factory:
             return BuildingStats(name: "Factory", short: "Factory", glyph: "FC", cost: 200, hp: 1100, half: 70,
-                                 buildTime: 45, supply: 0, produces: [.tank], requires: .barracks, range: 0,
+                                 buildTime: 45, supply: 0, produces: [.tank, .gunship], requires: .barracks, range: 0,
                                  damage: 0, cooldown: 0, sight: 240, hotkey: "F", desc: "Builds Siege Tanks.")
         case .turret:
             return BuildingStats(name: "Gun Turret", short: "Turret", glyph: "GT", cost: 100, hp: 380, half: 30,
@@ -401,6 +410,9 @@ let startCrystal = 2000
 
 // High ground: a map's ridges ([x0, y0, x1, y1] plateaus) are walkable and buildable, and anything standing
 // on one sees highSight times as far and shoots highRange further.
+/// Buildings that can shoot aircraft; the rest (artillery) fire at the ground only.
+let airGuns: [BuildingKind] = [.turret, .hq]
+
 let highSight: Double = 1.3
 let highRange: Double = 40
 
@@ -416,7 +428,7 @@ let keyActions: [(action: String, label: String, key: String)] = [
     ("satellite", "Satellite view", "tab"), ("jump", "Jump to the last alert", "space"),
     ("army", "Select the army", "f2"), ("idle", "Select an idle Engineer", "i"),
     ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
-    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "u"),
+    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "backspace"),
     ("pause", "Game menu", "p"), ("help", "Help", "h"),
 ]
 
@@ -552,6 +564,9 @@ let kits: [Kit] = [
     Kit(id: "trauma", unit: .medic, name: "Trauma kit", cost: 200, desc: "Medics heal 50% faster.", effect: [("heal", 0.5)]),
     Kit(id: "plates", unit: .medic, name: "Ceramic plates", cost: 150, desc: "+30% hit points for every Medic.", effect: [("hp", 0.3)]),
     Kit(id: "litter", unit: .medic, name: "Field litter", cost: 150, desc: "Medics move 15% faster.", effect: [("speed", 0.15)]),
+    Kit(id: "bellyplate", unit: .gunship, name: "Belly armour", cost: 300, desc: "+25% hit points for every Gunship.", effect: [("hp", 0.25)]),
+    Kit(id: "piercing", unit: .gunship, name: "Piercing rounds", cost: 300, desc: "+20% Gunship damage.", effect: [("damage", 0.2)]),
+    Kit(id: "rotortune", unit: .gunship, name: "Rotor tune", cost: 250, desc: "Gunships fly 15% faster.", effect: [("speed", 0.15)]),
 ]
 let kitIds = kits.map { $0.id }
 let carryCap = 8            // crystal an Engineer carries per trip without a Cargo rig
