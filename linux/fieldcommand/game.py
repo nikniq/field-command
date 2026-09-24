@@ -602,7 +602,7 @@ class GameScene:
         ids = [m.id for m in CAMPAIGN]
         i = ids.index(mission.id)
         if i + 1 < len(CAMPAIGN):
-            self.start_mission(CAMPAIGN[i + 1])
+            self.to_menu(briefing=CAMPAIGN[i + 1])     # the next mission is briefed before it is deployed
 
     def back_to_lobby(self):
         from .lobby import LobbyScene
@@ -620,7 +620,7 @@ class GameScene:
             except OSError:
                 pass
 
-    def to_menu(self):
+    def to_menu(self, briefing=None):
         from .menu import MenuScene
         if self.can_save() and not self.s.game_over:
             self.save_game("autosave", "Autosave")      # so Load Game continues where you left off
@@ -633,7 +633,10 @@ class GameScene:
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
         except pygame.error:
             pass
-        self.app.set_scene(MenuScene(self.app))
+        menu = MenuScene(self.app)
+        if briefing is not None:
+            menu.start_mission(briefing)
+        self.app.set_scene(menu)
 
     def toggle_pause(self):
         if self.s.game_over:

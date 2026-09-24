@@ -60,6 +60,7 @@ class World:
         # A campaign mission (defs.Mission) or None; `mission_timer` is the hold time run up so far.
         self.mission = MISSION_BY_ID.get(mission) if isinstance(mission, str) else mission
         self.mission_timer = 0.0
+        self.mission_fired = 0          # how many of the mission's scripted events have gone off
         # Supply crates on the field, and when the next one drops.
         self.crates = []
         self.next_crate = CRATE_FIRST
@@ -263,6 +264,7 @@ class World:
         for t in self.towers:
             t.update(dt)
         self._check_mission(dt)
+        self._run_script()
         for p in self.players.values():
             if p.ai and p.alive:
                 p.ai.update(dt)
@@ -449,6 +451,58 @@ class World:
             self.game_over = True
             self.winner_team = me.team
             self.emit("gameover", me.team)
+
+    # ------------------------------------------------------------ mission script
+
+    def edge_point(self, slot):
+        """Where a column for `slot` comes onto the map: the map edge nearest that side's start."""
+        p = self.players.get(slot)
+        sx, sy = self.map["starts"][p.start if p else 0][:2]
+        w, h = defs.WORLD_W, defs.WORLD_H
+        edges = [(sx, (80.0, sy)), (w - sx, (w - 80.0, sy)), (sy, (sx, 80.0)), (h - sy, (sx, h - 80.0))]
+        return min(edges, key=lambda e: e[0])[1]
+
+    def script_target(self, slot):
+        """Where a scripted column goes: a slot's Command Center (its start, if that has fallen), or with -1
+        the hold ring or the middle of the map."""
+        if slot < 0:
+            if self.mission is not None and self.mission.hold:
+                return tuple(self.mission.hold[:2])
+            return (defs.WORLD_W / 2, defs.WORLD_H / 2)
+        hq = next((b for b in self.buildings if b.team == slot and b.kind == "hq" and not b.dead), None)
+        if hq is not None:
+            return (hq.x, hq.y)
+        p = self.players.get(slot)
+        return tuple(self.map["starts"][p.start if p else 0][:2])
+
+    def _run_script(self):
+        m = self.mission
+        if m is None or self.game_over:
+            return
+        while self.mission_fired < len(m.events) and self.elapsed >= m.events[self.mission_fired][1]:
+            self._fire(m.events[self.mission_fired])
+            self.mission_fired += 1
+
+    def _fire(self, ev):
+        if ev[0] == "text":
+            self.emit("msg", 0, ev[2], "good")
+            return
+        _kind, _at, owner, unit, count, src, target, text = ev
+        p = self.players.get(owner)
+        if p is None or not p.alive:
+            return
+        x0, y0 = self.edge_point(src)
+        tx, ty = self.script_target(target)
+        friendly = target >= 0 and self.allied(owner, target)
+        if friendly:                                  # allies stop short of the Command Center, not on it
+            d = math.hypot(tx - x0, ty - y0) or 1.0
+            tx, ty = tx - (tx - x0) / d * 220, ty - (ty - y0) / d * 220
+        for i in range(count):
+            a, r = i * 2.4, 30 + 14 * i               # a loose knot at the edge
+            u = Unit(self, unit, owner, x0 + math.cos(a) * r, y0 + math.sin(a) * r)
+            self._add(u)
+            u.command(("move" if friendly else "amove", tx, ty))
+        self.emit("msg", 0, text, "good" if self.allied(owner, 0) else "bad")
 
     def _check_victory(self):
         for p in self.players.values():

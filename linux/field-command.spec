@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.20.0
+Version:        1.21.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.21.0-1
+- Campaign scripting: every mission runs a script on its clock — word from Command, reinforcements walking
+  in from your map edge, enemy columns from theirs, a raid on your ally — and is briefed before it is
+  deployed, with a map of the mission, the objective and the timeline
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.20.0-1
 - The computer is a strategist: it opens with a rush, an economy or a turtle (by difficulty, seed and map
   size), sends a scout to your door, expands when its home field runs low or its Engineers crowd it, and

@@ -218,19 +218,42 @@ class Mission:
     seconds: float
     hold: tuple             # (x, y, radius) or ()
     brief: str
+    # The script: events fired on the mission clock, in order. ("text", at, text) is a line from Command;
+    # ("spawn", at, owner, unit, count, from, target, text) puts `count` units of `unit` for slot `owner` on
+    # the map edge nearest slot `from`'s start, walking (allies) or attack-moving (enemies) to slot `target`'s
+    # Command Center — or, with target -1, to the hold ring or the middle of the map.
+    events: tuple = ()
 
 
 CAMPAIGN = [
     Mission("first_light", "First Light", "twin_ridges", 1, 0, 0, "destroy", 0, (),
-            "Mine, build, and take the enemy base. The computer goes easy on you — this once."),
+            "Mine, build, and take the enemy base. The computer goes easy on you — this once.",
+            (("text", 15, "Command: mine crystal with your Engineers, then put up a Barracks (B) and a Supply Depot."),
+             ("spawn", 150, 0, "marine", 3, 0, 0, "Reinforcements: three Rangers have reached the field from your side."),
+             ("text", 300, "Command: the enemy Command Center is in the far corner. Attack-move (A) your army onto it."))),
     Mission("hold_the_line", "Hold the Line", "river_crossing", 1, 2, 0, "survive", 480, (),
-            "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must."),
+            "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must.",
+            (("text", 10, "Command: dig in. Turrets by the bridges, Engineers repairing behind them."),
+             ("spawn", 90, 0, "tank", 2, 0, 0, "Reinforcements: two Siege Tanks from the rear."),
+             ("spawn", 150, 1, "marine", 6, 1, 0, "A column of enemy Rangers is coming over the bridges."),
+             ("spawn", 300, 1, "tank", 4, 1, 0, "Enemy Siege Tanks are on the road."),
+             ("spawn", 420, 1, "marine", 8, 1, 0, "The last push: hold one more minute."))),
     Mission("gold_run", "The Gold Run", "highland_pass", 1, 1, 0, "hold", 180, (2000, 1400, 260),
-            "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring."),
+            "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring.",
+            (("text", 10, "Command: the gold is in the middle pass. Take it, and keep the enemy out of the ring."),
+             ("spawn", 240, 1, "marine", 5, 1, -1, "An enemy squad has been sent for the gold."),
+             ("spawn", 360, 0, "marine", 4, 0, 0, "Reinforcements: a squad of Rangers has arrived."))),
     Mission("crossfire", "Crossfire", "four_corners", 3, 1, 2, "destroy", 0, (),
-            "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight."),
+            "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight.",
+            (("text", 10, "Command: your ally holds the far corner. Attack points (Z) call them onto a fight."),
+             ("spawn", 200, 1, "marine", 6, 1, 2, "Your ally is under attack — get your army over there."),
+             ("spawn", 420, 3, "tank", 3, 3, 0, "Enemy tanks on the road to your base."))),
     Mission("long_march", "The Long March", "long_march", 11, 2, 2, "destroy", 0, (),
-            "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up."),
+            "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up.",
+            (("text", 10, "Command: five commanders stand with you. Hold the middle bridges and take the gold."),
+             ("spawn", 300, 0, "tank", 4, 0, 0, "Reinforcements: four Siege Tanks from the rear."),
+             ("spawn", 600, 1, "marine", 8, 1, 0, "An enemy column is marching on your base."),
+             ("spawn", 900, 0, "marine", 6, 0, 0, "Reinforcements: six Rangers from the rear."))),
 ]
 MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
 

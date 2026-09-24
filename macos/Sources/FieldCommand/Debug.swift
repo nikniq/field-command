@@ -6,7 +6,7 @@ import SpriteKit
 ///   FC_TIMESCALE=n       run n simulation steps per frame
 ///   FC_SNAPSHOT_DIR=dir  write periodic PNG snapshots and a stats log there
 ///   FC_HEADLESS=1        run the match without a window (with FC_AUTOPLAY for AI vs AI)
-///   FC_MENUSHOT=path     render the title screen to a PNG and exit
+///   FC_MENUSHOT=path     render the title screen to a PNG and exit (FC_MENUSHOT_BRIEF=mission id: with its briefing up)
 ///   FC_NETTEST=host:port join a multiplayer server headlessly as a scripted bot (cross-platform testing)
 enum Debug {
     static let env = ProcessInfo.processInfo.environment
@@ -43,6 +43,7 @@ enum Debug {
         let scene = MenuScene(size: view.bounds.size)
         view.presentScene(scene)
         scene.didMove(to: view)
+        if let m = missionNamed(env["FC_MENUSHOT_BRIEF"]) { scene.showBriefing(m) }   // with a mission's briefing up
         for i in 0..<5 { scene.update(Double(i) * 0.5 + 1) }
         if let tex = view.texture(from: scene) { write(tex.cgImage(), to: path) }
     }
@@ -518,6 +519,77 @@ enum Debug {
             let w2 = try! SaveGame.decode(doc)
             check(w2.mission?.id == "hold_the_line", "the mission survives a save")
         }
+        // The script (1.21): Command speaks, columns come in from the map edge, enemies attack-move on their target.
+        check(campaign.allSatisfy { m in !m.events.isEmpty && m.events.map { $0.at } == m.events.map { $0.at }.sorted() }, "every mission has a script in clock order")
+        func quiet(_ id: String) -> (SWorld, Mission) {
+            let (w, m) = world(id)
+            for p in w.players.values { p.ai = nil }
+            return (w, m)
+        }
+        func fireNext(_ w: SWorld, _ m: Mission) -> (MissionEvent, [SUnit]) {
+            let ev = m.events[w.missionFired]
+            w.elapsed = ev.at - 1.0 / 60
+            let before = Set(w.units.map { $0.id })
+            w.events.removeAll()
+            w.step(1.0 / 30)
+            return (ev, w.units.filter { !before.contains($0.id) })
+        }
+        func said(_ w: SWorld, _ text: String, _ tone: String) -> Bool {
+            w.events.contains { e in jStr(e.first) == "msg" && jStr(e[2]) == text && jStr(e[3]) == tone }
+        }
+        do {
+            let (w, m) = quiet("first_light")
+            var (ev, new) = fireNext(w, m)
+            check(ev.kind == "text" && new.isEmpty && said(w, ev.text, "good"), "Command speaks on the clock")
+            (ev, new) = fireNext(w, m)
+            let (ex, ey) = w.edgePoint(0)
+            let onEdge = min(ex, ey, worldW - ex, worldH - ey) == 80
+            check(ev.kind == "spawn" && new.count == ev.count && new.allSatisfy { $0.team == 0 && NetProtocol.name($0.kind) == ev.unit }, "reinforcements arrive")
+            check(onEdge && new.allSatisfy { hypot($0.x - ex, $0.y - ey) < 120 }, "on the map edge nearest your start")
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            var walkHome = !new.isEmpty
+            for u in new { if case .move(let x, let y) = u.order { walkHome = walkHome && hypot(x - hq.x, y - hq.y) > 150 && hypot(x - hq.x, y - hq.y) < 300 } else { walkHome = false } }
+            check(walkHome && said(w, ev.text, "good") && w.missionFired == 2, "and walk home, stopping short of the Command Center")
+        }
+        do {
+            let (w, m) = quiet("hold_the_line")
+            while m.events[w.missionFired].owner != 1 { _ = fireNext(w, m) }
+            let (ev, new) = fireNext(w, m)
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            var onUs = new.count == ev.count
+            for u in new { if case .amove(let x, let y) = u.order { onUs = onUs && x == hq.x && y == hq.y && u.team == 1 } else { onUs = false } }
+            check(onUs && said(w, ev.text, "bad"), "an enemy column attack-moves on your Command Center")
+            let (w2, m2) = quiet("gold_run")
+            while m2.events[w2.missionFired].kind != "spawn" { _ = fireNext(w2, m2) }
+            let (ev2, new2) = fireNext(w2, m2)
+            var onRing = ev2.target == -1 && !new2.isEmpty
+            for u in new2 { if case .amove(let x, let y) = u.order { onRing = onRing && x == m2.hold!.0 && y == m2.hold!.1 } else { onRing = false } }
+            check(onRing, "target -1 sends it at the hold ring")
+            let (w3, m3) = quiet("crossfire")
+            while m3.events[w3.missionFired].kind != "spawn" { _ = fireNext(w3, m3) }
+            let (ev3, new3) = fireNext(w3, m3)
+            let ally = w3.buildings.first { $0.team == 2 && $0.kind == .hq }!
+            var onAlly = ev3.target == 2 && !new3.isEmpty
+            for u in new3 { if case .amove(let x, let y) = u.order { onAlly = onAlly && x == ally.x && y == ally.y && u.team == 1 } else { onAlly = false } }
+            check(onAlly, "and a raid on your ally goes for their Command Center")
+        }
+        do {
+            let (w, m) = quiet("first_light")
+            _ = fireNext(w, m); _ = fireNext(w, m)
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            w2.elapsed = 1000
+            w2.step(1.0 / 30)
+            check(w2.missionFired == m.events.count, "the script's position survives a save and carries on")
+        }
+        // The briefing's words match the Python edition's.
+        check(MenuScene.objectiveText(campaign[1]) == "Be standing after 8:00" && MenuScene.objectiveText(campaign[2]) == "Hold the ring for 3:00 with no enemy inside"
+              && MenuScene.objectiveText(campaign[0]) == "Destroy every enemy building", "the briefing states the objective")
+        let tl = MenuScene.timeline(campaign[1])
+        check(tl.count == campaign[1].events.count && tl[0] == ("0:10", "Word from Command") && tl[1] == ("1:30", "Reinforcements arrive")
+              && tl[2] == ("2:30", "Enemy column on the move"), "and the timeline")
+        let ts = MenuScene.mapThumb(campaign[1], width: 300).size()
+        check(ts.width == 600 && ts.height > 200, "with a map of the mission (rendered at 2x: \(Int(ts.width))x\(Int(ts.height)))")
         print(ok ? "CAMPAIGN TEST PASSED" : "CAMPAIGN TEST FAILED")
         exit(ok ? 0 : 1)
     }

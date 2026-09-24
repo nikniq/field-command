@@ -1370,6 +1370,8 @@ final class SWorld {
     /// A campaign mission or nil; `missionTimer` is the hold time run up so far.
     var mission: Mission?
     var missionTimer = 0.0
+    /// How many of the mission's scripted events have gone off.
+    var missionFired = 0
     /// Supply crates on the field, and when the next one drops.
     private(set) var crates: [SCrate] = []
     var nextCrate = crateFirst
@@ -1525,6 +1527,7 @@ final class SWorld {
         updateCrates()
         for t in towers { t.update(dt) }
         checkMission(dt)
+        runScript()
         for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive { p.ai?.update(dt) }
         cleanupDead()
         fogTimer -= dt
@@ -1821,6 +1824,59 @@ final class SWorld {
             winnerTeam = me.team
             emit(["gameover", me.team])
         }
+    }
+
+    // MARK: Mission script
+
+    /// Where a column for `slot` comes onto the map: the map edge nearest that side's start.
+    func edgePoint(_ slot: Int) -> (Double, Double) {
+        let starts = jArr(map["starts"]).map { jArr($0) }
+        let idx = min(players[slot]?.start ?? 0, starts.count - 1)
+        let sx = Double(jNum(starts[idx][0])), sy = Double(jNum(starts[idx][1]))
+        let edges: [(Double, (Double, Double))] = [(sx, (80, sy)), (worldW - sx, (worldW - 80, sy)), (sy, (sx, 80)), (worldH - sy, (sx, worldH - 80))]
+        return edges.min { $0.0 < $1.0 }!.1
+    }
+
+    /// Where a scripted column goes: a slot's Command Center (its start, if that has fallen), or with -1 the
+    /// hold ring or the middle of the map.
+    func scriptTarget(_ slot: Int) -> (Double, Double) {
+        if slot < 0 {
+            if let h = mission?.hold { return (h.0, h.1) }
+            return (worldW / 2, worldH / 2)
+        }
+        if let hq = buildings.first(where: { $0.team == slot && $0.kind == .hq && !$0.dead }) { return (hq.x, hq.y) }
+        let starts = jArr(map["starts"]).map { jArr($0) }
+        let idx = min(players[slot]?.start ?? 0, starts.count - 1)
+        return (Double(jNum(starts[idx][0])), Double(jNum(starts[idx][1])))
+    }
+
+    private func runScript() {
+        guard let m = mission, !gameOver else { return }
+        while missionFired < m.events.count && elapsed >= m.events[missionFired].at {
+            fire(m.events[missionFired])
+            missionFired += 1
+        }
+    }
+
+    private func fire(_ ev: MissionEvent) {
+        if ev.kind == "text" { emit(["msg", 0, ev.text, "good"]); return }
+        guard let p = players[ev.owner], p.alive,
+              let kind = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == ev.unit }) else { return }
+        let (x0, y0) = edgePoint(ev.from)
+        var (tx, ty) = scriptTarget(ev.target)
+        let friendly = ev.target >= 0 && allied(ev.owner, ev.target)
+        if friendly {                                  // allies stop short of the Command Center, not on it
+            let d = max(1, hyp(tx - x0, ty - y0))
+            tx -= (tx - x0) / d * 220
+            ty -= (ty - y0) / d * 220
+        }
+        for i in 0..<ev.count {
+            let a = Double(i) * 2.4, r = 30 + 14 * Double(i)      // a loose knot at the edge
+            let u = SUnit(world: self, kind: kind, team: ev.owner, x: x0 + cos(a) * r, y: y0 + sin(a) * r)
+            add(u)
+            u.command(friendly ? .move(tx, ty) : .amove(tx, ty))
+        }
+        emit(["msg", 0, ev.text, allied(ev.owner, 0) ? "good" : "bad"])
     }
 
     private func checkVictory() {

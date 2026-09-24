@@ -215,13 +215,22 @@ def test_campaign_agrees():
     from fieldcommand.defs import CAMPAIGN
     src = swift("Defs.swift")
     rows = re.findall(r'Mission\(id: "(\w+)", title: "([^"]+)", map: "(\w+)", opponents: (\d+), difficulty: (\d+), teams: (\d+), '
-                      r'win: "(\w+)", seconds: (\d+), hold: (nil|\([\d., ]+\)),\s*brief: "([^"]+)"\)', src)
+                      r'win: "(\w+)", seconds: (\d+), hold: (nil|\([\d., ]+\)),\s*brief: "([^"]+)",\s*events: \[(.*?)\]\)', src, re.S)
     assert len(rows) == len(CAMPAIGN)
     for r, m in zip(rows, CAMPAIGN):
         assert (r[0], r[1], r[2], int(r[3]), int(r[4]), int(r[5]), r[6], float(r[7]), r[9]) == \
             (m.id, m.title, m.map, m.opponents, m.difficulty, m.teams, m.win, float(m.seconds), m.brief), m.id
         hold = () if r[8] == "nil" else tuple(float(v) for v in r[8].strip("()").split(","))
         assert hold == tuple(float(v) for v in m.hold), m.id
+        evs = re.findall(r'MissionEvent\(kind: "(\w+)", at: (\d+)(?:, owner: (\d+), unit: "(\w+)", count: (\d+), from: (\d+), target: (-?\d+))?, '
+                         r'text: "([^"]+)"\)', r[10])
+        assert len(evs) == len(m.events), m.id
+        for e, me in zip(evs, m.events):
+            if e[0] == "text":
+                assert (e[0], float(e[1]), e[7]) == (me[0], float(me[1]), me[2]), (m.id, me)
+            else:
+                assert (e[0], float(e[1]), int(e[2]), e[3], int(e[4]), int(e[5]), int(e[6]), e[7]) == \
+                    (me[0], float(me[1]), me[2], me[3], me[4], me[5], me[6], me[7]), (m.id, me)
 
 
 def test_starting_crystal_agrees():

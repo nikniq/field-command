@@ -78,3 +78,30 @@ def test_leaving_to_the_menu_autosaves(game):
     g.to_menu()
     assert "autosave" in {s[0] for s in save.list_saves()} and "autosave" not in before or "autosave" in before
     assert type(app.scene).__name__ == "MenuScene"
+
+
+def test_a_mission_is_briefed_before_it_is_deployed(game):
+    app, _g = game
+    from fieldcommand.defs import CAMPAIGN
+    menu = app.scene
+    assert type(menu).__name__ == "MenuScene"
+    menu.start_mission(CAMPAIGN[1])
+    assert menu.briefing is CAMPAIGN[1] and not menu.campaign_open
+    menu.draw(app.screen, None)
+    assert menu.deploy_rect is not None
+    assert menu.objective_text(CAMPAIGN[1]) == "Be standing after 8:00"
+    assert menu.objective_text(CAMPAIGN[2]) == "Hold the ring for 3:00 with no enemy inside"
+    assert menu.objective_text(CAMPAIGN[0]) == "Destroy every enemy building"
+    rows = menu.timeline(CAMPAIGN[1])
+    assert rows[0] == ("0:10", "Word from Command") and rows[1] == ("1:30", "Reinforcements arrive")
+    assert rows[2] == ("2:30", "Enemy column on the move")
+    thumb = menu.map_thumb(CAMPAIGN[1], 300)
+    assert thumb.get_width() == 300 and thumb.get_height() > 100
+    menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE))
+    assert menu.briefing is None and menu.campaign_open                            # Esc: back to the list
+    menu.start_mission(CAMPAIGN[1])
+    menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
+    g = app.scene
+    assert type(g).__name__ == "GameScene" and g.s.mission.id == "hold_the_line"
+    g.to_menu(briefing=CAMPAIGN[2])                                                # Next Mission briefs the next one
+    assert type(app.scene).__name__ == "MenuScene" and app.scene.briefing is CAMPAIGN[2]

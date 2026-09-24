@@ -356,6 +356,10 @@ final class MenuScene: SKScene {
 
     override func mouseDown(with event: NSEvent) {
         let p = event.location(in: self)
+        if let m = briefing {
+            if deployRect.contains(p) { deploy(m) }
+            return
+        }
         if campaignOpen {
             if let hit = campaignRows.first(where: { $0.0.contains(p) }) { startMission(hit.1) }
             return
@@ -368,6 +372,14 @@ final class MenuScene: SKScene {
     }
 
     override func keyDown(with event: NSEvent) {
+        if let m = briefing {
+            switch event.charactersIgnoringModifiers {
+            case "\r": deploy(m)
+            case "\u{1B}", "c", "C": hideBriefing(); toggleCampaign()
+            default: break
+            }
+            return
+        }
         switch event.charactersIgnoringModifiers {
         case "m", "M": multiplayer()
         case "c", "C": toggleCampaign()
@@ -439,8 +451,156 @@ final class MenuScene: SKScene {
         campaignLayer.addChild(close)
     }
 
+    /// A mission is briefed before it is deployed: the map, the objective and what the clock will bring.
     private func startMission(_ m: Mission) {
+        if campaignOpen { toggleCampaign() }
+        showBriefing(m)
+    }
+
+    private func deploy(_ m: Mission) {
         startMissionGame(view, size: size, mission: m)
+    }
+
+    // MARK: - Briefing
+
+    private(set) var briefing: Mission?
+    private let briefingLayer = SKNode()
+    private var deployRect = CGRect.zero
+
+    static func objectiveText(_ m: Mission) -> String {
+        let clock = String(format: "%d:%02d", Int(m.seconds) / 60, Int(m.seconds) % 60)
+        switch m.win {
+        case "survive": return "Be standing after \(clock)"
+        case "hold": return "Hold the ring for \(clock) with no enemy inside"
+        default: return "Destroy every enemy building"
+        }
+    }
+
+    /// The script as the briefing shows it: (m:ss, line) per event, columns named by whose they are.
+    static func timeline(_ m: Mission) -> [(String, String)] {
+        m.events.map { e in
+            let at = String(format: "%d:%02d", Int(e.at) / 60, Int(e.at) % 60)
+            if e.kind == "text" { return (at, "Word from Command") }
+            return (at, e.owner == 0 ? "Reinforcements arrive" : "Enemy column on the move")
+        }
+    }
+
+    /// The mission's map, small: water and cliffs, crystal and gold, every side's start, the hold ring.
+    static func mapThumb(_ m: Mission, width tw: CGFloat) -> SKTexture {
+        let spec = SMapGen.resolve(m.map, players: 1 + m.opponents)
+        let mw = CGFloat(jNum(spec["w"])), mh = CGFloat(jNum(spec["h"]))
+        let s = tw / mw
+        let size = CGSize(width: tw, height: max(1, mh * s))
+        return Art.texture("brief-\(m.id)-\(Int(tw))", size: size) { ctx in
+            ctx.translateBy(x: -size.width / 2, y: -size.height / 2)
+            Art.fill(ctx, CGPath(rect: CGRect(origin: .zero, size: size), transform: nil), .rgb(0.19, 0.27, 0.16))
+            for wl in jArr(spec["walls"]).map({ jArr($0) }) where wl.count >= 5 {
+                let x0 = CGFloat(jNum(wl[0])) * s, y0 = CGFloat(jNum(wl[1])) * s, x1 = CGFloat(jNum(wl[2])) * s, y1 = CGFloat(jNum(wl[3])) * s
+                let water = jStr(wl[4]) == "water"
+                Art.fill(ctx, CGPath(rect: CGRect(x: x0, y: y0, width: max(1, x1 - x0), height: max(1, y1 - y0)), transform: nil),
+                         water ? .rgb(0.15, 0.26, 0.41) : .rgb(0.29, 0.24, 0.20))
+            }
+            for b in jArr(spec["bridges"]).map({ jArr($0) }) where b.count >= 4 {
+                let x0 = CGFloat(jNum(b[0])) * s, y0 = CGFloat(jNum(b[1])) * s, x1 = CGFloat(jNum(b[2])) * s, y1 = CGFloat(jNum(b[3])) * s
+                Art.fill(ctx, CGPath(rect: CGRect(x: x0, y: y0, width: max(2, x1 - x0), height: max(2, y1 - y0)), transform: nil), Palette.amber)
+            }
+            for c in jArr(spec["crystals"]).map({ jArr($0) }) where c.count >= 2 {
+                let gold = c.count > 3 && jInt(c[3]) == 3
+                let r: CGFloat = gold ? 3 : 1
+                Art.fill(ctx, CGPath(rect: CGRect(x: CGFloat(jNum(c[0])) * s - r, y: CGFloat(jNum(c[1])) * s - r, width: 2 * r + 1, height: 2 * r + 1), transform: nil),
+                         gold ? Palette.amber : Palette.crystal)
+            }
+            for (i, st) in jArr(spec["starts"]).map({ jArr($0) }).prefix(1 + m.opponents).enumerated() where st.count >= 2 {
+                let p = CGPoint(x: CGFloat(jNum(st[0])) * s, y: CGFloat(jNum(st[1])) * s)
+                Art.fill(ctx, CGPath(rect: CGRect(x: p.x - 4, y: p.y - 4, width: 9, height: 9), transform: nil), Team(rawValue: i).color)
+                Art.stroke(ctx, CGPath(rect: CGRect(x: p.x - 5, y: p.y - 5, width: 11, height: 11), transform: nil), i == 0 ? .white : NSColor(white: 1, alpha: 0.35), 1)
+            }
+            if let h = m.hold {
+                Art.stroke(ctx, Art.circle(CGPoint(x: CGFloat(h.0) * s, y: CGFloat(h.1) * s), max(4, CGFloat(h.2) * s)), Palette.amber, 1)
+            }
+        }
+    }
+
+    func showBriefing(_ m: Mission) {
+        briefing = m
+        briefingLayer.removeAllChildren()
+        if briefingLayer.parent == nil { briefingLayer.zPosition = 60; addChild(briefingLayer) }
+        let boxW = min(size.width - 40, 780), boxH = min(size.height - 20, 540)
+        let dim = SKSpriteNode(color: NSColor(white: 0, alpha: 0.67), size: size)
+        briefingLayer.addChild(dim)
+        let box = SKSpriteNode(texture: Art.panel(CGSize(width: boxW, height: boxH), radius: 16, accent: Palette.amber))
+        box.size = CGSize(width: boxW, height: boxH)
+        briefingLayer.addChild(box)
+        let top = boxH / 2, left = -boxW / 2
+        let n = (campaign.firstIndex { $0.id == m.id } ?? 0) + 1
+        let title = makeLabel(m.title.uppercased(), size: 34, color: Palette.amber, font: Fonts.heavy, align: .center, valign: .center)
+        title.position = CGPoint(x: 0, y: top - 42)
+        briefingLayer.addChild(title)
+        let info = SMapGen.info(m.map)?.name ?? m.map
+        let meta = makeLabel("Mission \(n) of \(campaign.count) · \(info) · \(m.opponents) opponent\(m.opponents == 1 ? "" : "s") · \(Difficulty(rawValue: m.difficulty)?.name ?? "")",
+                             size: 13, color: Palette.dim, font: Fonts.demi, align: .center, valign: .center)
+        meta.position = CGPoint(x: 0, y: top - 74)
+        briefingLayer.addChild(meta)
+        let tw = min(300, boxW / 2 - 40)
+        let thumb = SKSpriteNode(texture: Self.mapThumb(m, width: tw))
+        let ts = thumb.texture!.size()                  // rendered at 2x; shown at the width asked for
+        thumb.size = CGSize(width: tw, height: ts.height / ts.width * tw)
+        thumb.anchorPoint = CGPoint(x: 0, y: 1)
+        thumb.position = CGPoint(x: left + 24, y: top - 100)
+        let frame = SKSpriteNode(color: NSColor.rgb(0.08, 0.09, 0.10), size: CGSize(width: thumb.size.width + 6, height: thumb.size.height + 6))
+        frame.anchorPoint = CGPoint(x: 0, y: 1)
+        frame.position = CGPoint(x: left + 21, y: top - 97)
+        briefingLayer.addChild(frame)
+        briefingLayer.addChild(thumb)
+        let legend = makeLabel("You are the white-edged square; the ring is the hold.", size: 10, color: Palette.dim, font: Fonts.medium, align: .left, valign: .center)
+        legend.position = CGPoint(x: left + 24, y: top - 100 - thumb.size.height - 14)
+        briefingLayer.addChild(legend)
+        let rx = left + 24 + tw + 28
+        let rw = boxW / 2 - 24 - rx
+        var y = top - 100
+        for line in wrapText(m.brief, size: 13, width: rw).prefix(4) {
+            let l = makeLabel(line, size: 13, color: Palette.text, font: Fonts.medium, align: .left, valign: .center)
+            l.position = CGPoint(x: rx, y: y)
+            briefingLayer.addChild(l)
+            y -= 18
+        }
+        y -= 10
+        let oh = makeLabel("OBJECTIVE", size: 12, color: Palette.amber, font: Fonts.bold, align: .left, valign: .center)
+        oh.position = CGPoint(x: rx, y: y)
+        briefingLayer.addChild(oh)
+        let ot = makeLabel(Self.objectiveText(m), size: 13, color: Palette.text, font: Fonts.medium, align: .left, valign: .center)
+        ot.position = CGPoint(x: rx, y: y - 18)
+        briefingLayer.addChild(ot)
+        y -= 46
+        let th = makeLabel("TIMELINE", size: 12, color: Palette.amber, font: Fonts.bold, align: .left, valign: .center)
+        th.position = CGPoint(x: rx, y: y)
+        briefingLayer.addChild(th)
+        y -= 18
+        for (at, line) in Self.timeline(m).prefix(6) {
+            let a = makeLabel(at, size: 12, color: Palette.dim, font: Fonts.mono, align: .left, valign: .center)
+            a.position = CGPoint(x: rx, y: y)
+            briefingLayer.addChild(a)
+            let l = makeLabel(line, size: 12, color: Palette.text, font: Fonts.medium, align: .left, valign: .center)
+            l.position = CGPoint(x: rx + 44, y: y)
+            briefingLayer.addChild(l)
+            y -= 16
+        }
+        deployRect = CGRect(x: -110, y: -top + 30, width: 220, height: 44)
+        let bg = SKSpriteNode(texture: Art.button(deployRect.size, .normal, accent: Palette.good))
+        bg.size = deployRect.size
+        bg.position = CGPoint(x: deployRect.midX, y: deployRect.midY)
+        briefingLayer.addChild(bg)
+        let dl = makeLabel("DEPLOY  (Enter)", size: 16, color: Palette.text, font: Fonts.bold, align: .center, valign: .center)
+        dl.position = bg.position
+        briefingLayer.addChild(dl)
+        let back = makeLabel("Esc back to the mission list", size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        back.position = CGPoint(x: 0, y: -top + 18)
+        briefingLayer.addChild(back)
+    }
+
+    private func hideBriefing() {
+        briefing = nil
+        briefingLayer.removeAllChildren()
     }
 
     private func loadLatest() {

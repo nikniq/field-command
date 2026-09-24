@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.20.0"
+let appVersion = "1.21.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -99,6 +99,19 @@ enum Fonts {
     static let heavy = "AvenirNextCondensed-Heavy"
     static let condensed = "AvenirNextCondensed-DemiBold"
     static let mono = "Menlo-Bold"
+}
+
+/// Greedy word wrap for a label: lines of `text` no wider than `width` points at `size` in `font`.
+func wrapText(_ text: String, size: CGFloat, width: CGFloat, font: String = Fonts.medium) -> [String] {
+    let f = NSFont(name: font, size: size) ?? NSFont.systemFont(ofSize: size)
+    func w(_ s: String) -> CGFloat { (s as NSString).size(withAttributes: [.font: f]).width }
+    var lines: [String] = [], line = ""
+    for word in text.split(separator: " ").map(String.init) {
+        let trial = line.isEmpty ? word : line + " " + word
+        if w(trial) <= width || line.isEmpty { line = trial } else { lines.append(line); line = word }
+    }
+    if !line.isEmpty { lines.append(line) }
+    return lines
 }
 
 func makeLabel(_ text: String, size: CGFloat, color: NSColor = Palette.text, font: String = Fonts.demi,
@@ -321,19 +334,56 @@ struct Mission {
     let seconds: Double
     let hold: (Double, Double, Double)?
     let brief: String
+    /// The script: events fired on the mission clock, in order (linux/fieldcommand/defs.py has the same).
+    let events: [MissionEvent]
+}
+
+/// A line from Command ("text"), or a column ("spawn"): `count` units of `unit` for slot `owner` put on the
+/// map edge nearest slot `from`'s start, walking (allies) or attack-moving (enemies) to slot `target`'s
+/// Command Center — or, with target -1, to the hold ring or the middle of the map.
+struct MissionEvent {
+    let kind: String
+    let at: Double
+    let owner: Int
+    let unit: String
+    let count: Int
+    let from: Int
+    let target: Int
+    let text: String
+    init(kind: String, at: Double, owner: Int = 0, unit: String = "", count: Int = 0, from: Int = 0, target: Int = 0, text: String) {
+        self.kind = kind; self.at = at; self.owner = owner; self.unit = unit; self.count = count; self.from = from; self.target = target; self.text = text
+    }
 }
 
 let campaign: [Mission] = [
     Mission(id: "first_light", title: "First Light", map: "twin_ridges", opponents: 1, difficulty: 0, teams: 0, win: "destroy", seconds: 0, hold: nil,
-            brief: "Mine, build, and take the enemy base. The computer goes easy on you — this once."),
+            brief: "Mine, build, and take the enemy base. The computer goes easy on you — this once.",
+            events: [MissionEvent(kind: "text", at: 15, text: "Command: mine crystal with your Engineers, then put up a Barracks (B) and a Supply Depot."),
+                     MissionEvent(kind: "spawn", at: 150, owner: 0, unit: "marine", count: 3, from: 0, target: 0, text: "Reinforcements: three Rangers have reached the field from your side."),
+                     MissionEvent(kind: "text", at: 300, text: "Command: the enemy Command Center is in the far corner. Attack-move (A) your army onto it.")]),
     Mission(id: "hold_the_line", title: "Hold the Line", map: "river_crossing", opponents: 1, difficulty: 2, teams: 0, win: "survive", seconds: 480, hold: nil,
-            brief: "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must."),
+            brief: "Eight minutes. The enemy comes over the bridges in force; be standing when the clock runs out. Cut a bridge if you must.",
+            events: [MissionEvent(kind: "text", at: 10, text: "Command: dig in. Turrets by the bridges, Engineers repairing behind them."),
+                     MissionEvent(kind: "spawn", at: 90, owner: 0, unit: "tank", count: 2, from: 0, target: 0, text: "Reinforcements: two Siege Tanks from the rear."),
+                     MissionEvent(kind: "spawn", at: 150, owner: 1, unit: "marine", count: 6, from: 1, target: 0, text: "A column of enemy Rangers is coming over the bridges."),
+                     MissionEvent(kind: "spawn", at: 300, owner: 1, unit: "tank", count: 4, from: 1, target: 0, text: "Enemy Siege Tanks are on the road."),
+                     MissionEvent(kind: "spawn", at: 420, owner: 1, unit: "marine", count: 8, from: 1, target: 0, text: "The last push: hold one more minute.")]),
     Mission(id: "gold_run", title: "The Gold Run", map: "highland_pass", opponents: 1, difficulty: 1, teams: 0, win: "hold", seconds: 180, hold: (2000, 1400, 260),
-            brief: "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring."),
+            brief: "Hold the gold deposit in the middle pass for three minutes without an enemy inside the ring.",
+            events: [MissionEvent(kind: "text", at: 10, text: "Command: the gold is in the middle pass. Take it, and keep the enemy out of the ring."),
+                     MissionEvent(kind: "spawn", at: 240, owner: 1, unit: "marine", count: 5, from: 1, target: -1, text: "An enemy squad has been sent for the gold."),
+                     MissionEvent(kind: "spawn", at: 360, owner: 0, unit: "marine", count: 4, from: 0, target: 0, text: "Reinforcements: a squad of Rangers has arrived.")]),
     Mission(id: "crossfire", title: "Crossfire", map: "four_corners", opponents: 3, difficulty: 1, teams: 2, win: "destroy", seconds: 0, hold: nil,
-            brief: "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight."),
+            brief: "You and a computer ally against two. Use attack points (Z) to bring your ally onto the fight.",
+            events: [MissionEvent(kind: "text", at: 10, text: "Command: your ally holds the far corner. Attack points (Z) call them onto a fight."),
+                     MissionEvent(kind: "spawn", at: 200, owner: 1, unit: "marine", count: 6, from: 1, target: 2, text: "Your ally is under attack — get your army over there."),
+                     MissionEvent(kind: "spawn", at: 420, owner: 3, unit: "tank", count: 3, from: 3, target: 0, text: "Enemy tanks on the road to your base.")]),
     Mission(id: "long_march", title: "The Long March", map: "long_march", opponents: 11, difficulty: 2, teams: 2, win: "destroy", seconds: 0, hold: nil,
-            brief: "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up."),
+            brief: "Twelve commanders in two lines across a wide river. Hold the middle bridges, take the gold, and roll them up.",
+            events: [MissionEvent(kind: "text", at: 10, text: "Command: five commanders stand with you. Hold the middle bridges and take the gold."),
+                     MissionEvent(kind: "spawn", at: 300, owner: 0, unit: "tank", count: 4, from: 0, target: 0, text: "Reinforcements: four Siege Tanks from the rear."),
+                     MissionEvent(kind: "spawn", at: 600, owner: 1, unit: "marine", count: 8, from: 1, target: 0, text: "An enemy column is marching on your base."),
+                     MissionEvent(kind: "spawn", at: 900, owner: 0, unit: "marine", count: 6, from: 0, target: 0, text: "Reinforcements: six Rangers from the rear.")]),
 ]
 func missionNamed(_ id: String?) -> Mission? { id.flatMap { i in campaign.first { $0.id == i } } }
 

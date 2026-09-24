@@ -22,6 +22,9 @@ class MenuScene:
         self.toggles = []
         self.campaign_open = False
         self.campaign_rows = []      # (rect, Mission) for the missions that can be started
+        self.briefing = None         # the mission whose briefing is up, before it is deployed
+        self.deploy_rect = None
+        self._thumbs = {}            # map id -> briefing map surface
         w, h = app.screen.get_size()
         self.resize(w, h)
 
@@ -62,6 +65,15 @@ class MenuScene:
         self.shade = shade
 
     def handle_event(self, e):
+        if self.briefing is not None:
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                if self.deploy_rect and self.deploy_rect.collidepoint(e.pos):
+                    self.deploy(self.briefing)
+            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                self.deploy(self.briefing)
+            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_c):
+                self.briefing, self.campaign_open = None, True
+            return
         if self.campaign_open:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 for r, m in self.campaign_rows:
@@ -129,11 +141,108 @@ class MenuScene:
         self.campaign_open = not self.campaign_open
 
     def start_mission(self, m):
+        """A mission is briefed before it is deployed: the map, the objective and what the clock will bring."""
+        audio.play("click")
+        self.briefing, self.campaign_open = m, False
+
+    def deploy(self, m):
         from .defs import DIFFICULTIES
         audio.play("click")
         session = LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay, map_id=m.map,
                                opponents=m.opponents, teams=m.teams, mission=m.id)
         self.app.set_scene(GameScene(self.app, session))
+
+    @staticmethod
+    def objective_text(m):
+        clock = f"{int(m.seconds) // 60}:{int(m.seconds) % 60:02d}"
+        return {"destroy": "Destroy every enemy building", "survive": f"Be standing after {clock}",
+                "hold": f"Hold the ring for {clock} with no enemy inside"}[m.win]
+
+    @staticmethod
+    def timeline(m):
+        """The script as the briefing shows it: (m:ss, line) per event, columns named by whose they are."""
+        rows = []
+        for e in m.events:
+            at = f"{int(e[1]) // 60}:{int(e[1]) % 60:02d}"
+            if e[0] == "text":
+                rows.append((at, "Word from Command"))
+            else:
+                rows.append((at, ("Reinforcements arrive" if e[2] == 0 else "Enemy column on the move")))
+        return rows
+
+    def map_thumb(self, m, tw):
+        """The mission's map, small: water and cliffs, crystal and gold, every side's start, the hold ring."""
+        from .defs import CRYSTAL, TEAM_COLOR
+        spec = mapgen.resolve(m.map, 1 + m.opponents)
+        key = (m.id, tw)
+        if key in self._thumbs:
+            return self._thumbs[key]
+        mw, mh = spec["w"], spec["h"]
+        s = tw / mw
+        th = max(1, int(mh * s))
+        surf = pygame.Surface((tw, th))
+        surf.fill((48, 70, 40))
+        for x0, y0, x1, y1, kind in spec.get("walls", []):
+            col = (38, 66, 104) if kind == "water" else (74, 62, 50)
+            pygame.draw.rect(surf, col, (int(x0 * s), int(y0 * s), max(1, int((x1 - x0) * s)), max(1, int((y1 - y0) * s))))
+        for x0, y0, x1, y1 in spec.get("bridges", []):
+            pygame.draw.rect(surf, to255(AMBER), (int(x0 * s), int(y0 * s), max(2, int((x1 - x0) * s)), max(2, int((y1 - y0) * s))))
+        for c in spec["crystals"]:
+            gold = len(c) > 3 and c[3] == 3
+            r = 3 if gold else 1
+            pygame.draw.rect(surf, to255(AMBER if gold else CRYSTAL), (int(c[0] * s) - r, int(c[1] * s) - r, 2 * r + 1, 2 * r + 1))
+        for i, st in enumerate(spec["starts"][:1 + m.opponents]):
+            p = (int(st[0] * s), int(st[1] * s))
+            pygame.draw.rect(surf, to255(TEAM_COLOR[i]), (p[0] - 4, p[1] - 4, 9, 9))
+            pygame.draw.rect(surf, (255, 255, 255), (p[0] - 5, p[1] - 5, 11, 11), 1)
+        if m.hold:
+            pygame.draw.circle(surf, to255(AMBER), (int(m.hold[0] * s), int(m.hold[1] * s)), max(4, int(m.hold[2] * s)), 1)
+        self._thumbs[key] = surf
+        return surf
+
+    def _draw_briefing(self, screen, mouse):
+        from .defs import CAMPAIGN, DIFFICULTIES
+        m = self.briefing
+        w, h = self.w, self.h
+        dim = pygame.Surface((w, h), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 170))
+        screen.blit(dim, (0, 0))
+        box_w, box_h = min(w - 40, 780), min(h - 20, 540)
+        bx, by = (w - box_w) // 2, max(10, (h - box_h) // 2)
+        screen.blit(art.panel(box_w, box_h, 16, AMBER), (bx, by))
+        n = [x.id for x in CAMPAIGN].index(m.id) + 1
+        ui.blit_text(screen, m.title.upper(), 34, AMBER, (w / 2, by + 42), align="center", bold=True)
+        meta = mapgen.BY_ID.get(m.map, {"name": m.map})["name"]
+        ui.blit_text(screen, f"Mission {n} of {len(CAMPAIGN)} · {meta} · {m.opponents} opponent{'s' if m.opponents != 1 else ''} · {DIFFICULTIES[m.difficulty].name}",
+                     13, DIM, (w / 2, by + 74), align="center", bold=True)
+        tw = min(300, box_w // 2 - 40)
+        thumb = self.map_thumb(m, tw)
+        tx, ty = bx + 24, by + 100
+        pygame.draw.rect(screen, (20, 24, 26), (tx - 3, ty - 3, thumb.get_width() + 6, thumb.get_height() + 6))
+        screen.blit(thumb, (tx, ty))
+        ui.blit_text(screen, "You are the white-edged square; the ring is the hold.", 10, DIM, (tx, ty + thumb.get_height() + 14))
+        rx = tx + tw + 28
+        rw = bx + box_w - 24 - rx
+        y = ty
+        for line in ui.wrap(m.brief, 13, rw)[:4]:
+            ui.blit_text(screen, line, 13, TEXT, (rx, y))
+            y += 18
+        y += 10
+        ui.blit_text(screen, "OBJECTIVE", 12, AMBER, (rx, y), bold=True)
+        ui.blit_text(screen, self.objective_text(m), 13, TEXT, (rx, y + 18))
+        y += 46
+        ui.blit_text(screen, "TIMELINE", 12, AMBER, (rx, y), bold=True)
+        y += 18
+        for at, line in self.timeline(m)[:6]:
+            ui.blit_text(screen, at, 12, DIM, (rx, y), mono=True)
+            ui.blit_text(screen, line, 12, TEXT, (rx + 44, y))
+            y += 16
+        r = pygame.Rect(w // 2 - 110, by + box_h - 74, 220, 44)
+        hover = mouse is not None and r.collidepoint(mouse)
+        screen.blit(art.button(r.w, r.h, "hover" if hover else "normal", GOOD), r.topleft)
+        ui.blit_text(screen, "DEPLOY  (Enter)", 16, TEXT, r.center, align="center", bold=True)
+        self.deploy_rect = r
+        ui.blit_text(screen, "Esc back to the mission list", 11, DIM, (w / 2, by + box_h - 18), align="center")
 
     def _draw_campaign(self, screen, mouse):
         """The mission list: each unlocks the next; done ones are ticked."""
@@ -359,4 +468,6 @@ class MenuScene:
         ui.blit_text(screen, "1 / 2 / 3 or Enter to deploy  ·  C campaign  ·  M multiplayer  ·  F11 full screen  ·  Esc quit", 12, DIM, (w / 2, h - 26), align="center")
         if self.campaign_open:
             self._draw_campaign(screen, mouse)
+        if self.briefing is not None:
+            self._draw_briefing(screen, mouse)
         ui.blit_text(screen, f"v{__version__}", 12, DIM, (w - 18, h - 26), align="right")

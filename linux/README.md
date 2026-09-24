@@ -240,6 +240,16 @@ The mission's objective sits at the top of the objectives panel with its clock; 
 complete* with a *Next Mission* button. Progress is kept in the settings file. Every side, in every mode,
 starts with 2000 crystal.
 
+Every mission is **briefed** before it is deployed: a map of the mission (water, cliffs, crystal and gold,
+every side's start, the hold ring), the objective, and a timeline of what the clock will bring. **Enter**
+deploys, **Esc** goes back to the list, and *Next Mission* after a win opens the next briefing.
+
+Every mission runs a **script** on its clock: word from Command at the right moments, reinforcements that
+walk in from the map edge nearest your start and stop short of your Command Center, enemy columns that
+come in from theirs and attack-move on your base — or on the gold ring, or on your ally (in Crossfire the
+call is *Your ally is under attack*), announced as they appear. The script's position travels in saves,
+and a replay runs it the same way. The five scripts live in `defs.py` (`CAMPAIGN`).
+
 ## Maps
 
 Seven maps ship with the game; pick one on the title screen (**Map:**) along with the number of computer

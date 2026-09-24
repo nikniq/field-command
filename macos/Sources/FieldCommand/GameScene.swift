@@ -806,9 +806,14 @@ final class GameScene: SKScene {
         startMissionGame(view, size: size, mission: m)
     }
 
+    /// The next mission is briefed before it is deployed: back to the title screen with its briefing up.
     func nextMission() {
         guard let m = net?.mission, let i = campaign.firstIndex(where: { $0.id == m.id }), i + 1 < campaign.count else { return }
-        startMission(campaign[i + 1])
+        NSCursor.arrow.set()
+        leaveNetGame()
+        let menu = MenuScene(size: size)
+        menu.showBriefing(campaign[i + 1])
+        view?.presentScene(menu, transition: .fade(withDuration: 0.5))
     }
 
     func restart() {

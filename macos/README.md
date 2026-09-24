@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.20.0 Mac and a 1.20.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.21.0 Mac and a 1.21.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -134,8 +134,10 @@ points that soak damage first and recharge. Same numbers as the Linux edition (`
 
 **C** on the title screen opens five missions played in order — First Light, Hold the Line (survive eight
 minutes), The Gold Run (hold the gold for three), Crossfire (2v2) and The Long March — each unlocking the
-next as it is won; progress is kept in `UserDefaults`. Same missions and rules as the Linux edition
-(`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
+next as it is won; progress is kept in `UserDefaults`. Each is briefed before it is deployed (a map of the
+mission, the objective, the timeline; Enter deploys) and runs a script on its clock: word from Command,
+reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
+and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
 
 ## Satellite view, point defence and supply crates
 
