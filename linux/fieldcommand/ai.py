@@ -77,6 +77,13 @@ class AI:
         self._next_route = 0.0
         self.route_bridge = None
         self.next_raid = 240.0
+        # A wave that is being beaten pulls back; a repelled attack on this base is answered at once.
+        self.launched = 0                # how many went out with the current wave and raids
+        self.threat_seen_at = -1e9       # when an enemy was last near a base of this side
+        self.last_counter = -1e9
+        self.counter_pending = False
+        self.retreats = 0
+        self.counters = 0
 
     @property
     def diff(self):
@@ -509,7 +516,14 @@ class AI:
                 threat = u
                 break
         if threat is None:
+            # The threat is gone: if it was here a moment ago and the home army is worth sending, go after
+            # whatever it came from before it can regroup.
+            if self.threat_seen_at > -1e8 and g.elapsed - self.threat_seen_at < 20 and len(home) >= max(3, self.wave_size // 2) \
+                    and g.elapsed - self.last_counter > 60 and self.diff.index >= 1:
+                self.counter_pending = True
+                self.threat_seen_at = -1e9
             return
+        self.threat_seen_at = g.elapsed
         for u in home:
             if u.order[0] in ("idle", "move"):
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
@@ -612,16 +626,24 @@ class AI:
         overdue = g.elapsed > self.next_wave + 120 and len(home) >= 4
         if not self.route_open:
             self.next_wave = max(self.next_wave, g.elapsed + 10)       # the wave waits for the crossing
-        if g.elapsed >= self.next_wave and (len(home) >= self.wave_size or overdue):
+        counter = self.counter_pending and len(home) >= 3
+        if (g.elapsed >= self.next_wave and (len(home) >= self.wave_size or overdue)) or counter:
             target = g.primary_target(self.team, hq.x, hq.y)
             goal = self._objective(target)
             if goal:
                 for u in home:
                     u.command(("amove", *self._standoff(u, *goal)))
                 self.attackers += home
-                self.wave_size = min(40, self.wave_size + 2 + self.diff.index * 2)
+                self.launched = len(self.attackers)
+                if counter:
+                    self.last_counter = g.elapsed
+                    self.counters += 1
+                else:
+                    self.wave_size = min(40, self.wave_size + 2 + self.diff.index * 2)
                 self.next_wave = g.elapsed + 50
                 g.wave_launched(self.team, target)
+        self.counter_pending = False
+        self._retreat(hq)
         for u in self.attackers:
             if u.order[0] == "idle":
                 goal = self._objective(g.primary_target(self.team, u.x, u.y))
@@ -631,6 +653,23 @@ class AI:
         self._siege(home)
         self._towers(hq, home)
         self._answer_pings(home)
+
+    def _retreat(self, hq):
+        """A wave that has lost most of itself with the enemy still on it pulls back to the Command Center
+        rather than dying piecemeal, and the next wave waits a little longer to be worth sending."""
+        g = self.game
+        if self.launched < 4 or not self.attackers or len(self.attackers) >= self.launched * 0.4:
+            return
+        near = any(g.enemies(e.team, self.team) and not e.dead
+                   and any(math.hypot(e.x - u.x, e.y - u.y) < 400 for u in self.attackers) for e in g.units)
+        if not near:
+            return
+        for u in self.attackers:
+            u.command(("move", hq.x, hq.y))
+        self.attackers = []
+        self.launched = 0
+        self.next_wave = max(self.next_wave, g.elapsed + 40)
+        self.retreats += 1
 
     def _objective(self, target):
         """Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;
@@ -678,6 +717,7 @@ class AI:
         for u in party:
             u.command(("amove", *self._standoff(u, t.x, t.y)))
         self.attackers += party
+        self.launched += len(party)
         self.next_raid = g.elapsed + 90
 
     def _towers(self, hq, home):

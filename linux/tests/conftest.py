@@ -22,12 +22,12 @@ from fieldcommand.world import PlayerInfo, World  # noqa: E402
 DT = 1 / 30
 
 
-def make_world(map_id="twin_ridges", players=2, ai=False, teams=0, difficulty=1):
+def make_world(map_id="twin_ridges", players=2, ai=False, teams=0, difficulty=1, seed=None):
     """A world with `players` slots; nobody is AI-controlled unless asked, so the test holds the orders."""
     spec = mapgen.resolve(map_id, players)
     team = (lambda i: i % teams + 1) if teams >= 2 else (lambda i: i + 1)
     ps = [PlayerInfo(i, f"P{i}", team(i), is_ai=ai, start=i) for i in range(players)]
-    return World(spec, ps, DIFFICULTIES[difficulty])
+    return World(spec, ps, DIFFICULTIES[difficulty], seed=seed)
 
 
 def run(world, seconds, until=None):

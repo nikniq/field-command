@@ -86,6 +86,12 @@ Station — more of them against massed tanks, and more Rangers and Snipers when
 walls its approach with **Barricades**: a turtle from the third minute, anyone within a minute of a
 building taking damage, six blocks in two lines either side of a gap so its own army still marches out.
 
+It knows when a fight is lost: a wave that has lost more than 60% of itself with the enemy still on it
+**pulls back** to the Command Center rather than dying piecemeal, and the next wave waits at least forty
+seconds more to be worth sending. And it knows when you are spent: on Normal and Hard, within twenty seconds
+of a threat to one of its bases being repelled, if its home army is at least half a wave, it
+**counterattacks** at once — the one time it attacks off the clock — no more than once a minute.
+
 When every crossing to you is down, it knows its route is cut: an Engineer goes to rebuild the bridge on
 the way, an escort holds the near bank, and the attack wave waits for the span instead of bouncing off the
 water.

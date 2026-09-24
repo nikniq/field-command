@@ -752,6 +752,92 @@ enum Debug {
     /// for crystal — matching linux/tests/test_start.py.
     /// FC_ABILITYTEST=1: unit abilities on the server simulation — the Ranger's grenade, the Sniper's mark, the
     /// Siege Tank's smoke, their cooldowns and reach, the wire and the save — matching linux/tests/test_abilities.py.
+    /// FC_COUNTERTEST=1: the computer pulls a beaten wave back and counterattacks a repelled threat —
+    /// matching linux/tests/test_ai_retreat.py.
+    static func runCounterTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(_ d: Difficulty = .normal) -> (SWorld, SAI, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: d, seed: 3)
+            let ai = SAI(world: w, team: 1)
+            return (w, ai, w.buildings.first { $0.team == 1 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            u.command(.idle)
+            return u
+        }
+        do {
+            let (w, ai, hq) = fresh()
+            let wave = (0..<6).map { unit(w, .marine, 1, hq.x - 900 + Double($0) * 20, hq.y) }
+            ai.attackers = wave; ai.launched = 6
+            for u in wave.prefix(4) { u.dead = true }
+            w.cleanupDead()
+            ai.attackers.removeAll { $0.dead }
+            ai.retreat(hq)
+            let pressed = ai.retreats == 0 && !ai.attackers.isEmpty
+            _ = unit(w, .tank, 0, hq.x - 1100, hq.y)
+            let before = ai.nextWave
+            ai.retreat(hq)
+            var home = true
+            for u in wave.suffix(2) { if case .move(let x, _) = u.order { home = home && abs(x - hq.x) < 1 } else { home = false } }
+            check(pressed && ai.retreats == 1 && ai.attackers.isEmpty && ai.launched == 0 && home && ai.nextWave >= before && ai.nextWave >= w.elapsed + 40,
+                  "a wave that has lost most of itself pulls back, and only with the enemy on it")
+        }
+        do {
+            let (w, ai, hq) = fresh()
+            let wave = (0..<6).map { unit(w, .marine, 1, hq.x - 900 + Double($0) * 20, hq.y) }
+            ai.attackers = wave; ai.launched = 6
+            for u in wave.prefix(3) { u.dead = true }
+            w.cleanupDead()
+            ai.attackers.removeAll { $0.dead }
+            _ = unit(w, .tank, 0, hq.x - 1100, hq.y)
+            ai.retreat(hq)
+            check(ai.retreats == 0 && ai.attackers.count == 3, "a wave still mostly alive keeps going")
+        }
+        do {
+            let (w, ai, hq) = fresh()
+            let home = (0..<8).map { unit(w, .marine, 1, hq.x - 150 + Double($0) * 20, hq.y + 100) }
+            let bases = w.buildings.filter { $0.team == 1 }
+            let raider = unit(w, .marine, 0, hq.x - 500, hq.y)
+            ai.defend(bases, home)
+            let noticed = ai.threatSeenAt == w.elapsed && !ai.counterPending
+            raider.dead = true
+            w.cleanupDead()
+            ai.setWave(size: 12, next: 1e9)
+            ai.defend(bases, home)
+            let pending = ai.counterPending
+            ai.attack(hq, home)
+            var went = true
+            for u in home { if case .amove = u.order {} else { went = false } }
+            check(noticed && pending && ai.counters == 1 && ai.attackers.count == 8 && went && !ai.counterPending && ai.lastCounter == w.elapsed,
+                  "a repelled threat is answered with a counterattack")
+            ai.attackers = []
+            ai.defend(bases, home)
+            _ = unit(w, .marine, 0, hq.x - 500, hq.y)
+            ai.defend(bases, home)
+            for u in w.units where u.team == 0 { u.dead = true }
+            w.cleanupDead()
+            ai.defend(bases, home)
+            check(!ai.counterPending, "not again for a minute")
+        }
+        do {
+            let (w, ai, hq) = fresh(.easy)
+            let home = (0..<5).map { unit(w, .marine, 1, hq.x - 150 + Double($0) * 20, hq.y + 100) }
+            let bases = w.buildings.filter { $0.team == 1 }
+            let raider = unit(w, .marine, 0, hq.x - 500, hq.y)
+            ai.defend(bases, home)
+            raider.dead = true
+            w.cleanupDead()
+            ai.defend(bases, home)
+            check(!ai.counterPending, "Easy never counterattacks")
+        }
+        print(ok ? "COUNTER TEST PASSED" : "COUNTER TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runAbilityTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

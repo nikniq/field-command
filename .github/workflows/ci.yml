@@ -187,6 +187,11 @@ jobs:
         run: |
           set -o pipefail
           FC_ABILITYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ABILITY TEST PASSED"
+      - name: Headless Counter
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_COUNTERTEST=1 "$BIN" | tee /dev/stderr | grep -q "COUNTER TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

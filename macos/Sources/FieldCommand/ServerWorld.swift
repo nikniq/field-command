@@ -1852,7 +1852,7 @@ final class SWorld {
 
     func cleanupDeadForTests() { cleanupDead() }
 
-    private func cleanupDead() {
+    func cleanupDead() {
         let lost = units.contains { $0.dead } || buildings.contains { $0.dead }
         if units.contains(where: { $0.dead }) {
             for u in units where u.dead {
@@ -2632,7 +2632,14 @@ final class SAI {
     private var think = 1.0
     private(set) var waveSize: Int
     private(set) var nextWave: Double
-    private var attackers: [SUnit] = []
+    var attackers: [SUnit] = []
+    /// A wave that is being beaten pulls back; a repelled attack on this base is answered at once.
+    var launched = 0                    // how many went out with the current wave and raids
+    var threatSeenAt = -1e9             // when an enemy was last near a base of this side
+    var lastCounter = -1e9
+    var counterPending = false
+    private(set) var retreats = 0
+    private(set) var counters = 0
     /// The opening being played, the scout and the way it still has to go, the troops posted at expansions,
     /// and the crystal that lay near the Command Center when the game began.
     private(set) var opening: String
@@ -2655,6 +2662,8 @@ final class SAI {
     private(set) var routeBridge: SBridge?
     func forceRouteCheck() { nextRouteCheck = 0 }
     var attackersCount: Int { attackers.count }
+    /// For the headless tests: a wave schedule of the test's choosing.
+    func setWave(size: Int, next: Double) { waveSize = size; nextWave = next }
 
     init(world: SWorld, team: Int, opening: String? = nil) {
         self.world = world
@@ -3124,10 +3133,20 @@ final class SAI {
         }
     }
 
-    private func defend(_ bases: [SBuilding], _ home: [SUnit]) {
+    func defend(_ bases: [SBuilding], _ home: [SUnit]) {
         let g = world
         guard let threat = g.units.first(where: { u in g.enemies(u.team, team) && bases.contains { hyp($0.x - u.x, $0.y - u.y) < 650 } })
-        else { return }
+        else {
+            // The threat is gone: if it was here a moment ago and the home army is worth sending, go after
+            // whatever it came from before it can regroup.
+            let since = g.elapsed - threatSeenAt
+            if threatSeenAt > -1e8 && since < 20 && home.count >= max(3, waveSize / 2) && g.elapsed - lastCounter > 60 && diff.rawValue >= 1 {
+                counterPending = true
+                threatSeenAt = -1e9
+            }
+            return
+        }
+        threatSeenAt = g.elapsed
         for u in home {
             switch u.order {
             case .idle, .move:
@@ -3185,17 +3204,27 @@ final class SAI {
         for u in home.filter({ $0.order.isIdle }).prefix(6) { let (x, y) = standoff(u, px, py); u.command(.amove(x, y)) }
     }
 
-    private func attack(_ hq: SBuilding, _ home: [SUnit]) {
+    func attack(_ hq: SBuilding, _ home: [SUnit]) {
         let g = world
         let overdue = g.elapsed > nextWave + 120 && home.count >= 4
         if !routeOpen { nextWave = max(nextWave, g.elapsed + 10) }      // the wave waits for the crossing
-        if g.elapsed >= nextWave && (home.count >= waveSize || overdue), let goal = objective(g.primaryTarget(team, hq.x, hq.y)) {
+        let counter = counterPending && home.count >= 3
+        if (g.elapsed >= nextWave && (home.count >= waveSize || overdue)) || counter,
+           let goal = objective(g.primaryTarget(team, hq.x, hq.y)) {
             for u in home { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
             attackers += home
-            waveSize = min(40, waveSize + 2 + diff.rawValue * 2)
+            launched = attackers.count
+            if counter {
+                lastCounter = g.elapsed
+                counters += 1
+            } else {
+                waveSize = min(40, waveSize + 2 + diff.rawValue * 2)
+            }
             nextWave = g.elapsed + 50
             g.waveLaunched(team)
         }
+        counterPending = false
+        retreat(hq)
         for u in attackers where u.order.isIdle {
             if let goal = objective(g.primaryTarget(team, u.x, u.y)) { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
         }
@@ -3203,6 +3232,20 @@ final class SAI {
         siege(home)
         towersRun(hq, home)
         answerPings(home)
+    }
+
+    /// A wave that has lost most of itself with the enemy still on it pulls back to the Command Center rather
+    /// than dying piecemeal, and the next wave waits a little longer to be worth sending.
+    func retreat(_ hq: SBuilding) {
+        let g = world
+        guard launched >= 4, !attackers.isEmpty, Double(attackers.count) < Double(launched) * 0.4 else { return }
+        let near = g.units.contains { e in g.enemies(e.team, team) && !e.dead && attackers.contains { hyp(e.x - $0.x, e.y - $0.y) < 400 } }
+        guard near else { return }
+        for u in attackers { u.command(.move(hq.x, hq.y)) }
+        attackers = []
+        launched = 0
+        nextWave = max(nextWave, g.elapsed + 40)
+        retreats += 1
     }
 
     /// Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;
@@ -3229,6 +3272,7 @@ final class SAI {
         let party = Array(idle.prefix(max(4, waveSize)))
         for u in party { let (x, y) = standoff(u, call.x, call.y); u.command(.amove(x, y)) }
         attackers += party
+        launched += party.count
     }
 
     /// Between waves, two or three troops go for the enemy building nearest this base — usually an expansion

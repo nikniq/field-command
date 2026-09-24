@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.33.0
+Version:        1.34.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.34.0-1
+- The computer pulls a wave back to its Command Center once it has lost most of itself with the enemy
+  still on it, and waits longer before the next; on Normal and Hard it counterattacks within twenty
+  seconds of repelling a threat to its base when its home army is worth sending
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.33.0-1
 - Every unit kind speaks in its own voice (a clean chirp, a buzz, a growl, a thin whistle, a soft warble,
   a rotor-chopped call) with three lines on selection and two on an order, never the same one twice running
