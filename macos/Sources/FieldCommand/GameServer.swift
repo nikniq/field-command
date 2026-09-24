@@ -77,6 +77,7 @@ final class GameServer {
         s.mapId = r.map
         s.replay = r
         s.mission = missionNamed(r.mission)
+        s.mode = r.mode
         for slot in s.slots {
             if let p = r.players.first(where: { $0.slot == slot.index }) {
                 slot.kind = p.slot == r.viewer ? "open" : "ai"
@@ -96,6 +97,8 @@ final class GameServer {
         return s
     }
     var mission: Mission?
+    /// The skirmish rule for a new game (Defs.modes).
+    var mode = "annihilation"
 
     /// A private server that resumes a saved single-player game.
     static func singlePlayer(restoring w: SWorld) -> GameServer {
@@ -116,11 +119,12 @@ final class GameServer {
         return s
     }
 
-    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0) -> GameServer {
+    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0, mode: String = "annihilation") -> GameServer {
         let s = GameServer(name: "Skirmish", port: 0)
         s.localOnly = true
         s.difficulty = difficulty
         s.mapId = mapId
+        s.mode = mode
         for slot in s.slots {
             slot.team = teamOf(slot: slot.index, teams: teams)
             if slot.index == 0 { slot.kind = "open" } else if slot.index <= opponents {
@@ -500,8 +504,10 @@ final class GameServer {
         let crystals = w.crystals.map { [$0.id, $0.x, $0.y, $0.amount, $0.variant] as [Any] }
         for c in clients {
             guard let s = c.slot else { continue }
-            var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals]
+            var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals, "mode": w.mode]
             if let m = w.mission { msg["mission"] = m.id }
+            if w.mode == "koth" { msg["ring"] = [w.ring.0, w.ring.1] }
+            if let m = w.mission, let h = m.hold { msg["ring"] = [h.0, h.1, h.2] }
             if replay != nil { msg["replay"] = 1 }
             // A resumed game: the client gets back the ground its side had explored.
             if w.elapsed > 0, let alliance = w.players[s]?.team, let g = w.fog[alliance] { msg["explored"] = SaveGame.bitsOut(g.explored) }
@@ -629,6 +635,7 @@ final class GameServer {
                 "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
                 "ms": w.mission != nil ? Int(w.missionProgress()) : 0,
+                "hold": w.mode == "koth" ? Dictionary(uniqueKeysWithValues: w.hold.map { (String($0.key), r1($0.value)) }) : [:],
                 "cr": w.crates.filter { c in w.fog[w.players[slot]?.team ?? -1]?.isVisible(c.x, c.y) == true }
                     .map { [$0.id, r1($0.x), r1($0.y), crateKinds.firstIndex(of: $0.kind) ?? 0, $0.amount] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]

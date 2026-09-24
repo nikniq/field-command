@@ -308,10 +308,12 @@ final class MenuScene: SKScene {
 
         // Map and opponent pickers
         let meta = SMapGen.info(Settings.mapId) ?? SMapGen.catalog[0]
+        let mode = modes.first { $0.id == Settings.mode } ?? modes[0]
         let picks: [(CGFloat, String, () -> Void)] = [
-            (360, "Map: \(meta.name)  (\(meta.players)p)", { Settings.cycleMap() }),
-            (170, "Opponents: \(Settings.opponents)", { Settings.cycleOpponents() }),
+            (300, "Map: \(meta.name)  (\(meta.players)p)", { Settings.cycleMap() }),
+            (150, "Opponents: \(Settings.opponents)", { Settings.cycleOpponents() }),
             (170, Settings.teamCount < 2 ? "Teams: Free-for-all" : "Teams: \(Settings.teamCount)", { Settings.cycleTeams() }),
+            (210, "Mode: \(mode.name)", { Settings.cycleMode() }),
         ]
         let py = ty - th - 12
         var px = -(picks.reduce(0) { $0 + $1.0 } + tg * CGFloat(picks.count - 1)) / 2
@@ -328,7 +330,7 @@ final class MenuScene: SKScene {
             toggles.append((r, bg, { [unowned self] in action(); self.buildContent() }))
             px += pw + tg
         }
-        let desc = makeLabel(meta.desc, size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        let desc = makeLabel("\(meta.desc)  ·  \(mode.rule)", size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
         desc.position = CGPoint(x: 0, y: py - th / 2 - 14)
         content.addChild(desc)
         // Who is with whom — the round-robin deal is otherwise invisible until the game starts.
@@ -685,6 +687,6 @@ final class MenuScene: SKScene {
     private func start(_ d: Difficulty) {
         Settings.lastDifficulty = d.rawValue
         startSkirmish(view, size: size, difficulty: d, mapId: Settings.mapId, opponents: Settings.opponents,
-                      teams: Settings.teamCount)
+                      teams: Settings.teamCount, mode: Settings.mode)
     }
 }

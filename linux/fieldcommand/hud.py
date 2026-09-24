@@ -8,7 +8,7 @@ import os
 import pygame
 
 from . import art, audio, defs, ui
-from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, KITS, TEAM_COLOR, TEAM_LIGHT, TEXT,
+from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, KITS, KOTH_HOLD, TEAM_COLOR, TEAM_LIGHT, TEXT,
                    UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS, fmt_time, to255)
 from .settings import settings
 
@@ -263,6 +263,12 @@ class HUD:
         """The mission's own objective, with its clock where it has one."""
         m = getattr(self.game.s, "mission", None)
         if m is None:
+            mode = getattr(self.game.s, "mode", "annihilation")
+            if mode == "koth":
+                mine, best = self.game.s.hold_standing()
+                return f"King of the Hill: hold the gold {fmt_time(KOTH_HOLD)} — you {fmt_time(mine)} · enemy {fmt_time(best)}"
+            if mode == "sudden":
+                return "Sudden Death: keep a Command Center standing"
             return None
         if m.win == "destroy":
             return f"{m.title}: destroy every enemy building"

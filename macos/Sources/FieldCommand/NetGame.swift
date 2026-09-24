@@ -92,6 +92,9 @@ extension GameScene {
         net.snapTime = now
         net.serverTime = jNum(m["time"])
         net.missionProgress = jInt(m["ms"])
+        var hold: [Int: Double] = [:]
+        for (k, v) in jDict(m["hold"]) { if let t = Int(k) { hold[t] = Double(jNum(v)) } }
+        net.hold = hold
         net.resources = jInt(m["res"])
         let mask = jInt(m["kit"])
         let owned = Set(kitIds.enumerated().filter { mask & (1 << $0.offset) != 0 }.map { $0.element })
@@ -548,14 +551,15 @@ func watchReplay(_ view: SKView?, size: CGSize, name: String? = nil) {
                   opponents: r.players.count - 1, replay: r)
 }
 
+
 func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0,
-                   restoring: SWorld? = nil, mission: Mission? = nil, replay: Replay? = nil) {
+                   restoring: SWorld? = nil, mission: Mission? = nil, replay: Replay? = nil, mode: String = "annihilation") {
     func fallback() { showScene(view, GameScene(size: size, difficulty: difficulty), fade: 0.6) }
     stopHostedServer()
     let server = restoring.map { GameServer.singlePlayer(restoring: $0) }
         ?? replay.map { GameServer.singlePlayer(replay: $0) }
         ?? mission.map { GameServer.singlePlayer(mission: $0) }
-        ?? GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
+        ?? GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams, mode: mode)
     server.log = { _ in }
     server.timeScale = Double(Settings.gameSpeed)
     do { try server.start() } catch { return fallback() }

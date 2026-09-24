@@ -582,22 +582,33 @@ class AI:
             self.next_wave = max(self.next_wave, g.elapsed + 10)       # the wave waits for the crossing
         if g.elapsed >= self.next_wave and (len(home) >= self.wave_size or overdue):
             target = g.primary_target(self.team, hq.x, hq.y)
-            if target:
+            goal = self._objective(target)
+            if goal:
                 for u in home:
-                    u.command(("amove", *self._standoff(u, target.x, target.y)))
+                    u.command(("amove", *self._standoff(u, *goal)))
                 self.attackers += home
                 self.wave_size = min(40, self.wave_size + 2 + self.diff.index * 2)
                 self.next_wave = g.elapsed + 50
                 g.wave_launched(self.team, target)
         for u in self.attackers:
             if u.order[0] == "idle":
-                t = g.primary_target(self.team, u.x, u.y)
-                if t:
-                    u.command(("amove", *self._standoff(u, t.x, t.y)))
+                goal = self._objective(g.primary_target(self.team, u.x, u.y))
+                if goal:
+                    u.command(("amove", *self._standoff(u, *goal)))
         self._raid(hq, home)
         self._siege(home)
         self._towers(hq, home)
         self._answer_pings(home)
+
+    def _objective(self, target):
+        """Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;
+        otherwise the enemy's nearest building."""
+        g = self.game
+        if g.mode == "koth":
+            mine, best = g.hold_standing(self.team)
+            if mine <= best or mine <= 0.0:
+                return g.ring
+        return (target.x, target.y) if target is not None else None
 
     def _answer_pings(self, home):
         """An ally's alert point: whatever is standing idle at home goes there (at least a pair, up to a wave),

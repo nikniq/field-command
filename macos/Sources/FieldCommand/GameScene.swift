@@ -33,6 +33,8 @@ final class GameScene: SKScene {
     var mapKey = "twin_ridges"
 
     let world = SKNode()
+    /// King of the Hill's ring (and a hold mission's): an ellipse on the ground in the holder's colour.
+    private let ringNode = SKShapeNode()
     let decalLayer = SKNode()
     /// Cloud shadows: a grid of soft tiles above the ground layers that drifts and wraps (see update).
     let cloudLayer = SKNode()
@@ -591,6 +593,7 @@ final class GameScene: SKScene {
         if cam.yScale == cam.xScale { setZoom(cam.xScale) }      // the tilt, applied once the camera exists
         sortByDepth()
         if satellite { updateSatelliteMarkers() }
+        updateRing()
         cloudLayer.position = CGPoint(x: (elapsed * 22).truncatingRemainder(dividingBy: 1024) - 1024,
                                       y: (elapsed * 9).truncatingRemainder(dividingBy: 1024) - 1024)
         let rawDt = lastTime == 0 ? 1.0 / 60 : currentTime - lastTime
@@ -834,6 +837,26 @@ final class GameScene: SKScene {
         case 103: return "f11"
         case 111: return "f12"
         default: return (event.charactersIgnoringModifiers ?? "").lowercased()
+        }
+    }
+
+    private func updateRing() {
+        guard let net, let (c, r) = net.ring else { return }
+        if ringNode.parent == nil {
+            ringNode.path = CGPath(ellipseIn: CGRect(x: -r, y: -r * tilt, width: r * 2, height: r * 2 * tilt), transform: nil)
+            ringNode.position = c
+            ringNode.zPosition = 0.5
+            ringNode.fillColor = .clear
+            ringNode.lineWidth = 3
+            world.addChild(ringNode)
+        }
+        let holder = net.hold.max { $0.value < $1.value }.flatMap { $0.value > 0 ? $0.key : nil }
+        if let h = holder, let slot = net.players.values.first(where: { $0.team == h })?.slot {
+            ringNode.strokeColor = Team(rawValue: slot).color
+            ringNode.lineWidth = 4
+        } else {
+            ringNode.strokeColor = Palette.amber
+            ringNode.lineWidth = 3
         }
     }
 

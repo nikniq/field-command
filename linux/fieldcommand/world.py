@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (HIGH_SIGHT, HISTORY_STEP, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (HIGH_SIGHT, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -32,7 +32,7 @@ class PlayerInfo:
 
 
 class World:
-    def __init__(self, map_spec, players, difficulty, mission=None, seed=None):
+    def __init__(self, map_spec, players, difficulty, mission=None, seed=None, mode="annihilation"):
         self.map = map_spec
         self.difficulty = difficulty
         # Every random choice the simulation makes comes from this generator, so a game is a pure function of
@@ -61,6 +61,9 @@ class World:
         self.mission = MISSION_BY_ID.get(mission) if isinstance(mission, str) else mission
         self.mission_timer = 0.0
         self.mission_fired = 0          # how many of the mission's scripted events have gone off
+        # The skirmish mode (defs.MODES); King of the Hill keeps a hold timer per alliance around the gold.
+        self.mode = mode if mode in MODE_BY_ID and mission is None else "annihilation"
+        self.hold = {}
         self.history = {p.slot: [] for p in players}    # army size per side every HISTORY_STEP seconds
         self._next_sample = 0.0
         # Supply crates on the field, and when the next one drops.
@@ -268,6 +271,7 @@ class World:
             t.update(dt)
         self._check_mission(dt)
         self._run_script()
+        self._check_mode(dt)
         if self.elapsed >= self._next_sample:
             self._next_sample += HISTORY_STEP
             for s in self.history:
@@ -479,6 +483,38 @@ class World:
             self.winner_team = me.team
             self.emit("gameover", me.team)
 
+    # ------------------------------------------------------------ skirmish modes
+
+    @property
+    def ring(self):
+        """King of the Hill's ring: the gold deposit's centre, or the middle of the map without one."""
+        gold = [c for c in self.crystals if c.variant == 3]
+        if not gold:
+            return (defs.WORLD_W / 2, defs.WORLD_H / 2)
+        return (sum(c.x for c in gold) / len(gold), sum(c.y for c in gold) / len(gold))
+
+    def _check_mode(self, dt):
+        if self.mode != "koth" or self.game_over:
+            return
+        hx, hy = self.ring
+        inside = set()
+        for e in self.units + self.buildings:
+            if not e.dead and math.hypot(e.x - hx, e.y - hy) <= KOTH_RADIUS:
+                inside.add(self.players[e.team].team)
+        for t in {p.team for p in self.players.values() if p.alive}:
+            self.hold[t] = self.hold.get(t, 0.0) + dt if (t in inside and len(inside) == 1) else 0.0
+            if self.hold[t] >= KOTH_HOLD:
+                self.game_over = True
+                self.winner_team = t
+                self.emit("gameover", t)
+                return
+
+    def hold_standing(self, slot):
+        """(this side's hold, the best enemy hold), in seconds, for the objectives row."""
+        mine = self.players[slot].team
+        best = max((v for t, v in self.hold.items() if t != mine), default=0.0)
+        return self.hold.get(mine, 0.0), best
+
     # ------------------------------------------------------------ mission script
 
     def edge_point(self, slot):
@@ -532,6 +568,18 @@ class World:
         self.emit("msg", 0, text, "good" if self.allied(owner, 0) else "bad")
 
     def _check_victory(self):
+        if self.mode == "sudden":
+            # A side without a standing Command Center is out, and everything it owns goes with it.
+            for p in self.players.values():
+                if p.alive and not any(b.team == p.slot and b.kind == "hq" and not b.dead for b in self.buildings) \
+                        and any(b.team == p.slot for b in self.buildings):
+                    for b in self.buildings:
+                        if b.team == p.slot:
+                            b.dead = True
+                    for u in self.units:
+                        if u.team == p.slot:
+                            u.dead = True
+                    self._cleanup_dead()
         for p in self.players.values():
             if p.alive and not any(b.team == p.slot for b in self.buildings):
                 p.alive = False

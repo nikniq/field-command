@@ -679,6 +679,75 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_MODETEST=1: skirmish modes — King of the Hill's ring and timers, Sudden Death's elimination, the
+    /// computer's objective, and how the mode travels — matching linux/tests/test_modes.py.
+    static func runModeTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func world(_ mode: String) -> SWorld {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 4)
+            w.mode = mode
+            for u in w.units { u.command(.idle) }
+            return w
+        }
+        func run(_ w: SWorld, _ seconds: Double, until: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if until() { return true } }
+            return until()
+        }
+        check(modes.map { $0.id } == ["annihilation", "koth", "sudden"], "three modes in the catalogue")
+        let w = world("koth")
+        let (hx, hy) = w.ring
+        check(w.crystals.contains { $0.variant == 3 && abs($0.x - hx) < kothRadius && abs($0.y - hy) < kothRadius }, "the ring sits on the gold")
+        let r = SUnit(world: w, kind: .marine, team: 0, x: hx, y: hy); w.add(r); r.command(.idle)
+        _ = run(w, 3)
+        check((w.hold[1] ?? 0) > 2.5 && (w.hold[1] ?? 0) < 3.5 && (w.hold[2] ?? 0) == 0, "an uncontested hold runs the clock")
+        let foe = SUnit(world: w, kind: .marine, team: 1, x: hx + 40, y: hy); w.add(foe); foe.command(.idle)
+        r.hp = 9999; foe.hp = 9999
+        _ = run(w, 0.5)
+        check(w.hold[1] == 0 && w.hold[2] == 0, "contested: nobody's clock runs")
+        foe.takeDamage(99999, from: nil)
+        w.hold[1] = kothHold - 1
+        check(run(w, 3) { w.gameOver } && w.winnerTeam == 1, "the first to three minutes wins")
+        do {
+            let w = world("sudden")
+            let hq0 = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            w.startBuilding(.depot, hq0.x + 300, hq0.y, 0); w.buildings.last!.built = true
+            hq0.takeDamage(99999, from: nil)
+            _ = run(w, 1)
+            check(!w.players[0]!.alive && w.gameOver && w.winnerTeam == 2 && !w.buildings.contains { $0.team == 0 },
+                  "Sudden Death knocks out a side with its last Command Center, depot and all")
+            let w2 = world("annihilation")
+            w2.buildings.first { $0.team == 0 && $0.kind == .hq }!.takeDamage(99999, from: nil)
+            w2.startBuilding(.depot, 900, 900, 0); w2.buildings.last!.built = true
+            _ = run(w2, 1)
+            check(w2.players[0]!.alive, "under the usual rule a depot still stands")
+        }
+        do {
+            let w = world("koth")
+            let ai = SAI(world: w, team: 1, opening: "rush")
+            let hq0 = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            let ring = w.ring
+            let toRing = ai.objective(hq0).map { $0.0 == ring.0 && $0.1 == ring.1 } ?? false
+            w.hold[2] = 30; w.hold[1] = 5
+            let toBase = ai.objective(hq0).map { $0.0 == hq0.x && $0.1 == hq0.y } ?? false
+            w.hold[2] = 5; w.hold[1] = 30
+            let backToRing = ai.objective(hq0).map { $0.0 == ring.0 } ?? false
+            check(toRing && toBase && backToRing, "the computer goes for the ring until it leads there")
+        }
+        do {
+            let w = world("koth")
+            w.hold[1] = 12.5
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            let rec = try! Replay(try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: Replay.encode(w, viewer: 0))) as! [String: Any])
+            check(w2.mode == "koth" && w2.hold[1] == 12.5 && rec.mode == "koth", "the mode travels in saves and replays")
+        }
+        print(ok ? "MODE TEST PASSED" : "MODE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runReplayTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

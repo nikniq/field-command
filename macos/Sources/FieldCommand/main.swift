@@ -126,6 +126,9 @@ if Debug.env["FC_WALLTEST"] != nil {
 if Debug.env["FC_AIRTEST"] != nil {
     Debug.runAirTest()
 }
+if Debug.env["FC_MODETEST"] != nil {
+    Debug.runModeTest()
+}
 if Debug.env["FC_ICONSOAK"] != nil {
     Debug.runIconSoak()
 }

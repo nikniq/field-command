@@ -26,7 +26,7 @@ from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_I
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 14
+PROTOCOL_VERSION = 15
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -151,6 +151,7 @@ def snapshot_for(world, slot, events):
             "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],
             "kit": sum(1 << i for i, k in enumerate(KIT_IDS) if k in world.kits.get(slot, ())),
             "ms": int(world.mission_progress()) if world.mission else 0,
+            "hold": {str(t): round(v, 1) for t, v in world.hold.items()} if world.mode == "koth" else {},
             "cr": [[c.id, _r(c.x), _r(c.y), CRATE_INDEX[c.kind], c.amount] for c in world.crates
                    if world.fog_for(slot).is_visible(c.x, c.y)],
             "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,
@@ -427,7 +428,7 @@ class Server:
         for c in self.clients:
             if c.slot is not None:
                 c.send({"t": "start", "slot": c.slot, "map": spec, "players": info, "difficulty": self.difficulty,
-                        "crystals": crystals})
+                        "crystals": crystals, "mode": w.mode})
         self.log(f"Game started: {len(active)} players on {spec['name']}")
 
     async def _tick_loop(self):

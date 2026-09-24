@@ -244,6 +244,16 @@ it collapses are pushed clear onto the nearest bank.
 Computer players rebuild a crossing near their base when they have crystal to spare, so cutting a bridge buys
 time rather than winning outright.
 
+## Game modes
+
+The **Mode** button on the title screen sets the skirmish rule. **Annihilation** is the usual one: destroy
+every enemy building. **King of the Hill**: the first side to hold the gold ring (260 around the gold
+deposit; every map has one) for three minutes, uncontested, wins — anything of yours inside counts, any
+enemy unit inside stops every clock, and the ring is drawn on the ground in the holder's colour with the
+standing in the objectives row; the computer sends its waves at the ring until it leads there. **Sudden
+Death**: lose your last Command Center and you are out, with everything you own. Campaign missions carry
+their own rules. The mode travels in saves and replays.
+
 ## The campaign
 
 **C** on the title screen (or the *Campaign* button) opens five missions played in order, each unlocking the

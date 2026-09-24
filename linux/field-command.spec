@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.29.0
+Version:        1.30.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.30.0-1
+- Skirmish game modes on the title screen: Annihilation (the usual rule), King of the Hill (first side
+  to hold the gold ring, uncontested, for three minutes wins; the ring is drawn on the ground in the
+  holder's colour and the computer contests it) and Sudden Death (lose your last Command Center and you
+  are out). The mode travels in saves, replays and over the wire (protocol 15)
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.29.0-1
 - The computer fields Gunships (they answer massed tanks; its Rangers and Snipers answer yours) and walls
   its approach with Barricades — a turtle from the third minute, anyone once its base has been hit —

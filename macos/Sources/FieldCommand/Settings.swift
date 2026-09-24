@@ -103,6 +103,16 @@ enum Settings {
         set { d.set(newValue, forKey: "opponents") }
     }
 
+    /// The skirmish rule (see `modes`).
+    static var mode: String {
+        get { let m = d.string(forKey: "mode") ?? "annihilation"; return modes.contains { $0.id == m } ? m : "annihilation" }
+        set { d.set(newValue, forKey: "mode") }
+    }
+    static func cycleMode() {
+        let ids = modes.map { $0.id }
+        mode = ids[((ids.firstIndex(of: mode) ?? 0) + 1) % ids.count]
+    }
+
     static func cycleMap() {
         let ids = SMapGen.catalog.map { $0.id }
         mapId = ids[((ids.firstIndex(of: mapId) ?? -1) + 1) % ids.count]

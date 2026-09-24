@@ -227,6 +227,15 @@ def test_key_actions_agree():
     assert [tuple(r) for r in rows] == [tuple(a) for a in KEY_ACTIONS]
 
 
+def test_game_modes_agree():
+    from fieldcommand.defs import KOTH_HOLD, KOTH_RADIUS, MODES
+    src = swift("Defs.swift")
+    rows = re.findall(r'\("(\w+)", "([^"]+)", "([^"]+)"\)', re.search(r"let modes: .*?= \[(.*?)\n\]", src, re.S).group(1))
+    assert [tuple(r) for r in rows] == [tuple(m) for m in MODES]
+    assert float(re.search(r"let kothHold: Double = ([\d.]+)", src).group(1)) == KOTH_HOLD
+    assert float(re.search(r"let kothRadius: Double = ([\d.]+)", src).group(1)) == KOTH_RADIUS
+
+
 def test_gold_deposits_agree():
     from fieldcommand import mapgen
     from fieldcommand.defs import GOLD_AMOUNT

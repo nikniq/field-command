@@ -1401,6 +1401,9 @@ final class SWorld {
     var missionTimer = 0.0
     /// How many of the mission's scripted events have gone off.
     var missionFired = 0
+    /// The skirmish mode (Defs.modes); King of the Hill keeps a hold timer per alliance around the gold.
+    var mode = "annihilation"
+    var hold: [Int: Double] = [:]
     /// Army size per side every historyStep seconds, for the end screen's timeline.
     var history: [Int: [Int]] = [:]
     var nextSample = 0.0
@@ -1564,6 +1567,7 @@ final class SWorld {
         for t in towers { t.update(dt) }
         checkMission(dt)
         runScript()
+        checkMode(dt)
         if elapsed >= nextSample {
             nextSample += historyStep
             for s in players.keys.sorted() {
@@ -1894,6 +1898,40 @@ final class SWorld {
         }
     }
 
+    // MARK: Skirmish modes
+
+    /// King of the Hill's ring: the gold deposit's centre, or the middle of the map without one.
+    var ring: (Double, Double) {
+        let gold = crystals.filter { $0.variant == 3 }
+        guard !gold.isEmpty else { return (worldW / 2, worldH / 2) }
+        return (gold.reduce(0.0) { $0 + $1.x } / Double(gold.count), gold.reduce(0.0) { $0 + $1.y } / Double(gold.count))
+    }
+
+    private func checkMode(_ dt: Double) {
+        guard mode == "koth", !gameOver else { return }
+        let (hx, hy) = ring
+        var inside = Set<Int>()
+        for u in units where !u.dead && hyp(u.x - hx, u.y - hy) <= kothRadius { if let t = players[u.team]?.team { inside.insert(t) } }
+        for b in buildings where !b.dead && hyp(b.x - hx, b.y - hy) <= kothRadius { if let t = players[b.team]?.team { inside.insert(t) } }
+        let teams = Set(players.values.filter { $0.alive }.map { $0.team })
+        for t in teams.sorted() {
+            hold[t] = (inside.contains(t) && inside.count == 1) ? (hold[t] ?? 0) + dt : 0
+            if hold[t]! >= kothHold {
+                gameOver = true
+                winnerTeam = t
+                emit(["gameover", t])
+                return
+            }
+        }
+    }
+
+    /// (this side's hold, the best enemy hold), in seconds.
+    func holdStanding(_ slot: Int) -> (Double, Double) {
+        let mine = players[slot]?.team ?? -1
+        let best = hold.filter { $0.key != mine }.values.max() ?? 0
+        return (hold[mine] ?? 0, best)
+    }
+
     // MARK: Mission script
 
     /// Where a column for `slot` comes onto the map: the map edge nearest that side's start.
@@ -1948,6 +1986,18 @@ final class SWorld {
     }
 
     private func checkVictory() {
+        if mode == "sudden" {
+            // A side without a standing Command Center is out, and everything it owns goes with it.
+            var fell = false
+            for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive
+                && !buildings.contains(where: { $0.team == p.slot && $0.kind == .hq && !$0.dead })
+                && buildings.contains(where: { $0.team == p.slot }) {
+                for b in buildings where b.team == p.slot { b.dead = true }
+                for u in units where u.team == p.slot { u.dead = true }
+                fell = true
+            }
+            if fell { cleanupDead() }
+        }
         for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive && !buildings.contains(where: { $0.team == p.slot }) {
             p.alive = false
             for u in units where u.team == p.slot { u.dead = true }
@@ -3012,20 +3062,31 @@ final class SAI {
         let g = world
         let overdue = g.elapsed > nextWave + 120 && home.count >= 4
         if !routeOpen { nextWave = max(nextWave, g.elapsed + 10) }      // the wave waits for the crossing
-        if g.elapsed >= nextWave && (home.count >= waveSize || overdue), let target = g.primaryTarget(team, hq.x, hq.y) {
-            for u in home { let (x, y) = standoff(u, target.x, target.y); u.command(.amove(x, y)) }
+        if g.elapsed >= nextWave && (home.count >= waveSize || overdue), let goal = objective(g.primaryTarget(team, hq.x, hq.y)) {
+            for u in home { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
             attackers += home
             waveSize = min(40, waveSize + 2 + diff.rawValue * 2)
             nextWave = g.elapsed + 50
             g.waveLaunched(team)
         }
         for u in attackers where u.order.isIdle {
-            if let t = g.primaryTarget(team, u.x, u.y) { let (x, y) = standoff(u, t.x, t.y); u.command(.amove(x, y)) }
+            if let goal = objective(g.primaryTarget(team, u.x, u.y)) { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
         }
         raid(hq, home)
         siege(home)
         towersRun(hq, home)
         answerPings(home)
+    }
+
+    /// Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;
+    /// otherwise the enemy's nearest building.
+    func objective(_ target: SEntity?) -> (Double, Double)? {
+        let g = world
+        if g.mode == "koth" {
+            let (mine, best) = g.holdStanding(team)
+            if mine <= best || mine <= 0 { return g.ring }
+        }
+        return target.map { ($0.x, $0.y) }
     }
 
     /// An ally's alert point: whatever is standing idle at home goes there (at least a pair, up to a wave),

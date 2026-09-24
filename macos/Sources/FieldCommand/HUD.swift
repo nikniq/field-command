@@ -417,7 +417,15 @@ final class HUD: SKNode {
 
     /// The mission's own objective, with its clock where it has one.
     func missionRow() -> String? {
-        guard let m = game.net?.mission else { return nil }
+        guard let m = game.net?.mission else {
+            guard let net = game.net else { return nil }
+            if net.mode == "koth" {
+                let (mine, best) = net.holdStanding()
+                return "King of the Hill: hold the gold \(formatTime(CGFloat(kothHold))) — you \(formatTime(CGFloat(mine))) · enemy \(formatTime(CGFloat(best)))"
+            }
+            if net.mode == "sudden" { return "Sudden Death: keep a Command Center standing" }
+            return nil
+        }
         if m.win == "destroy" { return "\(m.title): destroy every enemy building" }
         let left = max(0, Int(m.seconds) - (game.net?.missionProgress ?? 0))
         let verb = m.win == "survive" ? "survive" : "hold the gold"

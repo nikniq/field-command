@@ -129,6 +129,7 @@ def world_to_dict(world, label=""):
         "next_crate": w.next_crate,
         "mission": w.mission.id if w.mission else None, "mission_timer": w.mission_timer, "mission_fired": w.mission_fired,
         "history": {str(s): h for s, h in w.history.items()}, "next_sample": w._next_sample,
+        "mode": w.mode, "hold": {str(t): v for t, v in w.hold.items()},
         "seed": w.seed, "rng": [w.rng.getstate()[0], list(w.rng.getstate()[1]), w.rng.getstate()[2]], "tick": w.tick,
         "reveals": {str(t): {str(i): until for i, until in r.items()} for t, r in w.reveals.items()},
         "ai": ai,
@@ -172,6 +173,8 @@ def world_from_dict(data):
         if int(s) in w.history:
             w.history[int(s)] = list(h)
     w._next_sample = float(data.get("next_sample", w.elapsed))
+    w.mode = data.get("mode", "annihilation") if w.mission is None else "annihilation"
+    w.hold = {int(t): float(v) for t, v in data.get("hold", {}).items()}
     for saved, live in zip(data["towers"], w.towers):
         live.id, live.owner, live.capturing, live.progress = saved["id"], saved["owner"], saved["capturing"], saved["progress"]
     for e in w.bridges + w.towers:

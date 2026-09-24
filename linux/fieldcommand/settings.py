@@ -23,6 +23,7 @@ class _Settings:
                 "last_difficulty": 1, "fullscreen": False,
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
+                "mode": "annihilation",   # the skirmish rule: see defs.MODES
                 "campaign_done": [],   # mission ids completed, in any order
                 "bars_always": False,  # health bars on everything, not only the hurt and the selected
                 "ui_scale": 0,  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
@@ -89,6 +90,11 @@ class _Settings:
 
     def cycle_speed(self):
         self.set("speed_index", (self.speed_index + 1) % len(SPEEDS))
+
+    def cycle_mode(self):
+        from .defs import MODES
+        ids = [m[0] for m in MODES]
+        self.set("mode", ids[(ids.index(self.mode) + 1) % len(ids)] if self.mode in ids else ids[0])
 
     def cycle_map(self):
         from .mapgen import CATALOG

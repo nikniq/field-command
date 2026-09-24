@@ -269,6 +269,16 @@ MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
 # Every side starts with this much crystal in the bank.
 START_CRYSTAL = 2000
 
+# Skirmish game modes: (id, name, rule). Annihilation is the usual rule; King of the Hill goes to the first
+# side to hold the gold ring, uncontested, for KOTH_HOLD seconds; Sudden Death knocks a side out with its
+# last Command Center. Campaign missions carry their own rules and ignore the mode.
+MODES = [("annihilation", "Annihilation", "Destroy every enemy building"),
+         ("koth", "King of the Hill", "First to hold the gold ring for 3:00 wins"),
+         ("sudden", "Sudden Death", "Lose your last Command Center and you are out")]
+MODE_BY_ID = {m[0]: m for m in MODES}
+KOTH_HOLD = 180.0
+KOTH_RADIUS = 260.0
+
 # The post-game timeline: every side's army size is sampled this often (seconds) for the graph on the
 # end screen. UNDO_WINDOW is how long after placing a building it can be taken back for a full refund.
 HISTORY_STEP = 15.0

@@ -172,6 +172,11 @@ jobs:
         run: |
           set -o pipefail
           FC_AIRTEST=1 "$BIN" | tee /dev/stderr | grep -q "AIR TEST PASSED"
+      - name: Headless Modes
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_MODETEST=1 "$BIN" | tee /dev/stderr | grep -q "MODE TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

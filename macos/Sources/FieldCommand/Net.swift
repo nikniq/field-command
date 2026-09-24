@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 14     // … 12 unbuild, history; 13 Barricades; 14 Gunships
+    static let version = 15     // … 13 Barricades; 14 Gunships; 15 game modes
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
@@ -298,6 +298,15 @@ final class NetSession {
     /// Watching a replay: the server feeds the commands, and input here is ignored.
     let spectating: Bool
     var missionProgress = 0
+    /// The skirmish rule and, in King of the Hill, every alliance's hold on the ring in seconds.
+    var mode = "annihilation"
+    var hold: [Int: Double] = [:]
+    /// The ring to hold — King of the Hill's, or a hold mission's — as (centre, radius), if any.
+    var ring: (CGPoint, CGFloat)?
+    func holdStanding() -> (Double, Double) {
+        let best = hold.filter { $0.key != myAlliance }.values.max() ?? 0
+        return (hold[myAlliance] ?? 0, best)
+    }
     /// Kit bought from the Armory this match.
     var kits: Set<String> = []
     var supplyUsed = 0
@@ -328,6 +337,9 @@ final class NetSession {
         map = jDict(start["map"])
         explored = start["explored"] as? String
         mission = missionNamed(start["mission"] as? String)
+        mode = (start["mode"] as? String) ?? "annihilation"
+        let r = jArr(start["ring"])
+        ring = r.count >= 2 ? (CGPoint(x: jNum(r[0]), y: jNum(r[1])), r.count > 2 ? jNum(r[2]) : CGFloat(kothRadius)) : nil
         spectating = jInt(start["replay"]) == 1
         difficulty = Difficulty(rawValue: jInt(start["difficulty"])) ?? .normal
         for p in jArr(start["players"]) {

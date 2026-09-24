@@ -120,7 +120,7 @@ class LocalSession(_Base):
     can_pause = True
 
     def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
-                 world=None, mission=None, seed=None):
+                 world=None, mission=None, seed=None, mode="annihilation"):
         self.difficulty = difficulty
         self.slot = slot
         if world is not None:
@@ -135,7 +135,7 @@ class LocalSession(_Base):
         if world is None and players is None:
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
-        self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed)
+        self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed, mode=mode)
         self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
@@ -166,7 +166,7 @@ class LocalSession(_Base):
         rec = read_replay(name)
         session = cls(DIFFICULTIES[rec.difficulty], map_id=rec.map, opponents=len(rec.players) - 1,
                       players=[PlayerInfo(p["slot"], p["name"], p["team"], is_ai=p["ai"]) for p in rec.players],
-                      slot=rec.viewer, mission=rec.mission, seed=rec.seed)
+                      slot=rec.viewer, mission=rec.mission, seed=rec.seed, mode=rec.mode)
         session.replay = rec
         return session
 
@@ -196,6 +196,12 @@ class LocalSession(_Base):
     crystals = property(lambda self: self.world.crystals)
     crates = property(lambda self: self.world.crates)
     mission = property(lambda self: self.world.mission)
+    mode = property(lambda self: self.world.mode)
+    hold = property(lambda self: self.world.hold)
+    ring = property(lambda self: self.world.ring)
+
+    def hold_standing(self):
+        return self.world.hold_standing(self.slot)
 
     def mission_progress(self):
         return self.world.mission_progress()
@@ -466,6 +472,8 @@ class NetSession(_Base):
         self._towers_by_id = {}
         self.crates = []
         self.mission = None
+        self.mode = start_msg.get("mode", "annihilation")
+        self.hold = {}
         self.kits = set()
         self._crystals_by_id = {c.id: c for c in self.crystals}
         self._units, self._buildings = {}, {}
@@ -524,6 +532,18 @@ class NetSession(_Base):
 
     # ------------------------------------------------------------ snapshots
 
+    def hold_standing(self):
+        mine = self.players[self.slot].team
+        best = max((v for t, v in self.hold.items() if t != mine), default=0.0)
+        return self.hold.get(mine, 0.0), best
+
+    @property
+    def ring(self):
+        gold = [c for c in self.crystals if c.gold]
+        if not gold:
+            return (defs.WORLD_W / 2, defs.WORLD_H / 2)
+        return (sum(c.x for c in gold) / len(gold), sum(c.y for c in gold) / len(gold))
+
     def _apply_snapshot(self, m):
         now = time.perf_counter()
         if self._snap_time is not None:
@@ -534,6 +554,8 @@ class NetSession(_Base):
         mask = m.get("kit", 0)
         self.kits = {k for i, k in enumerate(KIT_IDS) if mask & (1 << i)}
         self.supply_used, self.supply_cap = m["sup"]
+        self.hold = {int(k): float(v) for k, v in m.get("hold", {}).items()}
+        self.hold = {int(k): float(v) for k, v in m.get("hold", {}).items()}
         seen = set()
         orders = m.get("o", {})
         for (i, team, k, x, y, a, g, hp, carrying, mode, rank) in m["u"]:

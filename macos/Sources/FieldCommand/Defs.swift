@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.29.0"
+let appVersion = "1.30.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -408,6 +408,15 @@ let tilt: CGFloat = 0.8
 
 // Every side starts with this much crystal in the bank.
 let startCrystal = 2000
+
+/// Skirmish game modes, as defs.py's MODES: (id, name, rule). Campaign missions carry their own rules.
+let modes: [(id: String, name: String, rule: String)] = [
+    ("annihilation", "Annihilation", "Destroy every enemy building"),
+    ("koth", "King of the Hill", "First to hold the gold ring for 3:00 wins"),
+    ("sudden", "Sudden Death", "Lose your last Command Center and you are out"),
+]
+let kothHold: Double = 180
+let kothRadius: Double = 260
 
 // High ground: a map's ridges ([x0, y0, x1, y1] plateaus) are walkable and buildable, and anything standing
 // on one sees highSight times as far and shoots highRange further.

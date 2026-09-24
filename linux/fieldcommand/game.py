@@ -539,6 +539,27 @@ class GameScene:
                 y += 1024
             x += 1024
 
+    def _draw_ring(self, screen):
+        """King of the Hill's ring (and a hold mission's): an ellipse on the ground in the holder's colour."""
+        from .defs import KOTH_RADIUS, TEAM_COLOR
+        s = self.s
+        mission = getattr(s, "mission", None)
+        if mission is not None and mission.hold:
+            cx, cy, r = mission.hold
+        elif getattr(s, "mode", "annihilation") == "koth":
+            cx, cy = s.ring
+            r = KOTH_RADIUS
+        else:
+            return
+        cam = self.cam
+        sx, sy = cam.to_screen(cx, cy)
+        rw, rh = r / cam.zoom, r * TILT / cam.zoom
+        hold = getattr(s, "hold", {}) or {}
+        held = max(hold, key=hold.get) if hold and max(hold.values()) > 0 else None
+        col = to255(TEAM_COLOR[next((p.slot for p in s.players.values() if p.team == held), 0)]) if held is not None else to255(AMBER)
+        pygame.draw.ellipse(screen, (0, 0, 0), (sx - rw - 1, sy - rh - 1, rw * 2 + 2, rh * 2 + 2), 1)
+        pygame.draw.ellipse(screen, col, (sx - rw, sy - rh, rw * 2, rh * 2), 3 if held is not None else 2)
+
     def _draw_beacons(self, screen):
         """A pulsing marker in the pinger's colour, on top of the fog so it can be seen anywhere."""
         cam = self.cam
@@ -1541,6 +1562,7 @@ class GameScene:
         if self.satellite:
             self._draw_satellite_markers(screen, units, buildings)
         self.fog_view.draw(screen, cam)
+        self._draw_ring(screen)
         self._draw_beacons(screen)
         self._draw_overlays(screen, mouse)
         screen.blit(art.vignette(cam.w * 1.1, cam.h * 1.1), (-cam.w * 0.05, -cam.h * 0.05))
