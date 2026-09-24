@@ -87,13 +87,16 @@ final class Replay {
     /// Every recording, newest first.
     static func list() -> [Entry] {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: replaysDir.path) else { return [] }
-        var out: [Entry] = []
+        var out: [(Entry, Double)] = []
         for fn in names where fn.hasSuffix(".json") {
-            guard let data = try? Data(contentsOf: replaysDir.appendingPathComponent(fn)),
+            let url = replaysDir.appendingPathComponent(fn)
+            guard let data = try? Data(contentsOf: url),
                   let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-            out.append(Entry(name: String(fn.dropLast(5)), label: jStr(d["label"]), savedAt: jInt(d["saved_at"]),
-                             elapsed: Double(jNum(d["elapsed"])), map: jStr(d["map"]), result: result(of: d), difficulty: jInt(d["difficulty"])))
+            let when = ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            out.append((Entry(name: String(fn.dropLast(5)), label: jStr(d["label"]), savedAt: jInt(d["saved_at"]),
+                              elapsed: Double(jNum(d["elapsed"])), map: jStr(d["map"]), result: result(of: d), difficulty: jInt(d["difficulty"])), when))
         }
-        return out.sorted { $0.savedAt > $1.savedAt }
+        // Newest first; two recordings in the same second are ordered by the file's own timestamp.
+        return out.sorted { ($0.0.savedAt, $0.1) > ($1.0.savedAt, $1.1) }.map { $0.0 }
     }
 }

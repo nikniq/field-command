@@ -9,6 +9,7 @@ import tempfile
 # Never touch the real settings file.
 os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
 os.environ["APPDATA"] = os.environ["XDG_CONFIG_HOME"]
+os.environ.setdefault("XDG_DATA_HOME", tempfile.mkdtemp())     # saves and replays stay out of the real home too
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

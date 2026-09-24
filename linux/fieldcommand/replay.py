@@ -90,7 +90,7 @@ def read_replay(name="last"):
 
 def list_replays():
     """(name, label, saved_at, elapsed, map id, result, difficulty), newest first."""
-    out = []
+    out, when = [], {}
     try:
         names = os.listdir(replays_dir())
     except OSError:
@@ -99,10 +99,13 @@ def list_replays():
         if not fn.endswith(".json"):
             continue
         try:
-            with open(os.path.join(replays_dir(), fn)) as f:
+            path = os.path.join(replays_dir(), fn)
+            with open(path) as f:
                 d = json.load(f)
             out.append((fn[:-5], d.get("label", ""), int(d.get("saved_at", 0)), float(d.get("elapsed", 0)),
                         d.get("map", ""), result_of(d), int(d.get("difficulty", 1))))
+            when[fn[:-5]] = os.path.getmtime(path)
         except (OSError, ValueError):
             continue
-    return sorted(out, key=lambda r: -r[2])
+    # Newest first; two recordings in the same second are ordered by the file's own timestamp.
+    return sorted(out, key=lambda r: (r[2], when.get(r[0], 0.0)), reverse=True)
