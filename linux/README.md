@@ -422,6 +422,15 @@ Corners (either side of the gold). They are walkable and buildable, and anything
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 
+## The derelict Siege Tank
+
+Every map has a **derelict Siege Tank** near the middle — on the nearest open ground to the gold that the
+centre watchtower did not take, an amber square on the minimap. An **Engineer** alone beside it (within 90,
+with nothing hostile inside that ring) for **12 seconds** salvages it: it becomes a working Siege Tank of
+that side, on the spot, no crystal asked. Troops cannot do the work, an enemy inside the ring stalls it, and
+the clock winds back while nobody is at it. It is a free tank in the first minute for whoever walks out for
+it, and the computer walks out for it with an escort of two from the twentieth second. Every mode has it.
+
 ## Cover
 
 Forests are more than obstacles. Anyone **on foot** — Rangers, Snipers, Medics, Engineers — standing among

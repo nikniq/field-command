@@ -290,6 +290,12 @@ SMOKE_DURATION = 8.0
 SMOKE_FACTOR = 0.5          # ranged damage taken inside smoke
 SMOKE_RANGED = 60.0         # a hit from further than this is ranged
 
+# The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
+# DERELICT_RADIUS, with nothing hostile inside that ring) for DERELICT_TIME seconds salvages it: it becomes a
+# working Siege Tank of that side. A reason to leave the base in the first minute.
+DERELICT_RADIUS = 90.0
+DERELICT_TIME = 12.0
+
 # Cover: anyone on foot standing among trees (within COVER_REACH of a trunk's edge) takes COVER_FACTOR of
 # ranged damage (a hit from further than SMOKE_RANGED). Tanks and aircraft get nothing from a forest.
 COVER_REACH = 24.0

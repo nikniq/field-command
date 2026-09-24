@@ -14,7 +14,7 @@ Works for any slot; enemies are every player outside its alliance."""
 import math
 
 from . import defs
-from .defs import (ABILITIES, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+from .defs import (ABILITIES, DERELICT_RADIUS, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
 # Openings: how the first minutes are played. Each factor bends the timed plan — `barracks` and `turret`
@@ -77,6 +77,7 @@ class AI:
         self._next_route = 0.0
         self.route_bridge = None
         self.next_raid = 240.0
+        self.salvager = None             # the Engineer sent for the derelict Siege Tank
         # A wave that is being beaten pulls back; a repelled attack on this base is answered at once.
         self.launched = 0                # how many went out with the current wave and raids
         self.threat_seen_at = -1e9       # when an enemy was last near a base of this side
@@ -111,7 +112,7 @@ class AI:
 
         dropoffs = [b for b in bases if b.kind == "hq" and b.built]
         for w in workers:
-            if w.order[0] != "idle":
+            if w.order[0] != "idle" or w is self.salvager:
                 continue
             served = [c for c in g.crystals if not c.dead and any(math.hypot(d.x - c.x, d.y - c.y) < 700 for d in dropoffs)]
             c = min(served, key=lambda c: math.hypot(c.x - w.x, c.y - w.y)) if served else g.nearest_crystal(w.x, w.y, 6000)
@@ -119,6 +120,7 @@ class AI:
                 w.command(("gather", c))
 
         self._observe()
+        self._salvage(hq, workers, home)
         reserve = self._construct(hq, bases, workers)
         self._produce(hq, bases, workers, reserve)
         self._rebuild_bridges(hq, workers)
@@ -531,6 +533,26 @@ class AI:
         for u in self.guards:
             if u.order[0] == "idle" and math.hypot(u.x - threat.x, u.y - threat.y) < 700:
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
+
+    def _salvage(self, hq, workers, home):
+        """The derelict Siege Tank is a free tank for whoever gets an Engineer to it first: one goes early,
+        with a pair of troops to keep the ring clear."""
+        g = self.game
+        if not g.derelicts:
+            self.salvager = None
+            return
+        if g.elapsed < 20 or not workers:
+            return
+        d = g.derelicts[0]
+        if self.salvager is not None and (self.salvager.dead or self.salvager not in workers):
+            self.salvager = None
+        if self.salvager is None:
+            self.salvager = min(workers, key=lambda w: math.hypot(w.x - d.x, w.y - d.y))
+            self.salvager.command(("move", d.x + 30, d.y))
+            for u in [u for u in home if u.order[0] == "idle" and u.kind != "worker"][:2]:
+                u.command(("amove", d.x - 40, d.y + 30))
+        elif self.salvager.order[0] != "move" and math.hypot(self.salvager.x - d.x, self.salvager.y - d.y) > DERELICT_RADIUS - 20:
+            self.salvager.command(("move", d.x + 30, d.y))
 
     def _abilities(self, mine):
         """Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt

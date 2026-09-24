@@ -402,6 +402,9 @@ class HUD:
             p = self._mm_point(t.x, t.y)
             col = to255(TEAM_LIGHT[t.owner]) if t.owner is not None else (190, 190, 190)
             pygame.draw.circle(screen, col, p, 4, 0 if t.owner is not None else 1)
+        for d in getattr(s, "derelicts", ()):
+            p = self._mm_point(d.x, d.y)
+            pygame.draw.rect(screen, to255(AMBER), (p[0] - 3, p[1] - 3, 7, 7), 1)
         for br in getattr(s, "bridges", ()):
             x0, y0 = self._mm_point(br.rect[0], br.rect[3])
             x1, y1 = self._mm_point(br.rect[2], br.rect[1])

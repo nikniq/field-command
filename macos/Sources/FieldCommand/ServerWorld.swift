@@ -425,6 +425,7 @@ enum SOrder {
         }
     }
     var isIdle: Bool { if case .idle = self { return true }; return false }
+    var isMove: Bool { if case .move = self { return true }; return false }
 }
 
 /// A supply drop on the field: `kind` is a crateKinds entry, `amount` the crystal it holds.
@@ -508,6 +509,67 @@ final class SBridge: SEntity {
 
 /// A neutral control point. Troops of one alliance alone inside its radius for `towerCaptureTime` take it; the
 /// owner then sees `towerSight` around it. It is never damaged, only taken.
+/// A wrecked Siege Tank near the middle of the map. An Engineer of one alliance alone beside it for
+/// derelictTime seconds salvages it into a working tank of that side; anything hostile inside the ring stalls
+/// the work, and the clock winds back while nobody is at it.
+final class SDerelict {
+    unowned let world: SWorld
+    let id: Int
+    let x, y: Double
+    let angle = 35.0 * Double.pi / 180
+    var capturing: Int?
+    var progress = 0.0
+    private(set) var salvaged = false
+
+    init(world: SWorld, x: Double, y: Double) {
+        self.world = world
+        id = world.nextId()
+        self.x = x
+        self.y = y
+    }
+
+    func update(_ dt: Double) {
+        let g = world
+        var present: [Int: Int] = [:]      // alliance -> the slot of an Engineer in it
+        var inside = Set<Int>()
+        for u in g.units where !u.dead && hyp(u.x - x, u.y - y) <= derelictRadius {
+            guard let a = g.players[u.team]?.team else { continue }
+            inside.insert(a)
+            if u.kind == .worker && present[a] == nil { present[a] = u.team }
+        }
+        if inside.count == 1, present.count == 1, let (alliance, slot) = present.first {
+            if capturing == nil || g.players[capturing!]?.team != alliance {
+                capturing = slot
+                progress = 0
+            }
+            progress += dt / derelictTime
+            if progress >= 1 { salvage(slot) }
+        } else {
+            progress = max(0, progress - dt / derelictTime)
+            if progress == 0 { capturing = nil }
+        }
+    }
+
+    private func salvage(_ slot: Int) {
+        let g = world
+        salvaged = true
+        capturing = nil
+        progress = 0
+        g.derelicts.removeAll { $0 === self }
+        g.byId[id] = nil
+        let t = SUnit(world: g, kind: .tank, team: slot, x: x, y: y)
+        t.angle = angle
+        t.gunAngle = angle
+        g.add(t)
+        g.emit(["flash", x, y, 80, "team\(slot)"])
+        g.emit(["sound", "complete", x, y])
+        let name = g.players[slot]?.name ?? "Someone"
+        for s in g.players.keys.sorted() {
+            g.emit(["msg", s, "\(name) salvaged the derelict Siege Tank", g.allied(s, slot) ? "good" : "bad"])
+        }
+    }
+}
+
 final class SWatchtower {
     unowned let world: SWorld
     let id: Int
@@ -1439,6 +1501,7 @@ final class SWorld {
     var mapWallsForTests: [SRect] { mapWalls }
     var bridges: [SBridge] = []
     var towers: [SWatchtower] = []
+    var derelicts: [SDerelict] = []
     let nav: SNavGrid
     var navDirty = true
     var pathBudget = 0
@@ -1515,6 +1578,15 @@ final class SWorld {
         for (tx, ty) in towerSites() {
             let t = SWatchtower(world: self, x: tx, y: ty)
             towers.append(t)
+        }
+        // The derelict Siege Tank: the nearest open ground to the middle (the gold's centre) that no tower took.
+        do {
+            let (rx, ry) = ring
+            if let spot = openGroundNear(rx, ry, placed: towers.map { ($0.x, $0.y) }) {
+                let d = SDerelict(world: self, x: spot.0, y: spot.1)
+                derelicts.append(d)
+                byId[d.id] = d
+            }
         }
         bridgesChanged()
         let starts = jArr(map["starts"]).map { jArr($0) }
@@ -1593,6 +1665,7 @@ final class SWorld {
         updateShells(dt)
         updateCrates()
         for t in towers { t.update(dt) }
+        for d in derelicts { d.update(dt) }
         checkMission(dt)
         runScript()
         checkMode(dt)
@@ -1638,6 +1711,7 @@ final class SWorld {
         byId = [:]
         for b in bridges { byId[b.id] = b }
         for t in towers { byId[t.id] = t }
+        for d in derelicts { byId[d.id] = d }
         for p in players.values { p.ai = nil }
     }
 
@@ -2664,6 +2738,8 @@ final class SAI {
     /// When a building of this side last took damage: the walls go up after.
     var hitAt = -1e9
     private var nextRaid = 240.0
+    /// The Engineer sent for the derelict Siege Tank.
+    private var salvager: SUnit?
     /// Time of the last allied alert point this side sent troops to.
     private var answeredPing = -1.0
     /// The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
@@ -2749,6 +2825,24 @@ final class SAI {
 
     /// Where a unit should go for a target: Snipers stop 200 short so they fight at their range and never
     /// walk into the line; Medics 120 short, behind it; everyone else goes to the target.
+    /// The derelict Siege Tank is a free tank for whoever gets an Engineer to it first: one goes early, with a
+    /// pair of troops to keep the ring clear.
+    func salvage(_ hq: SBuilding, _ workers: [SUnit], _ home: [SUnit]) {
+        let g = world
+        guard let d = g.derelicts.first else { salvager = nil; return }
+        guard g.elapsed >= 20, !workers.isEmpty else { return }
+        if let s = salvager, s.dead || !workers.contains(where: { $0 === s }) { salvager = nil }
+        if salvager == nil {
+            let s = workers.min { hyp($0.x - d.x, $0.y - d.y) < hyp($1.x - d.x, $1.y - d.y) }!
+            salvager = s
+            s.command(.move(d.x + 30, d.y))
+            for u in home.filter({ $0.order.isIdle && $0.kind != .worker }).prefix(2) { u.command(.amove(d.x - 40, d.y + 30)) }
+        } else if let s = salvager, !s.order.isMove, hyp(s.x - d.x, s.y - d.y) > derelictRadius - 20 {
+            s.command(.move(d.x + 30, d.y))
+        }
+    }
+    var salvagerForTests: SUnit? { salvager }
+
     /// Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt Siege
     /// Tank under fire pops smoke.
     private func useAbilities(_ mine: [SUnit]) {
@@ -2802,13 +2896,14 @@ final class SAI {
         if let s = scout, s.dead { scout = nil }
         let home = army.filter { u in !attackers.contains { $0 === u } && !guards.contains { $0 === u } && u !== scout }
         let dropoffs = bases.filter { $0.kind == .hq && $0.built }
-        for w in workers where w.order.isIdle {
+        for w in workers where w.order.isIdle && w !== salvager {
             let served = g.crystals.filter { c in !c.dead && dropoffs.contains { hyp($0.x - c.x, $0.y - c.y) < 700 } }
             if let c = served.min(by: { hyp($0.x - w.x, $0.y - w.y) < hyp($1.x - w.x, $1.y - w.y) }) ?? g.nearestCrystal(w.x, w.y, 6000) {
                 w.command(.gather(c))
             }
         }
         observe()
+        salvage(hq, workers, home)
         let reserve = construct(hq, bases, workers)
         produce(hq, bases, workers, reserve)
         rebuildBridges(hq, workers)

@@ -126,6 +126,7 @@ def world_to_dict(world, label=""):
         "units": units, "buildings": buildings,
         "bridges": [{"id": b.id, "intact": b.intact, "hp": b.hp, "progress": b.progress} for b in w.bridges],
         "towers": [{"id": t.id, "owner": t.owner, "capturing": t.capturing, "progress": t.progress} for t in w.towers],
+        "derelicts": [{"id": d.id, "capturing": d.capturing, "progress": d.progress} for d in w.derelicts],
         "crates": [{"id": c.id, "x": c.x, "y": c.y, "kind": c.kind, "amount": c.amount, "born": c.born} for c in w.crates],
         "next_crate": w.next_crate,
         "mission": w.mission.id if w.mission else None, "mission_timer": w.mission_timer, "mission_fired": w.mission_fired,
@@ -185,7 +186,12 @@ def world_from_dict(data):
     w.smokes = [tuple(s) for s in data.get("smokes", [])]
     for saved, live in zip(data["towers"], w.towers):
         live.id, live.owner, live.capturing, live.progress = saved["id"], saved["owner"], saved["capturing"], saved["progress"]
-    for e in w.bridges + w.towers:
+    saved_d = data.get("derelicts")
+    if saved_d is not None:
+        w.derelicts = w.derelicts[:len(saved_d)]                   # a salvaged one is gone for good
+        for saved, live in zip(saved_d, w.derelicts):
+            live.id, live.capturing, live.progress = saved["id"], saved["capturing"], saved["progress"]
+    for e in w.bridges + w.towers + w.derelicts:
         w.by_id[e.id] = e
     w.kits = {int(s): set(v) for s, v in data["kits"].items()}
     for b in data["buildings"]:

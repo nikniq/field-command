@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 17     // … 15 game modes; 16 starting crystal, established bases, reinforcements; 17 abilities
+    static let version = 18     // … 16 starting crystal, established bases, reinforcements; 17 abilities; 18 the derelict
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and

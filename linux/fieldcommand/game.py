@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, COVER_KINDS, COVER_REACH, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -1049,6 +1049,8 @@ class GameScene:
                 bridge = self.bridge_at(wx, wy)
             if target is None and crystal is None and bridge is None:
                 bridge = self.tower_at(wx, wy)
+            if target is None and crystal is None and bridge is None:
+                bridge = self.derelict_at(wx, wy)
         self._hover_crate = crate
         hover = target or bridge
         if hover is not self.hovered:
@@ -1071,6 +1073,10 @@ class GameScene:
                 self.hud.set_hover(f"Gold deposit  {crystal.amount}  (a hundred fields' worth)", AMBER, mouse)
             else:
                 self.hud.set_hover(f"Crystal  {crystal.amount}", CRYSTAL, mouse)
+        elif mouse and bridge and getattr(bridge, "name", "") == "Derelict Siege Tank":
+            d = bridge
+            hint = f"    {self.s.players[d.capturing].name} salvaging {int(d.progress * 100)}%" if d.capturing is not None else ""
+            self.hud.set_hover(f"Derelict Siege Tank — an Engineer alone beside it for {DERELICT_TIME:.0f}s makes it yours{hint}", AMBER, mouse)
         elif mouse and bridge and getattr(bridge, "name", "") == "Watchtower":
             t = bridge
             if t.owner is None:
@@ -1640,6 +1646,9 @@ class GameScene:
         for t in getattr(s, "towers", ()):
             if visible(t.x, t.y):
                 self._draw_tower(screen, t, z, ts)
+        for d in getattr(s, "derelicts", ()):
+            if visible(d.x, d.y):
+                self._draw_derelict(screen, d, z, ts)
         for c in getattr(s, "crates", ()):
             if visible(c.x, c.y) and s.fog.is_visible(c.x, c.y):
                 self._draw_crate(screen, c, z, ts)
@@ -1772,6 +1781,34 @@ class GameScene:
             ring = art.sprites.get(("towerring", col), art.square_ring(), 0, (t.half * 2 + 22) / (64 * art.SCALE) / z,
                                    tint=(*col, 255), fade=170)
             screen.blit(ring, (sx - ring.get_width() / 2, sy - ring.get_height() / 2))
+
+    def _draw_derelict(self, screen, d, z, ts):
+        """The wreck, rust-dark, and the salvage ring while an Engineer is at it."""
+        cam = self.cam
+        sx, sy = cam.to_screen(d.x, d.y)
+        sh = art.sprites.get("shadow", art.shadow(), 0, 60 / 64 / z)
+        screen.blit(sh, (sx + 4 / z - sh.get_width() / 2, sy + 6 / z - sh.get_height() / 2))
+        img = art.sprites.get(("derelict",), art.unit("tank", 0), math.degrees(d.angle), ts, tint=(30, 22, 16, 170))
+        screen.blit(img, (sx - img.get_width() / 2, sy - img.get_height() / 2))
+        tur = art.sprites.get(("derelict_turret",), art.tank_turret(0), math.degrees(d.angle) + 40, ts, tint=(30, 22, 16, 170))
+        screen.blit(tur, (sx - tur.get_width() / 2, sy - tur.get_height() / 2))
+        if d.capturing is not None and d.progress > 0:
+            col = to255(TEAM_LIGHT[d.capturing])
+            r = int(DERELICT_RADIUS / z)
+            pygame.draw.circle(screen, col, (int(sx), int(sy)), r, 1)
+            end = -math.pi / 2 + 2 * math.pi * d.progress
+            pygame.draw.arc(screen, col, (int(sx - r), int(sy - r), 2 * r, 2 * r), -end, math.pi / 2, 4)
+            self._draw_bar(screen, sx, sy + 40 / z, 60 / z, d.progress, TEAM_LIGHT[d.capturing])
+        if d.hovered:
+            ring = art.sprites.get(("towerring", (220, 190, 120)), art.ring(), 0, (d.radius * 2 + 22) / (64 * art.SCALE) / z,
+                                   tint=(220, 190, 120, 255), fade=170)
+            screen.blit(ring, (sx - ring.get_width() / 2, sy - ring.get_height() / 2))
+
+    def derelict_at(self, x, y):
+        for d in getattr(self.s, "derelicts", ()):
+            if math.hypot(d.x - x, d.y - y) <= d.radius + 8:
+                return d
+        return None
 
     def _draw_bar(self, screen, cx, cy, width, frac, color):
         w = max(12, int(width))

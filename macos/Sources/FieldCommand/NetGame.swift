@@ -221,6 +221,25 @@ extension GameScene {
             let o = jInt(v[3]), c = jInt(v[4])
             node.apply(owner: o < 0 ? nil : o, capturing: c < 0 ? nil : c, progress: jNum(v[5]) / 100)
         }
+        var liveDerelicts = Set<Int>()
+        for raw in jArr(m["dr"]) {
+            let v = jArr(raw)
+            guard v.count >= 6 else { continue }
+            let id = jInt(v[0])
+            liveDerelicts.insert(id)
+            let node: DerelictNode
+            if let existing = derelictNodes.first(where: { $0.derelictId == id }) {
+                node = existing
+            } else {
+                node = DerelictNode(id: id, at: CGPoint(x: jNum(v[1]), y: jNum(v[2])), angle: jNum(v[3]) * .pi / 180)
+                world.addChild(node)
+                derelictNodes.append(node)
+            }
+            let c = jInt(v[4])
+            node.apply(capturing: c < 0 ? nil : c, progress: jNum(v[5]) / 100)
+        }
+        for node in derelictNodes where !liveDerelicts.contains(node.derelictId) { node.removeFromParent() }
+        derelictNodes.removeAll { !liveDerelicts.contains($0.derelictId) }
         // Crates arrive only while in sight, so what the server sent is the whole list.
         var liveCrates = Set<Int>()
         for c in jArr(m["cr"]) {

@@ -26,7 +26,7 @@ from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_I
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 17
+PROTOCOL_VERSION = 18
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -159,6 +159,8 @@ def snapshot_for(world, slot, events):
                    if world.fog_for(slot).is_visible(c.x, c.y)],
             "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,
                     -1 if t.capturing is None else t.capturing, int(t.progress * 100)] for t in world.towers],
+            "dr": [[d.id, _r(d.x), _r(d.y), int(math.degrees(d.angle)), -1 if d.capturing is None else d.capturing,
+                    int(d.progress * 100)] for d in world.derelicts],
             "c": [[c.id, c.amount] for c in world.crystals],
             "p": {str(s): int(p.alive) for s, p in world.players.items()},
             "e": [_pack_event(ev) for ev in events if event_visible(world, slot, ev)]}

@@ -10,7 +10,7 @@ import math
 import random
 
 from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
-from .defs import (COVER_KINDS, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+from .defs import (COVER_KINDS, DERELICT_RADIUS, DERELICT_TIME, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
@@ -167,6 +167,70 @@ class Bridge(Entity):
         g.emit("sound", "complete", self.x, self.y)
         g.emit("bridge", self.id, 1, self.x, self.y)
         g.bridges_changed()
+
+
+class Derelict:
+    """A wrecked Siege Tank near the middle of the map. An Engineer of one alliance alone beside it for
+    DERELICT_TIME seconds salvages it into a working tank of that side; anything hostile inside the ring
+    stalls the work, and the clock winds back while nobody is at it."""
+    is_building = False
+    dead = False
+    team = None
+    name = "Derelict Siege Tank"
+    radius = 26
+
+    def __init__(self, game, x, y):
+        self.game = game
+        self.id = game.next_id()
+        self.x, self.y = x, y
+        self.angle = math.radians(35)
+        self.capturing = None      # slot whose Engineer is at it
+        self.progress = 0.0
+        self.salvaged = False
+        self.selected = self.hovered = False
+
+    def surface_distance(self, px, py):
+        return max(0.0, math.hypot(px - self.x, py - self.y) - self.radius)
+
+    def targetable_by(self, slot):
+        return False
+
+    def update(self, dt):
+        g = self.game
+        present, inside = {}, set()
+        for u in g.units:
+            if u.dead or math.hypot(u.x - self.x, u.y - self.y) > DERELICT_RADIUS:
+                continue
+            a = g.players[u.team].team
+            inside.add(a)
+            if u.kind == "worker":
+                present.setdefault(a, u.team)
+        if len(inside) == 1 and len(present) == 1:
+            alliance, slot = next(iter(present.items()))
+            if self.capturing is None or g.players[self.capturing].team != alliance:
+                self.capturing, self.progress = slot, 0.0
+            self.progress += dt / DERELICT_TIME
+            if self.progress >= 1.0:
+                self._salvage(slot)
+        else:
+            self.progress = max(0.0, self.progress - dt / DERELICT_TIME)
+            if self.progress == 0.0:
+                self.capturing = None
+
+    def _salvage(self, slot):
+        g = self.game
+        self.salvaged = True
+        self.capturing, self.progress = None, 0.0
+        g.derelicts.remove(self)
+        g.by_id.pop(self.id, None)
+        t = Unit(g, "tank", slot, self.x, self.y)
+        t.angle = t.gun_angle = self.angle
+        g._add(t)
+        g.emit("flash", self.x, self.y, 80, f"team{slot}")
+        g.emit("sound", "complete", self.x, self.y)
+        name = g.players[slot].name
+        for s in g.players:
+            g.emit("msg", s, f"{name} salvaged the derelict Siege Tank", "good" if g.allied(s, slot) else "bad")
 
 
 class Watchtower:

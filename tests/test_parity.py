@@ -337,7 +337,9 @@ def test_abilities_agree():
     assert const("smokeDuration") == SMOKE_DURATION
     assert const("smokeFactor") == SMOKE_FACTOR
     assert const("smokeRanged") == SMOKE_RANGED
-    from fieldcommand.defs import COVER_FACTOR, COVER_KINDS, COVER_REACH
+    from fieldcommand.defs import COVER_FACTOR, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME
+    assert const("derelictRadius") == DERELICT_RADIUS
+    assert const("derelictTime") == DERELICT_TIME
     assert const("coverReach") == COVER_REACH
     assert const("coverFactor") == COVER_FACTOR
     assert tuple(re.findall(r"\.(\w+)", re.search(r"let coverKinds: \[UnitKind\] = \[(.*?)\]", src).group(1))) == COVER_KINDS

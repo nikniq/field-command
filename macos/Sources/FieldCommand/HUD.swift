@@ -599,6 +599,7 @@ final class HUD: SKNode {
         for t in game.towerNodes {
             put(t.position, t.owner.map { Team(rawValue: $0).lightColor } ?? NSColor(white: 0.75, alpha: 1), 5)
         }
+        for d in game.derelictNodes { put(d.position, Palette.amber, 4) }
         for br in game.bridgeNodes {
             put(br.position, br.intact ? Palette.amber : Palette.bad,
                 max(4, min(br.rect.width, br.rect.height) * mmScale))

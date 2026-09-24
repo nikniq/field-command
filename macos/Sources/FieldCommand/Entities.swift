@@ -1215,6 +1215,89 @@ final class CrateNode: SKNode {
     func contains(world p: CGPoint) -> Bool { position.distance(to: p) < radius + 8 }
 }
 
+/// The derelict Siege Tank: the wreck, rust-dark, and the salvage ring while an Engineer is at it.
+final class DerelictNode: SKNode {
+    var derelictId = -1
+    private(set) var capturing: Int?
+    private(set) var progress: CGFloat = 0
+    let radius: CGFloat = 26
+    private let ring = SKShapeNode(circleOfRadius: CGFloat(derelictRadius))
+    private let arc = SKShapeNode()
+    private let barBack = SKSpriteNode(color: NSColor(white: 0, alpha: 0.75), size: CGSize(width: 64, height: 6))
+    private let barFill = SKSpriteNode(color: Palette.amber, size: CGSize(width: 60, height: 4))
+    var hovered = false { didSet { marker.isHidden = !hovered } }
+    private let marker: SKSpriteNode
+
+    init(id: Int, at p: CGPoint, angle: CGFloat) {
+        derelictId = id
+        marker = SKSpriteNode(texture: Art.ring)
+        super.init()
+        position = p
+        zPosition = 1.2
+        let shadow = SKSpriteNode(texture: Art.shadow)
+        shadow.size = CGSize(width: 60, height: 60)
+        shadow.position = CGPoint(x: 4, y: -6)
+        shadow.zPosition = -0.5
+        addChild(shadow)
+        let hull = SKSpriteNode(texture: Art.unit(.tank, Team(rawValue: 0)))
+        hull.size = Art.unitSize(.tank)
+        hull.color = .rgb(0.12, 0.09, 0.06)
+        hull.colorBlendFactor = 0.7
+        hull.zRotation = angle
+        addChild(hull)
+        let turret = SKSpriteNode(texture: Art.tankTurret(Team(rawValue: 0)))
+        turret.size = Art.turretSize
+        turret.color = .rgb(0.12, 0.09, 0.06)
+        turret.colorBlendFactor = 0.7
+        turret.zRotation = angle + 0.7
+        turret.zPosition = 0.1
+        addChild(turret)
+        ring.strokeColor = NSColor(white: 1, alpha: 0.25)
+        ring.lineWidth = 1
+        ring.isHidden = true
+        addChild(ring)
+        arc.lineWidth = 4
+        arc.isHidden = true
+        addChild(arc)
+        barBack.position = CGPoint(x: 0, y: -40)
+        barFill.position = CGPoint(x: -30, y: -40)
+        barFill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        barBack.isHidden = true
+        barFill.isHidden = true
+        addChild(barBack)
+        addChild(barFill)
+        marker.size = CGSize(width: radius * 2 + 22, height: radius * 2 + 22)
+        marker.color = Palette.amber
+        marker.colorBlendFactor = 1
+        marker.alpha = 0.7
+        marker.isHidden = true
+        addChild(marker)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func contains(world p: CGPoint) -> Bool { hypot(p.x - position.x, p.y - position.y) <= radius + 8 }
+
+    func apply(capturing c: Int?, progress p: CGFloat) {
+        capturing = c
+        progress = p
+        let busy = c != nil && p > 0
+        ring.isHidden = !busy
+        arc.isHidden = !busy
+        barBack.isHidden = !busy
+        barFill.isHidden = !busy
+        guard busy, let slot = c else { return }
+        let color = Team(rawValue: slot).lightColor
+        ring.strokeColor = color.withAlphaComponent(0.6)
+        arc.strokeColor = color
+        let path = CGMutablePath()
+        path.addArc(center: .zero, radius: CGFloat(derelictRadius), startAngle: .pi / 2, endAngle: .pi / 2 - 2 * .pi * p, clockwise: true)
+        arc.path = path
+        barFill.color = color
+        barFill.size = CGSize(width: 60 * p, height: 4)
+    }
+}
+
 final class TowerNode: SKNode {
     var towerId = -1
     private(set) var owner: Int?

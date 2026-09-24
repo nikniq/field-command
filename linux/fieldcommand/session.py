@@ -216,6 +216,7 @@ class LocalSession(_Base):
         return self.world.mission_progress()
     bridges = property(lambda self: self.world.bridges)
     towers = property(lambda self: self.world.towers)
+    derelicts = property(lambda self: self.world.derelicts)
     kits = property(lambda self: self.world.kits[self.slot])
     elapsed = property(lambda self: self.world.elapsed)
     game_over = property(lambda self: self.world.game_over)
@@ -328,6 +329,26 @@ class _ProxyBridge:
 
     def targetable_by(self, slot):
         return self.intact
+
+
+class _ProxyDerelict:
+    is_building = False
+    dead = False
+    team = None
+    name = "Derelict Siege Tank"
+    radius = 26
+
+    def __init__(self, id, x, y, angle):
+        self.id, self.x, self.y, self.angle = id, x, y, angle
+        self.capturing = None
+        self.progress = 0.0
+        self.selected = self.hovered = False
+
+    def surface_distance(self, px, py):
+        return max(0.0, math.hypot(px - self.x, py - self.y) - self.radius)
+
+    def targetable_by(self, slot):
+        return False
 
 
 class _ProxyCrate:
@@ -479,6 +500,8 @@ class NetSession(_Base):
         self._bridges_by_id = {}
         self.towers = []
         self._towers_by_id = {}
+        self.derelicts = []
+        self._derelicts_by_id = {}
         self.crates = []
         self.mission = None
         self.mode = start_msg.get("mode", "annihilation")
@@ -635,6 +658,16 @@ class NetSession(_Base):
             t.owner = None if owner < 0 else owner
             t.capturing = None if capturing < 0 else capturing
             t.progress = prog / 100
+        seen_d = set()
+        for (i, x, y, ang, capturing, prog) in m.get("dr", ()):
+            d = self._derelicts_by_id.get(i)
+            if d is None:
+                d = _ProxyDerelict(i, x, y, math.radians(ang))
+                self._derelicts_by_id[i] = d
+            d.capturing = None if capturing < 0 else capturing
+            d.progress = prog / 100
+            seen_d.add(i)
+        self.derelicts = [d for i, d in self._derelicts_by_id.items() if i in seen_d]
         # Crates arrive only while in sight, so the list is simply what the server sent.
         self.crates = [_ProxyCrate(i, x, y, CRATE_KINDS[k], amount) for (i, x, y, k, amount) in m.get("cr", ())]
         amounts = {i: a for i, a in m["c"]}

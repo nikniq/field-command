@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.35.0
+Version:        1.36.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.36.0-1
+- The derelict Siege Tank: a wreck near the middle of every map; an Engineer alone beside it for twelve
+  seconds salvages it into a working Siege Tank for its side, anything hostile inside the ring stalls the
+  work, and the computer sends an Engineer with an escort from the first minute
+- Protocol 18: the derelict travels in snapshots and saves
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.35.0-1
 - Cover: anyone on foot standing among trees takes half damage from ranged fire (not tanks, not
   aircraft, not point-blank hits; it does not stack with smoke); the unit card says "in cover" and a

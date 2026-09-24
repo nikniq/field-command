@@ -643,6 +643,7 @@ final class GameServer {
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
                 "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
+                "dr": w.derelicts.map { [$0.id, r1($0.x), r1($0.y), deg($0.angle), $0.capturing ?? -1, Int($0.progress * 100)] },
                 "ms": w.mission != nil ? Int(w.missionProgress()) : 0,
                 "hold": w.mode == "koth" ? Dictionary(uniqueKeysWithValues: w.hold.map { (String($0.key), r1($0.value)) }) : [:],
                 "rf": r1(w.reinforceLeft(slot)),

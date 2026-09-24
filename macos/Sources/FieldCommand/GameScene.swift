@@ -30,6 +30,7 @@ final class GameScene: SKScene {
     var bridgeNodes: [BridgeNode] = []
     /// Watchtowers, created from the first snapshot that names them.
     var towerNodes: [TowerNode] = []
+    var derelictNodes: [DerelictNode] = []
     var mapKey = "twin_ridges"
 
     let world = SKNode()
@@ -1407,6 +1408,7 @@ final class GameScene: SKScene {
         var crystal: Crystal?
         var hoveredBridge: BridgeNode?
         var hoveredTower: TowerNode?
+        var hoveredDerelict: DerelictNode?
         var hoveredCrate: CrateNode?
         let active = mouse != nil && !hud.overlayVisible && dragStart == nil && placing == nil
         if active, let m = mouse, !hud.isOverHUD(m.hud) {
@@ -1415,8 +1417,10 @@ final class GameScene: SKScene {
             if target == nil, fog.isExplored(m.world) { crystal = self.crystal(at: m.world) }
             if target == nil, crystal == nil { hoveredBridge = bridge(at: m.world) }
             if target == nil, crystal == nil, hoveredBridge == nil { hoveredTower = tower(at: m.world) }
+            if target == nil, crystal == nil, hoveredBridge == nil, hoveredTower == nil { hoveredDerelict = derelictNodes.first { $0.contains(world: m.world) } }
         }
         for t in towerNodes where t.hovered != (t === hoveredTower) { t.hovered = (t === hoveredTower) }
+        for d in derelictNodes where d.hovered != (d === hoveredDerelict) { d.hovered = (d === hoveredDerelict) }
         for b in bridgeNodes where b.hovered != (b === hoveredBridge) { b.hovered = (b === hoveredBridge) }
         if target !== hovered {
             hovered?.isHovered = false
@@ -1436,6 +1440,10 @@ final class GameScene: SKScene {
             } else if let c = crystal {
                 hud.setHover(c.isGold ? "Gold deposit  \(c.amount)  (a hundred fields' worth)" : "Crystal  \(c.amount)",
                              color: c.isGold ? Palette.amber : Palette.crystal, at: m.hud)
+            } else if let d = hoveredDerelict {
+                let hint = d.capturing.map { "    \(playerName(Team(rawValue: $0))) salvaging \(Int(d.progress * 100))%" } ?? ""
+                hud.setHover("Derelict Siege Tank — an Engineer alone beside it for \(Int(derelictTime))s makes it yours\(hint)",
+                             color: Palette.amber, at: m.hud)
             } else if let t = hoveredTower {
                 let who: String
                 if let o = t.owner { who = Team(rawValue: o).isLocal ? "yours" : "held by \(playerName(Team(rawValue: o)))" }

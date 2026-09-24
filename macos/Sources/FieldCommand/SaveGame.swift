@@ -113,6 +113,7 @@ enum SaveGame {
              "mode": w.mode, "hold": slots(w.hold) { $0 },
              "start_crystal": w.startCrystal, "start_base": w.startBase, "reinforce_at": slots(w.reinforceAt) { $0 },
              "smokes": w.smokes.map { [$0.x, $0.y, $0.until] },
+            "derelicts": w.derelicts.map { ["id": $0.id, "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
             "towers": w.towers.map { ["id": $0.id, "owner": $0.owner.map { $0 as Any } ?? NSNull(),
                                       "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
             "reveals": reveals, "ai": ai, "fog": fogOut,
@@ -156,6 +157,14 @@ enum SaveGame {
         for (t, v) in jDict(d["hold"]) { w.hold[Int(t) ?? -1] = Double(jNum(v)) }
         for (s, v) in jDict(d["reinforce_at"]) { w.reinforceAt[Int(s) ?? -1] = Double(jNum(v)) }
         w.smokes = jArr(d["smokes"]).map { jArr($0) }.filter { $0.count == 3 }.map { (Double(jNum($0[0])), Double(jNum($0[1])), Double(jNum($0[2]))) }
+        if let savedD = d["derelicts"] as? [Any] {
+            for extra in w.derelicts.dropFirst(savedD.count) { w.byId[extra.id] = nil }      // a salvaged one is gone for good
+            w.derelicts = Array(w.derelicts.prefix(savedD.count))
+            for (s, live) in zip(savedD.map({ jDict($0) }), w.derelicts) {
+                live.capturing = s["capturing"] is NSNull || s["capturing"] == nil ? nil : jInt(s["capturing"])
+                live.progress = Double(jNum(s["progress"]))
+            }
+        }
         for (s, live) in zip(jArr(d["towers"]).map({ jDict($0) }), w.towers) {
             live.owner = s["owner"] is NSNull || s["owner"] == nil ? nil : jInt(s["owner"])
             live.capturing = s["capturing"] is NSNull || s["capturing"] == nil ? nil : jInt(s["capturing"])

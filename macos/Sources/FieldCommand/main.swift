@@ -141,6 +141,9 @@ if Debug.env["FC_COUNTERTEST"] != nil {
 if Debug.env["FC_COVERTEST"] != nil {
     Debug.runCoverTest()
 }
+if Debug.env["FC_DERELICTTEST"] != nil {
+    Debug.runDerelictTest()
+}
 if Debug.env["FC_ICONSOAK"] != nil {
     Debug.runIconSoak()
 }

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.35.0"
+let appVersion = "1.36.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -435,6 +435,12 @@ let smokeRadius: Double = 120
 let smokeDuration: Double = 8
 let smokeFactor: Double = 0.5          // ranged damage taken inside smoke
 let smokeRanged: Double = 60           // a hit from further than this is ranged
+
+/// The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
+/// derelictRadius, with nothing hostile inside that ring) for derelictTime seconds salvages it into a working
+/// Siege Tank of that side.
+let derelictRadius: Double = 90
+let derelictTime: Double = 12
 
 /// Cover: anyone on foot standing among trees (within coverReach of a trunk's edge) takes coverFactor of
 /// ranged damage (a hit from further than smokeRanged). Tanks and aircraft get nothing from a forest.

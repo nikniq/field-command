@@ -14,7 +14,7 @@ from .defs import (ABILITIES, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHE
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
-from .entities import IDLE, Bridge, Building, Crate, Crystal, Unit, Watchtower
+from .entities import Derelict, IDLE, Bridge, Building, Crate, Crystal, Unit, Watchtower
 from .fog import FogGrid
 from .nav import NavGrid
 
@@ -109,6 +109,13 @@ class World:
             t = Watchtower(self, x, y)
             self.towers.append(t)
             self.by_id[t.id] = t
+        # The derelict Siege Tank: the nearest open ground to the middle (the gold's centre) that no tower took.
+        self.derelicts = []
+        spot = self._open_ground_near(*self.ring)
+        if spot is not None:
+            d = Derelict(self, *spot)
+            self.derelicts.append(d)
+            self.by_id[d.id] = d
         self.bridges_changed()
         for p in players:
             sx, sy, base = map_spec["starts"][p.start]
@@ -280,6 +287,8 @@ class World:
                 b.update(dt)
         self._update_shells(dt)
         self._update_crates()
+        for d in list(self.derelicts):
+            d.update(dt)
         for t in self.towers:
             t.update(dt)
         self._check_mission(dt)

@@ -410,6 +410,96 @@ enum Debug {
     /// FC_HIGHTEST=1: high ground — plateaus are walkable and buildable, and whatever stands on one sees and
     /// shoots further; matching linux/tests/test_highground.py.
     /// FC_COVERTEST=1: cover among trees on the server simulation — matching linux/tests/test_cover.py.
+    /// FC_DERELICTTEST=1: the derelict Siege Tank — placement, salvage, contest, the wire and the save —
+    /// matching linux/tests/test_derelict.py.
+    static func runDerelictTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(_ mapId: String = "twin_ridges") -> SWorld {
+            let n = SMapGen.info(mapId)?.players ?? 2
+            let ps = (0..<n).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate(mapId), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle) }
+            return w
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            u.command(.idle)
+            u.cooldown = 1e9
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); t += 1.0 / 30 } }
+        for m in SMapGen.catalog {
+            let w = fresh(m.id)
+            guard let d = w.derelicts.first, w.derelicts.count == 1 else { check(false, "\(m.id): one derelict"); continue }
+            let (rx, ry) = w.ring
+            let clear = !w.mapWallsForTests.contains { $0.distance(d.x, d.y) < 20 }
+            check(clear && w.towers.allSatisfy { hypot($0.x - d.x, $0.y - d.y) >= 300 } && hypot(d.x - rx, d.y - ry) < 700 && w.byId[d.id] === d,
+                  "\(m.id): one derelict on open ground near the middle")
+        }
+        do {
+            let w = fresh()
+            let d = w.derelicts[0]
+            _ = unit(w, .worker, 0, d.x + 40, d.y)
+            func tanks() -> [SUnit] { w.units.filter { $0.kind == .tank && $0.team == 0 && !$0.dead } }
+            run(w, derelictTime - 0.5)
+            let working = w.derelicts.count == 1 && d.capturing == 0 && d.progress > 0.8 && tanks().isEmpty
+            run(w, 1)
+            let said = w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("salvaged") }
+            check(working && w.derelicts.isEmpty && w.byId[d.id] == nil && tanks().count == 1 && hypot(tanks()[0].x - d.x, tanks()[0].y - d.y) < 30 && said,
+                  "an Engineer alone beside it salvages a Siege Tank")
+        }
+        do {
+            let w = fresh()
+            let d = w.derelicts[0]
+            _ = unit(w, .marine, 0, d.x + 40, d.y)
+            run(w, derelictTime + 1)
+            let notTroops = w.derelicts.count == 1 && d.progress == 0
+            _ = unit(w, .worker, 0, d.x - 40, d.y)
+            run(w, derelictTime / 2)
+            let half = d.progress > 0.3 && d.progress < 0.7 && d.capturing == 0
+            let foe = unit(w, .marine, 1, d.x, d.y + 50)
+            run(w, 2)
+            let stalled = d.progress < 0.4
+            foe.dead = true
+            w.cleanupDead()
+            run(w, derelictTime)
+            check(notTroops && half && stalled && w.derelicts.isEmpty, "troops alone do not salvage, and an enemy inside stalls it")
+        }
+        do {
+            let w = fresh()
+            let d = w.derelicts[0]
+            _ = unit(w, .worker, 1, d.x + 30, d.y)
+            run(w, 3)
+            let wired = d.capturing == 1 && d.progress > 0
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            let saved = w2.derelicts.count == 1 && w2.derelicts[0].id == d.id && w2.derelicts[0].capturing == 1 && w2.derelicts[0].progress > 0
+            run(w, derelictTime)
+            let doc2 = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w3 = try! SaveGame.decode(doc2)
+            check(wired && saved && w.derelicts.isEmpty && w3.derelicts.isEmpty, "the derelict travels in saves, and a salvaged one stays gone")
+        }
+        do {
+            let w = fresh()
+            let ai = SAI(world: w, team: 1)
+            w.elapsed = 25
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            let home = w.units.filter { $0.team == 1 && $0.kind != .worker }
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            ai.salvage(hq, workers, home)
+            let d = w.derelicts[0]
+            var going = false
+            if let s = ai.salvagerForTests, workers.contains(where: { $0 === s }), case .move(let x, _) = s.order { going = abs(x - (d.x + 30)) < 1 }
+            w.derelicts.removeAll()
+            ai.salvage(hq, workers, home)
+            check(going && ai.salvagerForTests == nil, "the computer sends an Engineer for it")
+        }
+        print(ok ? "DERELICT TEST PASSED" : "DERELICT TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runCoverTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
