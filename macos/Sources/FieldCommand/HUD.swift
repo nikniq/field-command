@@ -852,7 +852,7 @@ final class HUD: SKNode {
             switch b.icon {
             case .unit(let k), .reinforce(let k): fit = k == .tank ? 40 : 30
             case .building: fit = 38
-            case .siege, .upgrade: fit = 34
+            case .siege, .upgrade, .ability: fit = 34
             default: fit = 30
             }
             let k = fit / max(ts.width, ts.height)
@@ -884,6 +884,11 @@ final class HUD: SKNode {
             bg.addChild(at(title, 0, -bs / 2 + 10))
             if let c = b.cost {
                 let cl = makeLabel("\(c)", size: 10, color: afford ? Palette.crystal : Palette.bad, font: Fonts.mono, align: .right, valign: .center)
+                cl.zPosition = 4
+                bg.addChild(at(cl, bs / 2 - 6, bs / 2 - 11))
+            } else if case .ability = b.icon, !b.enabled {
+                let cd = game.abilityUnits().0.map { $0.abilityCd }.min() ?? 0
+                let cl = makeLabel("\(Int(cd.rounded()))s", size: 10, color: Palette.dim, font: Fonts.mono, align: .right, valign: .center)
                 cl.zPosition = 4
                 bg.addChild(at(cl, bs / 2 - 6, bs / 2 - 11))
             }

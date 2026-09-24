@@ -1146,6 +1146,7 @@ enum Art {
         case .building(let k): stem = "bld-\(k)-"
         case .upgrade(let k): stem = "icon-upgrade-\(k.rawValue)"
         case .siege(let on): stem = "icon-siege-\(on)"
+        case .ability(let id): stem = "icon-ability-\(id)"
         case .attack: stem = "icon-attack"
         case .stop: stem = "icon-stop"
         }
@@ -1362,6 +1363,31 @@ enum Art {
                 fill(ctx, rr(box(-3, -2, 18, 4), 1), .rgb(0.35, 0.36, 0.38))
                 fill(ctx, circle(CGPoint(x: -2, y: 0), 4.5), .rgb(0.4, 0.44, 0.5))
                 if on { stroke(ctx, circle(.zero, 17), Palette.amber.withAlphaComponent(0.8), 1.5) }
+            }
+        case .ability(let id):
+            // A grenade, a target reticle or a smoke plume.
+            return texture("icon-ability-\(id)", size: CGSize(width: 40, height: 40)) { ctx in
+                switch id {
+                case "grenade":
+                    let body = circle(CGPoint(x: 0, y: -2), 10)
+                    lit(ctx, body, .rgb(0.3, 0.42, 0.3))
+                    stroke(ctx, body, NSColor(white: 0, alpha: 0.6), 1)
+                    lines(ctx, [(CGPoint(x: -7, y: -2), CGPoint(x: 7, y: -2)), (CGPoint(x: 0, y: 5), CGPoint(x: 0, y: -9)),
+                                (CGPoint(x: -5, y: 3), CGPoint(x: 5, y: -7)), (CGPoint(x: 5, y: 3), CGPoint(x: -5, y: -7))],
+                          NSColor(white: 0, alpha: 0.35), 1)
+                    fill(ctx, rr(box(-3, 8, 6, 5), 1), .rgb(0.5, 0.52, 0.55))
+                    lines(ctx, [(CGPoint(x: 3, y: 12), CGPoint(x: 9, y: 16))], Palette.amber, 2)
+                case "mark":
+                    stroke(ctx, circle(.zero, 13), Palette.amber, 2)
+                    stroke(ctx, circle(.zero, 5), Palette.amber, 1.5)
+                    lines(ctx, [(CGPoint(x: -17, y: 0), CGPoint(x: -8, y: 0)), (CGPoint(x: 8, y: 0), CGPoint(x: 17, y: 0)),
+                                (CGPoint(x: 0, y: -17), CGPoint(x: 0, y: -8)), (CGPoint(x: 0, y: 8), CGPoint(x: 0, y: 17))], Palette.amber, 2)
+                    fill(ctx, circle(.zero, 2), Palette.bad)
+                default:
+                    let puffs: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [(0, -8, 8, 0.55), (-6, 0, 7, 0.62), (6, 1, 7.5, 0.66), (0, 8, 8, 0.72), (-3, 14, 5, 0.78)]
+                    for (x, y, r, k) in puffs { fill(ctx, circle(CGPoint(x: x, y: y), r), .rgb(k, k, k + 0.02)) }
+                    fill(ctx, rr(box(-4, -16, 8, 6), 1), .rgb(0.35, 0.36, 0.38))
+                }
             }
         case .stop:
             return texture("icon-stop", size: CGSize(width: 40, height: 40)) { ctx in

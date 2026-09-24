@@ -96,6 +96,8 @@ extension GameScene {
         for (k, v) in jDict(m["hold"]) { if let t = Int(k) { hold[t] = Double(jNum(v)) } }
         net.hold = hold
         net.reinforceLeft = Double(jNum(m["rf"]))
+        net.smokes = jArr(m["sm"]).map { jArr($0) }.filter { $0.count == 3 }.map { (CGPoint(x: jNum($0[0]), y: jNum($0[1])), Double(jNum($0[2]))) }
+        updateSmokes()
         net.resources = jInt(m["res"])
         let mask = jInt(m["kit"])
         let owned = Set(kitIds.enumerated().filter { mask & (1 << $0.offset) != 0 }.map { $0.element })
@@ -135,6 +137,10 @@ extension GameScene {
             u.netTo = (pos, angle, gunAngle)
             if v.count > 9 { u.setMode(SiegeMode(rawValue: jInt(v[9])) ?? .mobile) }
             if v.count > 10 { u.setRank(jInt(v[10])) }
+            if v.count > 12 {
+                u.abilityCd = Double(jNum(v[11]))
+                u.setMarked(jInt(v[12]) == 1)
+            }
             let hp = jNum(v[7])
             if hp != u.hp {
                 if hp < u.hp { u.flashHit() }
@@ -296,7 +302,7 @@ extension GameScene {
         case "flash":
             let key = jStr(e[4])
             let color = key.hasPrefix("team") ? Team(rawValue: Int(key.dropFirst(4)) ?? 0).lightColor
-                : key == "shield" ? NSColor.rgb(0.45, 0.85, 1.0) : NSColor.rgb(1, 0.7, 0.3)
+                : key == "shield" ? NSColor.rgb(0.45, 0.85, 1.0) : key == "mark" ? Palette.amber : NSColor.rgb(1, 0.7, 0.3)
             glowFlash(at: p(1), size: jNum(e[3]), color: color, duration: 0.5)
         case "recoil": net.units[jInt(e[1])]?.netRecoil()
         case "pulse": net.units[jInt(e[1])]?.netPulse()

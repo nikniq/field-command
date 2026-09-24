@@ -208,6 +208,10 @@ class LocalSession(_Base):
     def reinforce_left(self):
         return self.world.reinforce_left(self.slot)
 
+    @property
+    def smokes(self):
+        return [(x, y, until - self.world.elapsed) for x, y, until in self.world.smokes]
+
     def mission_progress(self):
         return self.world.mission_progress()
     bridges = property(lambda self: self.world.bridges)
@@ -488,6 +492,7 @@ class NetSession(_Base):
         self.elapsed = 0.0
         self.resources = int(start_msg.get("start_crystal", START_CRYSTAL))
         self._reinforce_left = 0.0
+        self.smokes = []
         self.supply_used, self.supply_cap = 0, 10
         self.game_over = False
         self.winner_team = None
@@ -565,9 +570,10 @@ class NetSession(_Base):
         self.supply_used, self.supply_cap = m["sup"]
         self.hold = {int(k): float(v) for k, v in m.get("hold", {}).items()}
         self._reinforce_left = float(m.get("rf", 0))
+        self.smokes = [(x, y, left) for x, y, left in m.get("sm", [])]
         seen = set()
         orders = m.get("o", {})
-        for (i, team, k, x, y, a, g, hp, carrying, mode, rank) in m["u"]:
+        for (i, team, k, x, y, a, g, hp, carrying, mode, rank, *extra) in m["u"]:
             seen.add(i)
             u = self._units.get(i)
             ra, rg = math.radians(a), math.radians(g)
@@ -580,6 +586,8 @@ class NetSession(_Base):
                 u._from = (u.x, u.y, u.angle, u.gun_angle)
             u._to = (x, y, ra, rg)
             u.hp, u.carrying, u.mode, u.rank = hp, carrying, mode, rank
+            u.ability_cd = float(extra[0]) if extra else 0.0
+            u.marked = bool(extra[1]) if len(extra) > 1 else False
             u.max_hp = UNITS[u.kind].hp * (1 + VET_BONUS * rank)
             o = orders.get(str(i))
             if o:

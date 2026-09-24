@@ -275,6 +275,21 @@ START_BASES = [("fresh", "Fresh start", "A Command Center and five Engineers"),
                ("established", "Established base", "Depots, a Barracks, a Factory and a turret already standing")]
 ESTABLISHED = [("depot", 230.0, 1.2), ("depot", 230.0, -1.2), ("barracks", 270.0, 0.55), ("factory", 300.0, -0.55),
                ("turret", 340.0, 0.0)]
+# Unit abilities, one per kind, on Q: (id, name, reach, cooldown seconds, needs) where needs is "point",
+# "target" or "self". A Ranger's grenade bursts where it lands; a Sniper marks a target so everything hits it
+# harder for a while; a Siege Tank pops smoke that halves ranged damage to anything inside.
+ABILITIES = {"marine": ("grenade", "Grenade", 200.0, 20.0, "point"),
+             "sniper": ("mark", "Mark Target", 360.0, 25.0, "target"),
+             "tank": ("smoke", "Smoke", 0.0, 30.0, "self")}
+GRENADE_DAMAGE = 40.0
+GRENADE_SPLASH = 60.0
+MARK_DURATION = 8.0
+MARK_BONUS = 0.5            # +50% damage taken while marked
+SMOKE_RADIUS = 120.0
+SMOKE_DURATION = 8.0
+SMOKE_FACTOR = 0.5          # ranged damage taken inside smoke
+SMOKE_RANGED = 60.0         # a hit from further than this is ranged
+
 # Off-map reinforcements, called in from the Command Center for crystal: unit kind -> (how many, the price).
 # They walk in from the map edge nearest your start; one call per REINFORCE_COOLDOWN seconds.
 REINFORCEMENTS = {"marine": (4, 300), "tank": (2, 600)}

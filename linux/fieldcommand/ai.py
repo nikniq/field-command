@@ -14,7 +14,7 @@ Works for any slot; enemies are every player outside its alliance."""
 import math
 
 from . import defs
-from .defs import (BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+from .defs import (ABILITIES, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
 # Openings: how the first minutes are played. Each factor bends the timed plan — `barracks` and `turret`
@@ -119,6 +119,7 @@ class AI:
         self._upgrade(hq, bases)
         self._shop(army)
         self._defend(bases, home)
+        self._abilities(mine)
         self._fortify(hq, bases, workers)
         self._garrison(hq, bases, home)
         self._scout(hq, home)
@@ -516,6 +517,37 @@ class AI:
         for u in self.guards:
             if u.order[0] == "idle" and math.hypot(u.x - threat.x, u.y - threat.y) < 700:
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
+
+    def _abilities(self, mine):
+        """Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt
+        Siege Tank under fire pops smoke."""
+        g = self.game
+        for u in mine:
+            spec = ABILITIES.get(u.kind)
+            if spec is None or u.ability_cd > 0:
+                continue
+            aid, _name, reach, _cd, needs = spec
+            foes = [e for e in g.units if g.enemies(e.team, u.team) and not e.dead
+                    and math.hypot(e.x - u.x, e.y - u.y) <= max(reach, 300.0)]
+            if not foes:
+                continue
+            if aid == "grenade":
+                best, count = None, 1
+                for f in foes:
+                    if math.hypot(f.x - u.x, f.y - u.y) > reach:
+                        continue
+                    n = sum(1 for o in foes if math.hypot(o.x - f.x, o.y - f.y) <= GRENADE_SPLASH * 0.8)
+                    if n > count:
+                        best, count = f, n
+                if best is not None:
+                    g.use_ability(self.team, [u], best.x, best.y)
+            elif aid == "mark":
+                fresh = [f for f in foes if f.marked_until <= g.elapsed and math.hypot(f.x - u.x, f.y - u.y) <= reach]
+                if fresh:
+                    t = max(fresh, key=lambda f: f.hp)
+                    g.use_ability(self.team, [u], t.x, t.y, t.id)
+            elif u.hp < u.max_hp * 0.6:
+                g.use_ability(self.team, [u], u.x, u.y)
 
     STANDOFF = {"sniper": 200.0, "medic": 120.0}
 

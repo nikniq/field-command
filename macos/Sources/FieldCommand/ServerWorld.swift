@@ -595,9 +595,12 @@ class SEntity {
         return (visMask & bit) != 0 || (isBuilding && (revealedMask & bit) != 0)
     }
 
+    /// How long a Sniper's mark on this entity holds (world time).
+    var markedUntil = -1e9
+
     func takeDamage(_ amount: Double, from attacker: SEntity?) {
         guard !dead else { return }
-        hp -= amount
+        hp -= world.modifyDamage(self, amount, attacker)
         if hp <= 0 {
             hp = 0
             dead = true
@@ -618,6 +621,8 @@ final class SUnit: SEntity {
     var queued: [SOrder] = []
     var resumePoint: (Double, Double)?
     var cooldown = 0.0
+    /// Seconds until this unit's ability (`abilities[kind]`) can be used again.
+    var abilityCd = 0.0
     var carrying = 0
     var homeCrystal: SCrystal?
     var resumeGather: SCrystal?
@@ -805,6 +810,7 @@ final class SUnit: SEntity {
     func update(_ dt: Double) {
         let g = world
         cooldown = max(0, cooldown - dt)
+        abilityCd = max(0, abilityCd - dt)
         scan -= dt
         let moved = hyp(x - lastX, y - lastY)
         if wasMoving && moved < speed * dt * 0.3 { stuck += dt } else { stuck = max(0, stuck - dt * 2) }
@@ -1258,6 +1264,7 @@ final class SBuilding: SEntity {
     var turretDamage: Double { kind == .hq ? hqGunDamage : (upgrades.contains(.guns) ? turretUpgradedDamage : Double(stats.damage)) }
 
     override func takeDamage(_ amount: Double, from attacker: SEntity?) {
+        let amount = world.modifyDamage(self, amount, attacker)
         var left = upgrades.contains(.armor) ? amount * armorFactor : amount
         if shield > 0 && left > 0 {
             let soaked = min(shield, left)
@@ -1454,6 +1461,8 @@ final class SWorld {
     private(set) var startCrystal: Int = startCrystalOptions[1]
     private(set) var startBase = "fresh"
     var reinforceAt: [Int: Double] = [:]
+    /// Smoke on the ground that halves ranged damage inside it: (x, y, until).
+    var smokes: [(x: Double, y: Double, until: Double)] = []
 
     init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil,
          startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh") {
@@ -1587,6 +1596,7 @@ final class SWorld {
         checkMission(dt)
         runScript()
         checkMode(dt)
+        if !smokes.isEmpty { smokes.removeAll { $0.until <= elapsed } }
         if elapsed >= nextSample {
             nextSample += historyStep
             for s in players.keys.sorted() {
@@ -1944,6 +1954,46 @@ final class SWorld {
         return true
     }
 
+    // MARK: Abilities
+
+    /// A marked target takes more; anything inside smoke takes less from a distance.
+    func modifyDamage(_ victim: SEntity, _ amount: Double, _ attacker: SEntity?) -> Double {
+        var amount = amount
+        if victim.markedUntil > elapsed { amount *= 1 + markBonus }
+        if !victim.isBuilding, let a = attacker, !smokes.isEmpty, hyp(a.x - victim.x, a.y - victim.y) > smokeRanged,
+           smokes.contains(where: { $0.until > elapsed && hyp($0.x - victim.x, $0.y - victim.y) <= smokeRadius }) {
+            amount *= smokeFactor
+        }
+        return amount
+    }
+
+    /// Every selected unit of a kind with its ability ready uses it: a grenade at the point, a mark on the target,
+    /// smoke where the tank stands. Returns how many did.
+    @discardableResult
+    func useAbility(_ slot: Int, _ units: [SUnit], _ x: Double, _ y: Double, _ targetId: Int? = nil) -> Int {
+        var used = 0
+        let target = targetId.flatMap { byId[$0] as? SEntity }
+        for u in units {
+            guard let spec = abilities[u.kind], u.abilityCd <= 0, !u.dead else { continue }
+            switch spec.needs {
+            case "point":
+                guard hyp(x - u.x, y - u.y) <= spec.reach else { continue }
+                launchShell(u.x, u.y, x, y, grenadeDamage, grenadeSplash, u.team, u, arc: true)
+                emit(["sound", "cannon", u.x, u.y])
+            case "target":
+                guard let t = target, !t.dead, enemies(t.team, u.team), hyp(t.x - u.x, t.y - u.y) <= spec.reach else { continue }
+                t.markedUntil = elapsed + markDuration
+                emit(["flash", t.x, t.y, 60, "mark"])
+            default:
+                smokes.append((u.x, u.y, elapsed + smokeDuration))
+                emit(["smoke", u.x, u.y, 40])
+            }
+            u.abilityCd = spec.cooldown
+            used += 1
+        }
+        return used
+    }
+
     // MARK: Skirmish modes
 
     /// King of the Hill's ring: the gold deposit's centre, or the middle of the map without one.
@@ -2137,6 +2187,9 @@ final class SWorld {
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { cancelQueue(b, jInt(cmd[2])) }
         case "reinforce" where cmd.count >= 2:
             if let k = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == jStr(cmd[1]) }) { _ = reinforce(slot, k) }
+        case "ability" where cmd.count >= 4:
+            let tid: Int? = cmd.count > 4 && !(cmd[4] is NSNull) ? jInt(cmd[4]) : nil
+            _ = useAbility(slot, ownUnits(slot, ids(cmd[1])), num(2), num(3), tid)
         case "unbuild" where cmd.count >= 2:
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { _ = unbuild(b) }
         case "rally" where cmd.count >= 4:
@@ -2677,6 +2730,31 @@ final class SAI {
 
     /// Where a unit should go for a target: Snipers stop 200 short so they fight at their range and never
     /// walk into the line; Medics 120 short, behind it; everyone else goes to the target.
+    /// Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt Siege
+    /// Tank under fire pops smoke.
+    private func useAbilities(_ mine: [SUnit]) {
+        let g = world
+        for u in mine {
+            guard let spec = abilities[u.kind], u.abilityCd <= 0 else { continue }
+            let foes = g.units.filter { g.enemies($0.team, u.team) && !$0.dead && hyp($0.x - u.x, $0.y - u.y) <= max(spec.reach, 300) }
+            if foes.isEmpty { continue }
+            switch spec.id {
+            case "grenade":
+                var best: SUnit? = nil, count = 1
+                for f in foes where hyp(f.x - u.x, f.y - u.y) <= spec.reach {
+                    let n = foes.filter { hyp($0.x - f.x, $0.y - f.y) <= grenadeSplash * 0.8 }.count
+                    if n > count { best = f; count = n }
+                }
+                if let b = best { g.useAbility(team, [u], b.x, b.y) }
+            case "mark":
+                let fresh = foes.filter { $0.markedUntil <= g.elapsed && hyp($0.x - u.x, $0.y - u.y) <= spec.reach }
+                if let t = fresh.max(by: { $0.hp < $1.hp }) { g.useAbility(team, [u], t.x, t.y, t.id) }
+            default:
+                if u.hp < u.maxHp * 0.6 { g.useAbility(team, [u], u.x, u.y) }
+            }
+        }
+    }
+
     static let standoffs: [UnitKind: Double] = [.sniper: 200, .medic: 120]
 
     func standoff(_ u: SUnit, _ tx: Double, _ ty: Double) -> (Double, Double) {
@@ -2719,6 +2797,7 @@ final class SAI {
         upgrade(hq, bases)
         shop(army)
         defend(bases, home)
+        useAbilities(mine)
         fortify(hq, bases, workers)
         garrisonRun(hq, bases, home)
         scoutRun(hq, home)

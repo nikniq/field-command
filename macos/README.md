@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 16, so a 1.31.0 Mac and a 1.31.0 Linux client play together; neither accepts an
+Both editions speak protocol 17, so a 1.32.0 Mac and a 1.32.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -139,6 +139,12 @@ next as it is won; progress is kept in `UserDefaults`. Each is briefed before it
 mission, the objective, the timeline; Enter deploys) and runs a script on its clock: word from Command,
 reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
 and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 5000 crystal.
+
+## Unit abilities
+
+Q on the card: a Ranger's Grenade (40 in a 60 burst, reach 200, 20 s), a Sniper's Mark Target (+50% damage
+taken for 8 s, reach 360, 25 s) and a Siege Tank's Smoke (ranged hits within 120 halved for 8 s, 30 s). The
+computer uses them too. Same numbers as the Linux edition (`FC_ABILITYTEST`).
 
 ## The start: crystal, an established base, reinforcements
 

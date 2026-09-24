@@ -84,7 +84,8 @@ def world_to_dict(world, label=""):
         units.append({"id": u.id, "kind": u.kind, "team": u.team, "x": u.x, "y": u.y, "angle": u.angle,
                       "gun_angle": u.gun_angle, "hp": u.hp, "max_hp": u.max_hp, "carrying": u.carrying,
                       "mode": u.mode, "mode_timer": u.mode_timer, "kills": u.kills, "rank": u.rank,
-                      "cooldown": u.cooldown, "order": _order_out(u.order), "queued": [_order_out(q) for q in u.queued],
+                      "cooldown": u.cooldown, "ability_cd": u.ability_cd, "marked_until": u.marked_until,
+                      "order": _order_out(u.order), "queued": [_order_out(q) for q in u.queued],
                       "home_crystal": u.home_crystal.id if u.home_crystal else None,
                       "resume_gather": u.resume_gather.id if u.resume_gather else None,
                       "resume_point": list(u.resume_point) if u.resume_point else None})
@@ -131,6 +132,7 @@ def world_to_dict(world, label=""):
         "history": {str(s): h for s, h in w.history.items()}, "next_sample": w._next_sample,
         "mode": w.mode, "hold": {str(t): v for t, v in w.hold.items()},
         "start_crystal": w.start_crystal, "start_base": w.start_base, "reinforce_at": {str(s): v for s, v in w.reinforce_at.items()},
+        "smokes": [list(s) for s in w.smokes],
         "seed": w.seed, "rng": [w.rng.getstate()[0], list(w.rng.getstate()[1]), w.rng.getstate()[2]], "tick": w.tick,
         "reveals": {str(t): {str(i): until for i, until in r.items()} for t, r in w.reveals.items()},
         "ai": ai,
@@ -180,6 +182,7 @@ def world_from_dict(data):
     w.start_base = data.get("start_base", w.start_base)
     for s, v in data.get("reinforce_at", {}).items():
         w.reinforce_at[int(s)] = float(v)
+    w.smokes = [tuple(s) for s in data.get("smokes", [])]
     for saved, live in zip(data["towers"], w.towers):
         live.id, live.owner, live.capturing, live.progress = saved["id"], saved["owner"], saved["capturing"], saved["progress"]
     for e in w.bridges + w.towers:
@@ -203,6 +206,7 @@ def world_from_dict(data):
         un.angle, un.gun_angle = u["angle"], u["gun_angle"]
         un.hp, un.max_hp, un.carrying = u["hp"], u["max_hp"], u["carrying"]
         un.mode, un.mode_timer, un.kills, un.rank, un.cooldown = u["mode"], u["mode_timer"], u["kills"], u["rank"], u["cooldown"]
+        un.ability_cd, un.marked_until = float(u.get("ability_cd", 0.0)), float(u.get("marked_until", -1e9))
         un.last_x, un.last_y = un.x, un.y
         w.units.append(un)
         w.by_id[un.id] = un

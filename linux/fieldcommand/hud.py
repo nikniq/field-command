@@ -557,6 +557,8 @@ class HUD:
             return art.icon_stop()
         if kind == "siege":
             return art.icon_siege(b.icon[1])
+        if kind == "ability":
+            return art.icon_ability(b.icon[1])
         if kind == "upgrade":
             return art.icon_upgrade(b.icon[1])
         if kind in ("unit", "reinforce"):
@@ -585,7 +587,7 @@ class HUD:
             screen.blit(art.button(r.w, r.h, state), r.topleft)
             tex = self._icon_source(b)
             kind = b.icon[0]
-            fit = 30 if kind in ("attack", "stop") else 34 if kind in ("siege", "upgrade") else \
+            fit = 30 if kind in ("attack", "stop") else 34 if kind in ("siege", "upgrade", "ability") else \
                 (40 if b.icon[1] == "tank" else 30) if kind in ("unit", "reinforce") else 38
             rot = 90 if kind in ("unit", "reinforce") else 0
             if not b.enabled:
@@ -620,6 +622,9 @@ class HUD:
             if b.cost is not None:
                 ok = g.s.resources >= b.cost
                 ui.blit_text(screen, str(b.cost), 10, CRYSTAL if ok else BAD, (r.right - 5, r.y + 11), align="right", mono=True)
+            elif kind == "ability" and not b.enabled:
+                cd = min((getattr(u, "ability_cd", 0.0) for u in g.ability_units()[0]), default=0.0)
+                ui.blit_text(screen, f"{cd:.0f}s", 10, DIM, (r.right - 5, r.y + 11), align="right", mono=True)
 
     def _draw_tooltip(self, screen, mouse):
         if mouse is None:

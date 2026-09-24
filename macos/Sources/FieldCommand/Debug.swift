@@ -750,6 +750,117 @@ enum Debug {
 
     /// FC_STARTTEST=1: the start of a game — crystal in the bank, an established base, off-map reinforcements
     /// for crystal — matching linux/tests/test_start.py.
+    /// FC_ABILITYTEST=1: unit abilities on the server simulation — the Ranger's grenade, the Sniper's mark, the
+    /// Siege Tank's smoke, their cooldowns and reach, the wire and the save — matching linux/tests/test_abilities.py.
+    static func runAbilityTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }        // nobody fires on their own
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double, armed: Bool = false) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            u.command(.idle)
+            if !armed { u.cooldown = 1e9 }
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 } }
+
+        check(abilities.count == 3 && abilities[.marine]?.id == "grenade" && abilities[.sniper]?.id == "mark" && abilities[.tank]?.id == "smoke",
+              "Rangers, Snipers and Siege Tanks each have an ability")
+        do {
+            let (w, hq) = fresh()
+            let r = unit(w, .marine, 0, hq.x + 300, hq.y)
+            let foes = (0..<3).map { unit(w, .marine, 1, hq.x + 450 + Double($0) * 20, hq.y) }
+            let before = foes.map { $0.hp }
+            let thrown = w.useAbility(0, [r], hq.x + 470, hq.y) == 1 && r.abilityCd == abilities[.marine]!.cooldown
+            run(w, 3)
+            let hurt = zip(foes, before).allSatisfy { $0.hp < $1 }
+            let again = w.useAbility(0, [r], hq.x + 470, hq.y) == 0
+            run(w, abilities[.marine]!.cooldown + 1)
+            check(thrown && hurt && again && r.abilityCd == 0 && w.useAbility(0, [r], hq.x + 470, hq.y) == 1,
+                  "a grenade bursts where it lands, then recharges")
+            check(w.useAbility(0, [r], hq.x + 300 + abilities[.marine]!.reach + 50, hq.y) == 0, "a grenade cannot be thrown beyond its reach")
+        }
+        do {
+            let (w, hq) = fresh()
+            let s = unit(w, .sniper, 0, hq.x + 300, hq.y)
+            let t = unit(w, .tank, 1, hq.x + 500, hq.y)
+            var hp = t.hp
+            t.takeDamage(10, from: s)
+            let plain = abs(hp - t.hp - 10) < 1e-9
+            let marked = w.useAbility(0, [s], t.x, t.y, t.id) == 1 && t.markedUntil > w.elapsed
+            hp = t.hp
+            t.takeDamage(10, from: s)
+            let more = abs(hp - t.hp - 10 * (1 + markBonus)) < 1e-9
+            run(w, markDuration + 0.5)
+            hp = t.hp
+            t.takeDamage(10, from: s)
+            check(plain && marked && more && t.markedUntil <= w.elapsed && abs(hp - t.hp - 10) < 1e-9,
+                  "a marked target takes half again as much until the mark fades")
+            let friend = unit(w, .marine, 0, hq.x + 400, hq.y)
+            let far = unit(w, .marine, 1, hq.x + 300 + abilities[.sniper]!.reach + 100, hq.y)
+            run(w, abilities[.sniper]!.cooldown + 1)
+            check(w.useAbility(0, [s], friend.x, friend.y, friend.id) == 0 && w.useAbility(0, [s], far.x, far.y, far.id) == 0 && s.abilityCd == 0,
+                  "a mark needs an enemy in reach")
+        }
+        do {
+            let (w, hq) = fresh()
+            let tank = unit(w, .tank, 0, hq.x + 300, hq.y)
+            let ranger = unit(w, .marine, 0, hq.x + 330, hq.y)
+            let far = unit(w, .sniper, 1, hq.x + 700, hq.y)
+            let near = unit(w, .marine, 1, hq.x + 360, hq.y)
+            let popped = w.useAbility(0, [tank], 0, 0) == 1 && w.smokes.count == 1 && w.smokes[0].x == tank.x
+            var hp = ranger.hp
+            ranger.takeDamage(10, from: far)
+            let halved = abs(hp - ranger.hp - 10 * smokeFactor) < 1e-9
+            hp = ranger.hp
+            ranger.takeDamage(10, from: near)
+            let pointBlank = abs(hp - ranger.hp - 10) < 1e-9
+            let outside = unit(w, .marine, 0, hq.x + 300 + smokeRadius + 40, hq.y)
+            hp = outside.hp
+            outside.takeDamage(10, from: far)
+            let clear = abs(hp - outside.hp - 10) < 1e-9
+            run(w, smokeDuration + 0.5)
+            hp = ranger.hp
+            ranger.takeDamage(10, from: far)
+            check(popped && halved && pointBlank && clear && w.smokes.isEmpty && abs(hp - ranger.hp - 10) < 1e-9,
+                  "smoke halves ranged damage inside it, not point-blank hits, and clears")
+        }
+        do {
+            let (w, hq) = fresh()
+            let s = unit(w, .sniper, 0, hq.x + 300, hq.y)
+            let t = unit(w, .tank, 1, hq.x + 500, hq.y)
+            let tank = unit(w, .tank, 0, hq.x + 200, hq.y)
+            w.apply(0, ["ability", [s.id], t.x, t.y, t.id])
+            w.apply(0, ["ability", [tank.id], 0, 0, NSNull()])
+            run(w, 0.5)
+            let applied = t.markedUntil > w.elapsed && s.abilityCd > 0 && w.smokes.count == 1
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            let s2 = w2.byId[s.id] as! SUnit, t2 = w2.byId[t.id] as! SUnit
+            check(applied && w2.smokes.count == 1 && s2.abilityCd > 0 && t2.markedUntil > w2.elapsed,
+                  "the ability command goes through the wire and the save")
+        }
+        do {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: true, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            let r = unit(w, .marine, 1, hq.x - 300, hq.y, armed: true)
+            let sn = unit(w, .sniper, 1, hq.x - 320, hq.y + 40, armed: true)
+            let foes = (0..<3).map { unit(w, .marine, 0, hq.x - 450 - Double($0) * 15, hq.y, armed: true) }
+            run(w, 2)
+            check(r.abilityCd > 0 && sn.abilityCd > 0 && foes.contains { $0.markedUntil > 0 }, "the computer uses its abilities")
+        }
+        print(ok ? "ABILITY TEST PASSED" : "ABILITY TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runStartTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

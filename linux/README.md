@@ -176,6 +176,20 @@ the ground. Siege Tanks and Artillery cannot fire at it; Rangers, Snipers, turre
 point-defence gun and other Gunships can. Use it to reach a walled expansion, hunt Engineers on a far
 field, or pick off tanks from where they cannot answer — and keep it away from turrets.
 
+## Unit abilities
+
+Three kinds carry an ability on **Q** of their card, each on its own clock:
+
+| Unit | Ability | What it does | Reach | Recharge |
+|---|---|---|---|---|
+| Ranger | **Grenade** | click a spot: 40 damage to everything within 60 of where it lands | 200 | 20 s |
+| Sniper | **Mark Target** | click an enemy: it takes 50% more damage from everyone for 8 s (an amber reticle shows it) | 360 | 25 s |
+| Siege Tank | **Smoke** | pops smoke where it stands: ranged hits (from further than 60) on anything within 120 do half damage for 8 s | self | 30 s |
+
+With a group selected, every unit of that kind whose ability is ready uses it at once; the button greys out
+and counts down while none is ready. The computer throws grenades into knots of your troops, marks your
+toughest unit in reach and smokes its hurt tanks.
+
 ## Barricades
 
 The **Barricade** (30 crystal, hotkey **V** on the Engineer card, no requirements) is a block of wall: 700

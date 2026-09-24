@@ -604,7 +604,8 @@ final class GameServer {
         var units: [[Any]] = [], orders: [String: Any] = [:], buildings: [[Any]] = []
         for u in w.units where !u.dead && w.sees(slot, u) {
             units.append([u.id, u.team, NetProtocol.unitKinds.firstIndex(of: u.kind) ?? 0, r1(u.x), r1(u.y), deg(u.angle), deg(u.gunAngle),
-                          Int(u.hp.rounded(.up)), u.carrying, u.mode.rawValue, u.rank])
+                          Int(u.hp.rounded(.up)), u.carrying, u.mode.rawValue, u.rank,
+                          Int(u.abilityCd.rounded(.up)), u.markedUntil > w.elapsed ? 1 : 0])
             if u.team == slot {
                 var pts: [Any] = []
                 for o in [u.order] + u.queued {
@@ -645,6 +646,7 @@ final class GameServer {
                 "ms": w.mission != nil ? Int(w.missionProgress()) : 0,
                 "hold": w.mode == "koth" ? Dictionary(uniqueKeysWithValues: w.hold.map { (String($0.key), r1($0.value)) }) : [:],
                 "rf": r1(w.reinforceLeft(slot)),
+                "sm": w.smokes.map { [r1($0.x), r1($0.y), r1($0.until - w.elapsed)] },
                 "cr": w.crates.filter { c in w.fog[w.players[slot]?.team ?? -1]?.isVisible(c.x, c.y) == true }
                     .map { [$0.id, r1($0.x), r1($0.y), crateKinds.firstIndex(of: $0.kind) ?? 0, $0.amount] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]

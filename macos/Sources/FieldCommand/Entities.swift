@@ -295,6 +295,35 @@ final class Unit: Entity {
     var sieged: Bool { mode == .sieged }
     var canSiege: Bool { kind == .tank }
 
+    /// The kind's ability: seconds until it is ready again, from the server.
+    var abilityCd = 0.0
+    /// A Sniper's mark, shown as a pulsing amber reticle above the unit.
+    private(set) var marked = false
+    private var markNode: SKNode?
+
+    func setMarked(_ m: Bool) {
+        guard m != marked else { return }
+        marked = m
+        markNode?.removeFromParent()
+        markNode = nil
+        guard m else { return }
+        let n = SKNode()
+        let ring = SKShapeNode(circleOfRadius: 7)
+        ring.strokeColor = Palette.amber
+        ring.lineWidth = 2
+        ring.fillColor = .clear
+        n.addChild(ring)
+        let stem = SKShapeNode(rect: CGRect(x: -1, y: -15, width: 2, height: 7))
+        stem.fillColor = Palette.amber
+        stem.strokeColor = .clear
+        n.addChild(stem)
+        n.position = CGPoint(x: 0, y: radius + 30)
+        n.zPosition = 6
+        n.run(.repeatForever(.sequence([.scale(to: 1.3, duration: 0.4), .scale(to: 0.9, duration: 0.4)])))
+        addChild(n)
+        markNode = n
+    }
+
     func setMode(_ m: SiegeMode) {
         guard m != mode else { return }
         mode = m

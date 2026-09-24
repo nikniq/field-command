@@ -53,6 +53,9 @@ final class GameScene: SKScene {
     private let ghostFrame = SKShapeNode()
     private let ghostRange = SKShapeNode()
     var attackMovePending = false
+    /// The ability awaiting a click on the ground or a target.
+    var abilityPending: Ability?
+    private var smokeNodes: [SKShapeNode] = []
     /// Alert points: Z (or Option+click) marks "attack here", Shift+Z "help here", for the whole alliance.
     var pingPending = false
     var pingKind = 0
@@ -840,6 +843,64 @@ final class GameScene: SKScene {
         }
     }
 
+    // MARK: Abilities
+
+    /// The selected units whose kind has an ability, and how many of them can use it right now.
+    func abilityUnits() -> ([Unit], Int) {
+        let us = selectedOwnUnits.filter { abilities[$0.kind] != nil }
+        return (us, us.filter { $0.abilityCd <= 0 }.count)
+    }
+
+    func beginAbility() {
+        let (us, ready) = abilityUnits()
+        guard let first = us.first, let spec = abilities[first.kind] else { return }
+        guard ready > 0 else { hud.flash("\(spec.name) is recharging", color: Palette.bad); return }
+        cancelModes()
+        if spec.needs == "self" { useAbility(at: first.position); return }
+        abilityPending = spec
+        hud.flash(spec.needs == "target" ? "\(spec.name): click a target" : "\(spec.name): click where to throw", color: Palette.text)
+    }
+
+    func useAbility(at p: CGPoint) {
+        let (us, ready) = abilityUnits()
+        abilityPending = nil
+        guard let first = us.first, let spec = abilities[first.kind], ready > 0 else { return }
+        var x = Double(p.x), y = Double(p.y)
+        var target: Entity? = nil
+        if spec.needs == "target" {
+            guard let t = entity(at: p), !t.team.isFriendly else { hud.flash("Mark an enemy", color: Palette.bad); return }
+            target = t
+            x = Double(t.position.x); y = Double(t.position.y)
+        } else if spec.needs == "point" {
+            guard us.contains(where: { $0.abilityCd <= 0 && hypot(Double($0.position.x) - x, Double($0.position.y) - y) <= spec.reach })
+            else { hud.flash("Too far to throw", color: Palette.bad); return }
+            marker(at: p, color: Palette.bad, size: CGFloat(grenadeSplash))
+        }
+        sendNet(["ability", netIds(us), x, y, target.map { $0.netId as Any } ?? NSNull()])
+        unitVoice("ack_", Array(us.prefix(1)))
+    }
+
+    /// Smoke on the ground: a soft grey disc per cloud that thins out as it clears.
+    func updateSmokes() {
+        let list = net?.smokes ?? []
+        while smokeNodes.count < list.count {
+            let n = SKShapeNode()
+            n.zPosition = 3.5
+            n.strokeColor = .clear
+            world.addChild(n)
+            smokeNodes.append(n)
+        }
+        for (i, n) in smokeNodes.enumerated() {
+            guard i < list.count else { n.isHidden = true; continue }
+            let (c, left) = list[i]
+            n.isHidden = false
+            let r = CGFloat(smokeRadius)
+            if n.path == nil { n.path = CGPath(ellipseIn: CGRect(x: -r, y: -r * tilt, width: r * 2, height: r * 2 * tilt), transform: nil) }
+            n.position = c
+            n.fillColor = NSColor(white: 0.68, alpha: 0.55 * min(1, left / 2))
+        }
+    }
+
     private func updateRing() {
         guard let net, let (c, r) = net.ring else { return }
         if ringNode.parent == nil {
@@ -1175,6 +1236,10 @@ final class GameScene: SKScene {
             issueAttackMove(at: w, queue: shift)
             return
         }
+        if abilityPending != nil {
+            useAbility(at: w)
+            return
+        }
         if pingPending || event.modifierFlags.contains(.option) {
             placePing(at: w)
             return
@@ -1274,7 +1339,7 @@ final class GameScene: SKScene {
         let key = keyName(event)
         if hud.rebinding != nil { hud.rebind(key); return }                   // the Keys screen is waiting for a key
         if code == 53 { // Esc
-            if placing != nil || attackMovePending || pingPending { cancelModes() }
+            if placing != nil || attackMovePending || pingPending || abilityPending != nil { cancelModes() }
             else if hud.overlayVisible { hud.clearOverlay(); gamePaused = false }
             else if !selection.isEmpty { setSelection([]) }
             else { togglePause() }
@@ -1390,7 +1455,7 @@ final class GameScene: SKScene {
         var kind = Art.CursorKind.normal
         if !hud.isOverHUD(m.hud) && !hud.overlayVisible {
             let own = selectedOwnUnits
-            if attackMovePending || pingPending {
+            if attackMovePending || pingPending || abilityPending != nil {
                 kind = .attack
             } else if !own.isEmpty && placing == nil {
                 if let t = target, !t.team.isFriendly { kind = .attack }
@@ -1725,6 +1790,7 @@ final class GameScene: SKScene {
         placing = nil
         attackMovePending = false
         pingPending = false
+        abilityPending = nil
         ghost.isHidden = true
         ghostFrame.isHidden = true
         ghostRange.isHidden = true
@@ -2110,6 +2176,21 @@ final class GameScene: SKScene {
                 CommandButton(icon: .stop, title: "Stop", hotkey: "S", cost: nil, enabled: true,
                               tip: "Halt all current and queued orders.") { [weak self] in self?.stopSelected() },
             ]
+            let (able, ready) = abilityUnits()
+            if let first = able.first, let spec = abilities[first.kind] {
+                var tip: String
+                switch spec.id {
+                case "grenade": tip = "Lob a grenade up to \(Int(spec.reach)) away: \(Int(grenadeDamage)) damage to everything within \(Int(grenadeSplash))."
+                case "mark": tip = "Mark an enemy within \(Int(spec.reach)): it takes \(Int(markBonus * 100))% more damage for \(Int(markDuration)) seconds."
+                default: tip = "Pop smoke here: ranged hits on anything within \(Int(smokeRadius)) do half damage for \(Int(smokeDuration)) seconds."
+                }
+                tip += "\nRecharges in \(Int(spec.cooldown)) seconds."
+                let cd = able.map { $0.abilityCd }.min() ?? 0
+                if ready == 0 { tip += "\nReady in \(Int(cd.rounded())) s." }
+                list.append(CommandButton(icon: .ability(spec.id), title: spec.name, hotkey: "Q", cost: nil, enabled: ready > 0, tip: tip) {
+                    [weak self] in self?.beginAbility()
+                })
+            }
             let tanks = us.filter { $0.canSiege }
             if !tanks.isEmpty {
                 // One button for the whole selection: it digs in unless every tank is already dug in.

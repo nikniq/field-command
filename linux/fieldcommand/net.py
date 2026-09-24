@@ -26,7 +26,7 @@ from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_I
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 16
+PROTOCOL_VERSION = 17
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -127,7 +127,8 @@ def snapshot_for(world, slot, events):
         if u.dead or not world.sees(slot, u):
             continue
         units.append([u.id, u.team, UNIT_INDEX[u.kind], _r(u.x), _r(u.y), int(math.degrees(u.angle)) % 360,
-                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying, u.mode, u.rank])
+                      int(math.degrees(u.gun_angle)) % 360, int(math.ceil(u.hp)), u.carrying, u.mode, u.rank,
+                      int(math.ceil(u.ability_cd)), 1 if u.marked_until > world.elapsed else 0])
         if u.team == slot:
             pts = []
             for code, x, y in order_points(u):
@@ -153,6 +154,7 @@ def snapshot_for(world, slot, events):
             "ms": int(world.mission_progress()) if world.mission else 0,
             "hold": {str(t): round(v, 1) for t, v in world.hold.items()} if world.mode == "koth" else {},
             "rf": round(world.reinforce_left(slot), 1),
+            "sm": [[_r(x), _r(y), _r(until - world.elapsed)] for x, y, until in world.smokes],
             "cr": [[c.id, _r(c.x), _r(c.y), CRATE_INDEX[c.kind], c.amount] for c in world.crates
                    if world.fog_for(slot).is_visible(c.x, c.y)],
             "tw": [[t.id, _r(t.x), _r(t.y), -1 if t.owner is None else t.owner,

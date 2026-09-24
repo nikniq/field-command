@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.31.0
+Version:        1.32.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.32.0-1
+- Unit abilities on Q: the Ranger's Grenade (40 damage in a 60 burst up to 200 away, every 20 s), the
+  Sniper's Mark Target (the target takes 50% more damage for 8 s, every 25 s) and the Siege Tank's Smoke
+  (ranged hits on anything within 120 do half damage for 8 s, every 30 s); the computer uses them too
+- Protocol 17: cooldowns, marks and smoke travel in snapshots and saves
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.31.0-1
 - Every side now starts with 5000 crystal, and the title screen lets you set it (2000, 5000, 10000
   or 20000)

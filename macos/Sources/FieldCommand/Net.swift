@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 16     // … 14 Gunships; 15 game modes; 16 starting crystal, established bases, reinforcements
+    static let version = 17     // … 15 game modes; 16 starting crystal, established bases, reinforcements; 17 abilities
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
@@ -293,6 +293,8 @@ final class NetSession {
     var resources = startCrystal
     /// Seconds until this side can call reinforcements again.
     var reinforceLeft = 0.0
+    /// Smoke on the ground: (position, seconds left).
+    var smokes: [(CGPoint, Double)] = []
     /// Base64 fog bits from a resumed game, applied once the scene's fog exists.
     let explored: String?
     /// The campaign mission this game is, if any, and the seconds run up toward its timed objective.

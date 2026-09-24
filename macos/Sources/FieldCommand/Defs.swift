@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.31.0"
+let appVersion = "1.32.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -416,6 +416,26 @@ let startBases: [(id: String, name: String, rule: String)] = [
     ("established", "Established base", "Depots, a Barracks, a Factory and a turret already standing"),
 ]
 let established: [(BuildingKind, Double, Double)] = [(.depot, 230, 1.2), (.depot, 230, -1.2), (.barracks, 270, 0.55), (.factory, 300, -0.55), (.turret, 340, 0)]
+/// Unit abilities, one per kind, on Q: a Ranger's grenade bursts where it lands; a Sniper marks a target so
+/// everything hits it harder for a while; a Siege Tank pops smoke that halves ranged damage to anything inside.
+/// `needs` is "point", "target" or "self".
+struct Ability {
+    let id: String, name: String, reach: Double, cooldown: Double, needs: String
+}
+let abilities: [UnitKind: Ability] = [
+    .marine: Ability(id: "grenade", name: "Grenade", reach: 200, cooldown: 20, needs: "point"),
+    .sniper: Ability(id: "mark", name: "Mark Target", reach: 360, cooldown: 25, needs: "target"),
+    .tank: Ability(id: "smoke", name: "Smoke", reach: 0, cooldown: 30, needs: "self"),
+]
+let grenadeDamage: Double = 40
+let grenadeSplash: Double = 60
+let markDuration: Double = 8
+let markBonus: Double = 0.5            // +50% damage taken while marked
+let smokeRadius: Double = 120
+let smokeDuration: Double = 8
+let smokeFactor: Double = 0.5          // ranged damage taken inside smoke
+let smokeRanged: Double = 60           // a hit from further than this is ranged
+
 /// Off-map reinforcements, called in from the Command Center for crystal: (how many, the price), one call
 /// every reinforceCooldown seconds.
 let reinforcements: [UnitKind: (count: Int, cost: Int)] = [.marine: (4, 300), .tank: (2, 600)]
@@ -640,7 +660,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind)
+    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind), ability(String)
 }
 
 struct CommandButton {

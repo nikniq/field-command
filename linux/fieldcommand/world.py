@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ESTABLISHED, HIGH_SIGHT, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ABILITIES, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -56,6 +56,7 @@ class World:
         self.start_base = start_base if start_base in ("fresh", "established") else "fresh"
         self.resources = {s: float(self.start_crystal) for s in self.players}
         self.reinforce_at = {s: -1e9 for s in self.players}     # when each side last called reinforcements in
+        self.smokes = []                # (x, y, until): smoke on the ground that halves ranged damage inside
         self.units_trained = {s: 0 for s in self.players}
         self.units_lost = {s: 0 for s in self.players}
         self.crystals_mined = {s: 0 for s in self.players}
@@ -284,6 +285,7 @@ class World:
         self._check_mission(dt)
         self._run_script()
         self._check_mode(dt)
+        self._update_smokes()
         if self.elapsed >= self._next_sample:
             self._next_sample += HISTORY_STEP
             for s in self.history:
@@ -579,6 +581,51 @@ class World:
             u.command(("move" if friendly else "amove", tx, ty))
         self.emit("msg", 0, text, "good" if self.allied(owner, 0) else "bad")
 
+    # ------------------------------------------------------------ abilities
+
+    def modify_damage(self, victim, amount, attacker):
+        """A marked target takes more; anything inside smoke takes less from a distance."""
+        if victim.marked_until > self.elapsed:
+            amount *= 1.0 + MARK_BONUS
+        if not victim.is_building and attacker is not None and self.smokes:
+            d = math.hypot(attacker.x - victim.x, attacker.y - victim.y)
+            if d > SMOKE_RANGED and any(math.hypot(sx - victim.x, sy - victim.y) <= SMOKE_RADIUS for sx, sy, until in self.smokes
+                                        if until > self.elapsed):
+                amount *= SMOKE_FACTOR
+        return amount
+
+    def use_ability(self, slot, units, x, y, target_id=None):
+        """Every selected unit of a kind with its ability ready uses it: a grenade at the point, a mark on the
+        target, smoke where the tank stands. Returns how many did."""
+        used = 0
+        target = self.by_id.get(target_id) if target_id is not None else None
+        for u in units:
+            spec = ABILITIES.get(u.kind)
+            if spec is None or u.ability_cd > 0 or u.dead:
+                continue
+            aid, _name, reach, cooldown, needs = spec
+            if needs == "point":
+                if math.hypot(x - u.x, y - u.y) > reach:
+                    continue
+                self.launch_shell(u.x, u.y, x, y, GRENADE_DAMAGE, GRENADE_SPLASH, u.team, u, arc=True)
+                self.emit("sound", "cannon", u.x, u.y)
+            elif needs == "target":
+                if target is None or getattr(target, "dead", False) or not self.enemies(target.team, u.team) \
+                        or math.hypot(target.x - u.x, target.y - u.y) > reach:
+                    continue
+                target.marked_until = self.elapsed + MARK_DURATION
+                self.emit("flash", target.x, target.y, 60, "mark")
+            else:
+                self.smokes.append((u.x, u.y, self.elapsed + SMOKE_DURATION))
+                self.emit("smoke", u.x, u.y, 40)
+            u.ability_cd = cooldown
+            used += 1
+        return used
+
+    def _update_smokes(self):
+        if self.smokes:
+            self.smokes = [s for s in self.smokes if s[2] > self.elapsed]
+
     # ------------------------------------------------------------ reinforcements
 
     def reinforce_left(self, slot):
@@ -699,6 +746,9 @@ class World:
                 self._upgrade(slot, self._own_buildings(slot, cmd[1]), cmd[2])
             elif op == "reinforce":
                 self.reinforce(slot, str(cmd[1]))
+            elif op == "ability":
+                self.use_ability(slot, self._own_units(slot, cmd[1]), float(cmd[2]), float(cmd[3]),
+                                 int(cmd[4]) if len(cmd) > 4 and cmd[4] is not None else None)
             elif op == "cancelup":
                 for b in self._own_buildings(slot, [cmd[1]]):
                     b.cancel_upgrade()

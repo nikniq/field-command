@@ -312,6 +312,27 @@ def test_starting_crystal_agrees():
     assert float(re.search(r"let reinforceCooldown: Double = ([\d.]+)", src).group(1)) == REINFORCE_COOLDOWN
 
 
+def test_abilities_agree():
+    from fieldcommand.defs import (ABILITIES, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION,
+                                   SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED)
+    src = swift("Defs.swift")
+    rows = re.findall(r'\.(\w+): Ability\(id: "(\w+)", name: "([^"]+)", reach: ([\d.]+), cooldown: ([\d.]+), needs: "(\w+)"\)',
+                      re.search(r"let abilities: .*?= \[(.*?)\n\]", src, re.S).group(1))
+    assert {k: (aid, name, float(reach), float(cd), needs) for k, aid, name, reach, cd, needs in rows} == ABILITIES
+
+    def const(name):
+        return float(re.search(r"let %s: Double = ([\d.]+)" % name, src).group(1))
+
+    assert const("grenadeDamage") == GRENADE_DAMAGE
+    assert const("grenadeSplash") == GRENADE_SPLASH
+    assert const("markDuration") == MARK_DURATION
+    assert const("markBonus") == MARK_BONUS
+    assert const("smokeRadius") == SMOKE_RADIUS
+    assert const("smokeDuration") == SMOKE_DURATION
+    assert const("smokeFactor") == SMOKE_FACTOR
+    assert const("smokeRanged") == SMOKE_RANGED
+
+
 def test_healing_constants_agree():
     from fieldcommand.defs import HEAL_RANGE, HEAL_RATE
     src = swift("Defs.swift")

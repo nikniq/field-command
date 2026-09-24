@@ -74,6 +74,7 @@ enum SaveGame {
             ["id": u.id, "kind": NetProtocol.name(u.kind), "team": u.team, "x": u.x, "y": u.y, "angle": u.angle,
              "gun_angle": u.gunAngle, "hp": u.hp, "max_hp": u.maxHp, "carrying": u.carrying, "mode": u.mode.rawValue,
              "mode_timer": u.modeTimer, "kills": u.kills, "rank": u.rank, "cooldown": u.cooldown,
+             "ability_cd": u.abilityCd, "marked_until": u.markedUntil,
              "order": orderOut(u.order), "queued": u.queued.map(orderOut),
              "home_crystal": u.homeCrystal.map { $0.id as Any } ?? NSNull(),
              "resume_gather": u.resumeGather.map { $0.id as Any } ?? NSNull(),
@@ -111,6 +112,7 @@ enum SaveGame {
             "mission": w.mission.map { $0.id as Any } ?? NSNull(), "mission_timer": w.missionTimer, "mission_fired": w.missionFired, "history": slots(w.history) { $0 }, "next_sample": w.nextSample,
              "mode": w.mode, "hold": slots(w.hold) { $0 },
              "start_crystal": w.startCrystal, "start_base": w.startBase, "reinforce_at": slots(w.reinforceAt) { $0 },
+             "smokes": w.smokes.map { [$0.x, $0.y, $0.until] },
             "towers": w.towers.map { ["id": $0.id, "owner": $0.owner.map { $0 as Any } ?? NSNull(),
                                       "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
             "reveals": reveals, "ai": ai, "fog": fogOut,
@@ -153,6 +155,7 @@ enum SaveGame {
         if w.mission == nil, let m = d["mode"] as? String, modes.contains(where: { $0.id == m }) { w.mode = m }
         for (t, v) in jDict(d["hold"]) { w.hold[Int(t) ?? -1] = Double(jNum(v)) }
         for (s, v) in jDict(d["reinforce_at"]) { w.reinforceAt[Int(s) ?? -1] = Double(jNum(v)) }
+        w.smokes = jArr(d["smokes"]).map { jArr($0) }.filter { $0.count == 3 }.map { (Double(jNum($0[0])), Double(jNum($0[1])), Double(jNum($0[2]))) }
         for (s, live) in zip(jArr(d["towers"]).map({ jDict($0) }), w.towers) {
             live.owner = s["owner"] is NSNull || s["owner"] == nil ? nil : jInt(s["owner"])
             live.capturing = s["capturing"] is NSNull || s["capturing"] == nil ? nil : jInt(s["capturing"])
@@ -183,6 +186,8 @@ enum SaveGame {
             un.hp = Double(jNum(u["hp"])); un.maxHp = Double(jNum(u["max_hp"])); un.carrying = jInt(u["carrying"])
             un.mode = SiegeMode(rawValue: jInt(u["mode"])) ?? .mobile; un.modeTimer = Double(jNum(u["mode_timer"]))
             un.kills = jInt(u["kills"]); un.rank = jInt(u["rank"]); un.cooldown = Double(jNum(u["cooldown"]))
+            if u["ability_cd"] != nil { un.abilityCd = Double(jNum(u["ability_cd"])) }
+            if u["marked_until"] != nil { un.markedUntil = Double(jNum(u["marked_until"])) }
             un.lastX = un.x; un.lastY = un.y
             w.add(un)
             pending.append((un, u))

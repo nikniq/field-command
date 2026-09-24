@@ -548,6 +548,28 @@ def icon_siege(on):
     return texture(("icon_siege", on), (40, 40), d)
 
 
+def icon_ability(aid):
+    """Command-card icon for a unit ability: a grenade, a target reticle or a smoke plume."""
+    def d(c):
+        if aid == "grenade":
+            body = circle(0, 2, 10)
+            lit(c, body, rgb(0.3, 0.42, 0.3))
+            stroke(c, body, rgb(0, 0, 0, 0.6), 1)
+            lines(c, [((-7, 2), (7, 2)), ((0, -5), (0, 9)), ((-5, -3), (5, 7)), ((5, -3), (-5, 7))], rgb(0, 0, 0, 0.35), 1)
+            fill(c, rr(-3, -13, 6, 5, 1), rgb(0.5, 0.52, 0.55))
+            lines(c, [((3, -12), (9, -16))], AMBER, 2)
+        elif aid == "mark":
+            stroke(c, circle(0, 0, 13), AMBER, 2)
+            stroke(c, circle(0, 0, 5), AMBER, 1.5)
+            lines(c, [((-17, 0), (-8, 0)), ((8, 0), (17, 0)), ((0, -17), (0, -8)), ((0, 8), (0, 17))], AMBER, 2)
+            fill(c, circle(0, 0, 2), BAD)
+        else:
+            for (x, y, r, k) in ((0, 8, 8, 0.55), (-6, 0, 7, 0.62), (6, -1, 7.5, 0.66), (0, -8, 8, 0.72), (-3, -14, 5, 0.78)):
+                fill(c, circle(x, y, r), rgb(k, k, k + 0.02))
+            fill(c, rr(-4, 10, 8, 6, 1), rgb(0.35, 0.36, 0.38))
+    return texture(("icon_ability", aid), (40, 40), d)
+
+
 def tank_turret(team):
     def d(c):
         linear(c, rr(4, -2.7, 25, 5.4, 1.5), [rgb(0.62, 0.64, 0.66), rgb(0.3, 0.31, 0.33)], (0, 3), (0, -3))

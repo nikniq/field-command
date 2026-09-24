@@ -10,7 +10,8 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
+from .defs import (ABILITIES, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+                   AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
                    to255, upgrade_applies, upgrade_cost)
@@ -165,6 +166,7 @@ class GameScene:
         self.paused = False
         self.placing = None
         self.attack_pending = False
+        self.ability_pending = None     # the ability spec awaiting a click on the ground or a target
         self.drag_start = self.drag_now = None
         self.pan_drag = None
         self.minimap_dragging = False
@@ -900,6 +902,9 @@ class GameScene:
             self.attack_pending = False
             self.issue_attack_move(*w, queue=shift)
             return
+        if self.ability_pending is not None:
+            self.use_ability(*w)
+            return
         if self.ping_pending or pygame.key.get_mods() & pygame.KMOD_ALT:
             self.place_ping(*w)
             return
@@ -930,7 +935,7 @@ class GameScene:
             if self.hud.overlay_visible:
                 self.hud.handle_click(pos, right=True)
             return
-        if self.placing or self.attack_pending:
+        if self.placing or self.attack_pending or self.ability_pending is not None:
             self.cancel_modes()
             return
         if self.hud.handle_click(pos, right=True, queue=shift):
@@ -954,7 +959,7 @@ class GameScene:
             self.hud.rebind(name)
             return
         if key == pygame.K_ESCAPE:
-            if self.placing or self.attack_pending or self.ping_pending:
+            if self.placing or self.attack_pending or self.ping_pending or self.ability_pending is not None:
                 self.cancel_modes()
             elif self.hud.overlay_visible:
                 self.hud.clear_overlay()
@@ -1085,7 +1090,7 @@ class GameScene:
         kind = None
         if mouse and not self.hud.over_hud(mouse) and not self.hud.overlay_visible:
             own = self.selected_own_units()
-            if self.attack_pending or self.ping_pending:
+            if self.attack_pending or self.ping_pending or self.ability_pending is not None:
                 kind = "attack"
             elif own and self.placing is None:
                 if target and not self.friendly(target):
@@ -1350,6 +1355,72 @@ class GameScene:
         self.placing = None
         self.attack_pending = False
         self.ping_pending = False
+        self.ability_pending = None
+
+    # ------------------------------------------------------------ abilities
+
+    def _marked(self, e):
+        m = getattr(e, "marked", None)
+        if m is None:
+            m = getattr(e, "marked_until", -1e9) > self.s.world.elapsed
+        return m
+
+    def ability_units(self):
+        """The selected units whose kind has an ability, and how many of them can use it right now."""
+        us = [u for u in self.selected_own_units() if u.kind in ABILITIES]
+        return us, sum(1 for u in us if getattr(u, "ability_cd", 0.0) <= 0)
+
+    def begin_ability(self):
+        us, ready = self.ability_units()
+        if not us:
+            return
+        spec = ABILITIES[us[0].kind]
+        if ready == 0:
+            self.hud.flash(f"{spec[1]} is recharging", BAD)
+            return
+        self.cancel_modes()
+        if spec[4] == "self":
+            self.use_ability(us[0].x, us[0].y)
+            return
+        self.ability_pending = spec
+        self.hud.flash(f"{spec[1]}: click a target" if spec[4] == "target" else f"{spec[1]}: click where to throw", TEXT)
+
+    def use_ability(self, x, y):
+        us, ready = self.ability_units()
+        self.ability_pending = None
+        if not us or ready == 0:
+            return
+        spec = ABILITIES[us[0].kind]
+        target = None
+        if spec[4] == "target":
+            target = self.entity_at(x, y)
+            if target is None or self.friendly(target):
+                self.hud.flash("Mark an enemy", BAD)
+                return
+            x, y = target.x, target.y
+        elif spec[4] == "point":
+            near = [u for u in us if math.hypot(u.x - x, u.y - y) <= spec[2] and getattr(u, "ability_cd", 0.0) <= 0]
+            if not near:
+                self.hud.flash("Too far to throw", BAD)
+                return
+            self.fx.ring(x, y, 10, GRENADE_SPLASH, BAD)
+        self.s.send(["ability", self._ids(us), x, y, target.id if target is not None else None])
+        self._voice("ack", us[:1])
+
+    def _draw_smokes(self, screen):
+        """Smoke on the ground: a soft grey disc that thins out as it clears."""
+        cam = self.cam
+        z = cam.zoom
+        for x, y, left in getattr(self.s, "smokes", ()):
+            if not self._on_screen(x, y, SMOKE_RADIUS):
+                continue
+            sx, sy = cam.to_screen(x, y)
+            rw, rh = SMOKE_RADIUS / z, SMOKE_RADIUS * TILT / z
+            a = int(150 * min(1.0, left / 2.0))
+            surf = pygame.Surface((int(rw * 2) + 2, int(rh * 2) + 2), pygame.SRCALPHA)
+            for f in (1.0, 0.8, 0.55):
+                pygame.draw.ellipse(surf, (170, 170, 175, a // 2), (rw * (1 - f), rh * (1 - f), rw * 2 * f, rh * 2 * f))
+            screen.blit(surf, (sx - rw, sy - rh))
 
     def begin_placement(self, kind):
         s = BUILDINGS[kind]
@@ -1425,6 +1496,16 @@ class GameScene:
             out = [CommandButton(("attack",), "Attack", "A", None, True,
                                  "Attack-move: units engage any enemy they meet on the way. Shift+click to queue.", attack),
                    CommandButton(("stop",), "Stop", "S", None, True, "Halt all current and queued orders.", self.stop_selected)]
+            able, ready = self.ability_units()
+            if able:
+                aid, name, reach, cooldown, needs = ABILITIES[able[0].kind]
+                tip = {"grenade": f"Lob a grenade up to {reach:.0f} away: {GRENADE_DAMAGE:.0f} damage to everything within {GRENADE_SPLASH:.0f}.",
+                       "mark": f"Mark an enemy within {reach:.0f}: it takes {MARK_BONUS * 100:.0f}% more damage for {MARK_DURATION:.0f} seconds.",
+                       "smoke": f"Pop smoke here: ranged hits on anything within {SMOKE_RADIUS:.0f} do half damage for {SMOKE_DURATION:.0f} seconds."}[aid]
+                tip += f"\nRecharges in {cooldown:.0f} seconds."
+                cd = min(getattr(u, "ability_cd", 0.0) for u in able)
+                out.append(CommandButton(("ability", aid), name, "Q", None, ready > 0,
+                                         tip if ready else tip + f"\nReady in {cd:.0f} s.", self.begin_ability))
             tanks = [u for u in us if u.can_siege]
             if tanks:
                 # One button for the whole selection: it digs in unless every tank is already dug in.
@@ -1576,6 +1657,7 @@ class GameScene:
         self.fx.draw(screen, cam, ui.text)
         for e in units + buildings:
             self._draw_bars(screen, e)
+        self._draw_smokes(screen)
         self._draw_clouds(screen)
         if self.satellite:
             self._draw_satellite_markers(screen, units, buildings)
@@ -1773,6 +1855,12 @@ class GameScene:
             pygame.draw.rect(screen, (0, 0, 0), (bx - width / 2 - 1, by - 2.5, width + 2, 5))
             col = to255(GOOD if frac > 0.6 else AMBER if frac > 0.3 else BAD)
             pygame.draw.rect(screen, col, (bx - width / 2, by - 1.5, width * frac, 3))
+        if self._marked(e):
+            # A Sniper's mark: a pulsing amber reticle over the target for as long as it holds.
+            mx, my = cam.to_screen(e.x, e.y + ((e.half + 26) if building else (e.radius + 22)))
+            r = (7 + 2 * math.sin(self.elapsed * 8)) / z
+            pygame.draw.circle(screen, to255(AMBER), (int(mx), int(my)), max(3, int(r)), 2)
+            pygame.draw.line(screen, to255(AMBER), (mx, my + r + 2 / z), (mx, my + r + 8 / z), 2)
         if building and getattr(e, "shield", 0) > 0:
             # The shield sits above the health bar, in field blue
             sfrac = max(0.0, min(1.0, e.shield / SHIELD_MAX))

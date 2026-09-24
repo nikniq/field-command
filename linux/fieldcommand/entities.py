@@ -100,6 +100,7 @@ class Entity:
     def take_damage(self, amount, attacker):
         if self.dead:
             return
+        amount = self.game.modify_damage(self, amount, attacker)
         self.hp -= amount
         if self.hp <= 0:
             self.hp = 0
@@ -251,6 +252,10 @@ class Unit(Entity):
         # Veterancy: kills so far and the rank they have earned.
         self.kills = 0
         self.rank = 0
+        # The kind's ability (defs.ABILITIES): seconds until it can be used again, and how long this unit
+        # stays marked by a Sniper.
+        self.ability_cd = 0.0
+        self.marked_until = -1e9
         # Kit bought from the Armory is worn from the moment the unit exists.
         hp_bonus = s.hp * self._kit("hp")
         self.max_hp += hp_bonus
@@ -466,6 +471,7 @@ class Unit(Entity):
     def update(self, dt):
         g = self.game
         self.cooldown = max(0.0, self.cooldown - dt)
+        self.ability_cd = max(0.0, self.ability_cd - dt)
         self.scan -= dt
         moved = math.hypot(self.x - self.last_x, self.y - self.last_y)
         if self.was_moving and moved < self.speed * dt * 0.3:
@@ -898,6 +904,7 @@ class Building(Entity):
         self.dish_angle = game.rng.uniform(0, 2 * math.pi)
         # Shield points from a generator in range (see World.step), and when they were last hit.
         self.shield = 0.0
+        self.marked_until = -1e9
         self.shield_hit = -100.0
         self.shielded = False
         # Upgrades: the set installed, and the one being researched (kind, progress 0..1) if any.
@@ -961,6 +968,7 @@ class Building(Entity):
         return TURRET_UPGRADED_DAMAGE if "guns" in self.upgrades else self.stats.damage
 
     def take_damage(self, amount, attacker):
+        amount = self.game.modify_damage(self, amount, attacker)
         if "armor" in self.upgrades:
             amount *= ARMOR_FACTOR
         if self.shield > 0 and amount > 0:
