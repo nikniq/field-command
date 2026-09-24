@@ -1382,6 +1382,9 @@ final class SWorld {
     var missionTimer = 0.0
     /// How many of the mission's scripted events have gone off.
     var missionFired = 0
+    /// Army size per side every historyStep seconds, for the end screen's timeline.
+    var history: [Int: [Int]] = [:]
+    var nextSample = 0.0
     /// Supply crates on the field, and when the next one drops.
     private(set) var crates: [SCrate] = []
     var nextCrate = crateFirst
@@ -1542,6 +1545,12 @@ final class SWorld {
         for t in towers { t.update(dt) }
         checkMission(dt)
         runScript()
+        if elapsed >= nextSample {
+            nextSample += historyStep
+            for s in players.keys.sorted() {
+                history[s, default: []].append(units.filter { $0.team == s && $0.kind != .worker && !$0.dead }.count)
+            }
+        }
         for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive { p.ai?.update(dt) }
         cleanupDead()
         fogTimer -= dt
@@ -1987,6 +1996,8 @@ final class SWorld {
             }
         case "cancel" where cmd.count >= 3:
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { cancelQueue(b, jInt(cmd[2])) }
+        case "unbuild" where cmd.count >= 2:
+            if let b = ownBuildings(slot, [jInt(cmd[1])]).first { _ = unbuild(b) }
         case "rally" where cmd.count >= 4:
             for b in ownBuildings(slot, ids(cmd[1])) where !b.stats.produces.isEmpty { b.rally = (num(2), num(3)) }
         default:
@@ -2130,6 +2141,19 @@ final class SWorld {
         }
         resources[team, default: 0] -= Double(k.stats.cost)
         b.queue.append(k)
+        return true
+    }
+
+    /// Takes back a building that has barely started: the site goes and the full price comes back.
+    @discardableResult
+    func unbuild(_ b: SBuilding) -> Bool {
+        guard !b.built, !b.dead, b.progress < undoProgress else { return false }
+        refund(b.stats.cost, b.team)
+        b.dead = true
+        buildings.removeAll { $0 === b }
+        byId[b.id] = nil
+        navDirty = true
+        emit(["msg", b.team, "\(b.stats.name) placement undone", "good"])
         return true
     }
 

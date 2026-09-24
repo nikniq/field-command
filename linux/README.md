@@ -396,6 +396,16 @@ per game, and the world always steps by exactly 1/30 s (game speed changes how m
 who won, how long it took, what was trained, built, lost and mined — then prints win rates by start slot,
 average length and the unit mix, and from 1.20 the wins by opening (rush, economy, turtle) per map. Balance changes are judged on those numbers.
 
+## Polish: the timeline, undo, the counter, keys, the first run
+
+The end screen carries a **timeline**: every side's army size over the game, one line per side in its
+colour, sampled every 15 seconds (it travels in saves and over the wire). **U** takes back the last
+placement within 20 seconds — the site if it has barely started, for a full refund, or the Engineer's
+pending order — and a **unit counter** right of the clock shows how many of each combat kind you field.
+**Keys…** in the game menu opens the bindings: click an action, press a key; one key per action, *Reset
+to defaults* puts them back. On the first single-player game **arrows** point at what each opening
+objective needs — the Command Center, an Engineer, the card button — until the opening is walked through.
+
 ## Saving and loading
 
 Leaving a single-player game for the main menu writes an autosave first, so **Load Game (L)** on the title

@@ -549,7 +549,9 @@ final class GameServer {
                 stats[String(s)] = ["name": p.name, "team": p.team, "trained": w.unitsTrained[s] ?? 0, "lost": w.unitsLost[s] ?? 0,
                                     "mined": w.crystalsMined[s] ?? 0, "alive": p.alive]
             }
-            var end: [String: Any] = ["t": "end", "stats": stats]
+            var hist: [String: Any] = [:]
+            for (s, h) in w.history { hist[String(s)] = h }
+            var end: [String: Any] = ["t": "end", "stats": stats, "history": hist, "history_step": historyStep]
             end["winner_team"] = w.winnerTeam ?? NSNull()
             sendAll(end)
             log("Game over; winning team \(w.winnerTeam.map(String.init) ?? "none")")

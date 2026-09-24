@@ -45,6 +45,8 @@ final class GameScene: SKScene {
     var autoPlayer: AI?
 
     var placing: BuildingKind?
+    /// The placement U takes back: the Engineer, the kind, the spot and when.
+    var lastBuild: (id: Int, kind: BuildingKind, x: CGFloat, y: CGFloat, time: CGFloat)?
     private let ghost = SKSpriteNode()
     private let ghostFrame = SKShapeNode()
     private let ghostRange = SKShapeNode()
@@ -792,8 +794,51 @@ final class GameScene: SKScene {
         if !enemyAlive { endGame(won: true) } else if !playerAlive { endGame(won: false) }
     }
 
+    /// Takes back the last placement within the undo window: the site if it has barely started (a full
+    /// refund), or the Engineer's pending build order if it has not begun.
+    @discardableResult
+    func undoBuild() -> Bool {
+        guard let lb = lastBuild, elapsed - lb.time <= CGFloat(undoWindow) else {
+            hud.flash("Nothing to undo", color: Palette.dim)
+            return false
+        }
+        lastBuild = nil
+        if let site = buildings.first(where: { $0.team.isLocal && $0.kind == lb.kind && !$0.built
+                                               && abs($0.position.x - lb.x) < 1 && abs($0.position.y - lb.y) < 1 }) {
+            sendNet(["unbuild", site.netId])
+            return true
+        }
+        sendNet(["stop", [lb.id]])
+        hud.flash("Build order cancelled", color: Palette.good)
+        return true
+    }
+
+    /// The name of a key as the bindings know it: "tab", "space", "f2", … or the character itself.
+    func keyName(_ event: NSEvent) -> String {
+        switch event.keyCode {
+        case 48: return "tab"
+        case 49: return "space"
+        case 53: return "escape"
+        case 36, 76: return "return"
+        case 122: return "f1"
+        case 120: return "f2"
+        case 99: return "f3"
+        case 118: return "f4"
+        case 96: return "f5"
+        case 97: return "f6"
+        case 98: return "f7"
+        case 100: return "f8"
+        case 101: return "f9"
+        case 109: return "f10"
+        case 103: return "f11"
+        case 111: return "f12"
+        default: return (event.charactersIgnoringModifiers ?? "").lowercased()
+        }
+    }
+
     func endGame(won: Bool) {
         gameOver = true
+        if !Settings.tutorialDone { Settings.tutorialDone = true }         // a game played out is lesson enough
         recordReplay()
         if won, let m = net?.mission, !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
         cancelModes()
@@ -1201,6 +1246,8 @@ final class GameScene: SKScene {
             if code == 36 || code == 76 { restart() } else if code == 53 { toMenu() }
             return
         }
+        let key = keyName(event)
+        if hud.rebinding != nil { hud.rebind(key); return }                   // the Keys screen is waiting for a key
         if code == 53 { // Esc
             if placing != nil || attackMovePending || pingPending { cancelModes() }
             else if hud.overlayVisible { hud.clearOverlay(); gamePaused = false }
@@ -1208,20 +1255,21 @@ final class GameScene: SKScene {
             else { togglePause() }
             return
         }
-        if chars == "p" { togglePause(); return }
-        if chars == "h" || chars == "?" || chars == "/" { toggleHelp(); return }
-        if chars == "y" { toggleStore(); return }
+        if key == Settings.key("pause") { togglePause(); return }
+        if key == Settings.key("help") || chars == "?" || chars == "/" || code == 122 { toggleHelp(); return }
+        if key == Settings.key("armory") { toggleStore(); return }
         if gamePaused { return }
-        if code == 48 { toggleSatellite(); return }                                        // Tab
-        if code == 49 { if satellite { toggleSatellite() }; jumpCamera(); return }
+        if key == Settings.key("satellite") { toggleSatellite(); return }
+        if key == Settings.key("jump") { if satellite { toggleSatellite() }; jumpCamera(); return }
+        if key == Settings.key("undo") { undoBuild(); return }
         if chars == "=" || chars == "+" { zoom(by: 0.9); return }
         if chars == "-" || chars == "_" { zoom(by: 1.1); return }
-        if chars == "o" {
+        if key == Settings.key("objectives") {
             Settings.objectives.toggle()
             hud.selectionChanged()
             return
         }
-        if code == 120 || chars == "`" { selectArmy(); return } // F2 or backtick
+        if key == Settings.key("army") || chars == "`" { selectArmy(); return }
         if code == 96 && canSave { saveGame("quicksave", label: "Quick save"); return }     // F5
         if code == 101 && canSave { loadGame("quicksave"); return }                          // F9
         if code == 111 {                                             // F12: screenshot to ~/Pictures
@@ -1243,8 +1291,8 @@ final class GameScene: SKScene {
             }
             return
         }
-        if chars == "i" || chars == "." { selectIdleWorker(); return }
-        if chars == "z" || chars == "Z" { beginPing(kind: event.modifierFlags.contains(.shift) ? 1 : 0); return }
+        if key == Settings.key("idle") || chars == "." { selectIdleWorker(); return }
+        if key == Settings.key("ping") { beginPing(kind: event.modifierFlags.contains(.shift) ? 1 : 0); return }
         for (i, b) in hud.currentButtons.enumerated() where b.hotkey.lowercased() == chars {
             hud.pressButton(i)
             return
@@ -1750,6 +1798,7 @@ final class GameScene: SKScene {
         }
         if isNet {
             sendNet(["build", w.netId, NetProtocol.name(k), p.x, p.y, keep])
+            lastBuild = (w.netId, k, p.x, p.y, elapsed)
             lastBuilder = w
             marker(at: p, color: Palette.amber, size: k.stats.half)
             if !keep || myResources - CGFloat(k.stats.cost) < CGFloat(k.stats.cost) { cancelModes() }

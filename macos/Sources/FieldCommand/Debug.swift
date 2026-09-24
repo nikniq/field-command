@@ -455,6 +455,53 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_POLISHTEST=1: the army timeline for the end screen, undoing a placement, and rebindable keys —
+    /// matching linux/tests/test_polish.py.
+    static func runPolishTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+        let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
+        for u in w.units { u.command(.idle) }
+        func run(_ w: SWorld, _ seconds: Double) { var t = 0.0; while t < seconds { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 } }
+        run(w, historyStep * 4 + 1)
+        check(w.history.values.allSatisfy { $0.count == 5 }, "every side's army is sampled on the clock (5 samples in a minute)")
+        let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        for i in 0..<3 { w.add(SUnit(world: w, kind: .marine, team: 0, x: hq.x + 200 + Double(i) * 30, y: hq.y)) }
+        run(w, historyStep)
+        check(w.history[0]?.last == 3 && w.history[1]?.last == 0, "and counts combat units only")
+        let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+        let w2 = try! SaveGame.decode(doc)
+        let kept = w2.history[0] == w.history[0]
+        run(w2, historyStep)
+        check(kept && (w2.history[0]?.count ?? 0) == (w.history[0]?.count ?? 0) + 1, "the timeline survives a save and carries on")
+
+        w.resources[0] = 1000
+        w.startBuilding(.depot, hq.x + 300, hq.y, 0)
+        let site = w.buildings.last!
+        w.resources[0]! -= Double(BuildingKind.depot.stats.cost)
+        site.progress = undoProgress - 0.1
+        w.apply(0, ["unbuild", site.id])
+        check(!w.buildings.contains { $0 === site } && w.byId[site.id] == nil && w.resources[0] == 1000, "a placement barely started can be taken back for a full refund")
+        w.startBuilding(.depot, hq.x + 300, hq.y, 0)
+        let site2 = w.buildings.last!
+        site2.progress = undoProgress + 0.1
+        w.apply(0, ["unbuild", site2.id])
+        w.apply(1, ["unbuild", site2.id])
+        check(w.buildings.contains { $0 === site2 }, "one further along stays, and nobody else's can be touched")
+
+        Settings.resetKeys()
+        check(Settings.key("ping") == "z" && keyActions.count == 10, "keys have defaults")
+        Settings.bind("ping", "x")
+        let moved = Settings.key("ping") == "x"
+        Settings.bind("undo", "x")
+        check(moved && Settings.key("undo") == "x" && Settings.key("ping") == "", "a key moves between actions: one key per action")
+        Settings.resetKeys()
+        check(Settings.key("ping") == "z" && Settings.key("undo") == "u", "and reset brings the defaults back")
+        print(ok ? "POLISH TEST PASSED" : "POLISH TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runReplayTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

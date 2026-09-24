@@ -100,6 +100,10 @@ def test_shared_constants_agree():
     from fieldcommand.defs import HIGH_RANGE, HIGH_SIGHT
     assert const("highSight") == HIGH_SIGHT
     assert const("highRange") == HIGH_RANGE
+    from fieldcommand.defs import HISTORY_STEP, UNDO_PROGRESS, UNDO_WINDOW
+    assert const("historyStep") == HISTORY_STEP
+    assert const("undoWindow") == UNDO_WINDOW
+    assert const("undoProgress") == UNDO_PROGRESS
 
 
 def test_upgrade_catalogue_agrees():
@@ -205,6 +209,15 @@ def test_music_agrees():
     assert (float(ta), float(ts), float(tn)) == (music.THREAT_ALERT, music.THREAT_SHOTS, music.THREAT_SEEN)
     shots = set(re.findall(r'"(\w+)"', re.search(r"static let shots: Set<String> = \[(.*?)\]", src).group(1)))
     assert shots == set(music.SHOTS)
+
+
+def test_key_actions_agree():
+    """The rebindable actions, their labels and default keys match in both editions."""
+    from fieldcommand.defs import KEY_ACTIONS
+    src = swift("Defs.swift")
+    block = re.search(r"let keyActions: \[\(action: String, label: String, key: String\)\] = \[(.*?)\n\]", src, re.S).group(1)
+    rows = re.findall(r'\("(\w+)", "([^"]+)", "(\w+)"\)', block)
+    assert [tuple(r) for r in rows] == [tuple(a) for a in KEY_ACTIONS]
 
 
 def test_gold_deposits_agree():

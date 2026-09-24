@@ -52,6 +52,9 @@ extension GameScene {
             case "end":
                 net.winnerTeam = m["winner_team"] is NSNull ? nil : jInt(m["winner_team"])
                 net.finalStats = jDict(m["stats"])
+                var series: [Int: [Int]] = [:]
+                for (k, v) in jDict(m["history"]) { if let s = Int(k) { series[s] = jArr(v).map { jInt($0) } } }
+                if !series.isEmpty { net.finalHistory = ((m["history_step"] as? NSNumber)?.doubleValue ?? historyStep, series) }
                 if !gameOver { endGame(won: net.winnerTeam == net.myAlliance) }
             case "lobby": net.lobbyMessage = m
             case "chat": netEvent(["chat", jInt(m["slot"]), jStr(m["text"])], net)

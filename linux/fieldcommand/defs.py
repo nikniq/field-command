@@ -260,6 +260,22 @@ MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
 # Every side starts with this much crystal in the bank.
 START_CRYSTAL = 2000
 
+# The post-game timeline: every side's army size is sampled this often (seconds) for the graph on the
+# end screen. UNDO_WINDOW is how long after placing a building it can be taken back for a full refund.
+HISTORY_STEP = 15.0
+UNDO_WINDOW = 20.0
+UNDO_PROGRESS = 0.5      # a site further along than this stays
+
+# Rebindable keys: (action, label, default key name — pygame's names; the Mac edition maps its own codes).
+KEY_ACTIONS = [
+    ("satellite", "Satellite view", "tab"), ("jump", "Jump to the last alert", "space"),
+    ("army", "Select the army", "f2"), ("idle", "Select an idle Engineer", "i"),
+    ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
+    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "u"),
+    ("pause", "Game menu", "p"), ("help", "Help", "h"),
+]
+DEFAULT_KEYS = {a: k for a, _l, k in KEY_ACTIONS}
+
 # High ground: a map's ridges ([x0, y0, x1, y1] plateaus) are walkable and buildable, and anything standing
 # on one sees HIGH_SIGHT times as far and shoots HIGH_RANGE further.
 HIGH_SIGHT = 1.3

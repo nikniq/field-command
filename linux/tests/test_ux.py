@@ -105,3 +105,49 @@ def test_a_mission_is_briefed_before_it_is_deployed(game):
     assert type(g).__name__ == "GameScene" and g.s.mission.id == "hold_the_line"
     g.to_menu(briefing=CAMPAIGN[2])                                                # Next Mission briefs the next one
     assert type(app.scene).__name__ == "MenuScene" and app.scene.briefing is CAMPAIGN[2]
+
+
+def test_undo_the_keys_screen_and_the_first_run_arrows(game):
+    app, _g = game
+    from fieldcommand.defs import CAMPAIGN, DEFAULT_KEYS
+    from fieldcommand.settings import settings
+    menu = app.scene
+    if type(menu).__name__ != "MenuScene":
+        menu.to_menu()
+        menu = app.scene
+    settings.set("tutorial_done", False)
+    settings.reset_keys()
+    menu.start_mission(CAMPAIGN[0])
+    menu.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN))
+    g = app.scene
+    frame(app, g, 0.5)
+    # The first-run arrows point at the Command Center for the first objective.
+    assert g.hud.tutorial_step() == 0 and g.hud.tutorial_target(0).kind == "hq"
+    # Undo: place a depot with an Engineer, then U takes it back.
+    hq = next(b for b in g.s.buildings if g.mine(b) and b.kind == "hq")
+    worker = next(u for u in g.s.units if g.mine(u) and u.kind == "worker")
+    g.set_selection([worker])
+    before = g.s.resources
+    g.s.send(["build", worker.id, "depot", hq.x + 320, hq.y, False])
+    g.last_build = (worker.id, "depot", hq.x + 320, hq.y, g.elapsed)
+    frame(app, g, 2.0)
+    site = next((b for b in g.s.buildings if g.mine(b) and b.kind == "depot"), None)
+    assert site is not None or worker.order[0] == "build"
+    g.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_u, mod=0, unicode="u"))
+    frame(app, g, 0.5)
+    assert not any(b.kind == "depot" and not b.built for b in g.s.buildings if g.mine(b))
+    assert g.s.resources == before
+    # The Keys screen: pick an action, press a key, and the game uses it.
+    g.toggle_pause()
+    g.hud.show_keys()
+    g.hud.begin_rebind("ping")
+    assert g.hud.rebinding == "ping"
+    g.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x, mod=0, unicode="x"))
+    assert settings.key("ping") == "x" and g.hud.rebinding is None
+    g.hud.clear_overlay()
+    g.paused = False
+    g.handle_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_x, mod=0, unicode="x"))
+    assert g.ping_pending
+    g.cancel_modes()
+    settings.reset_keys()
+    g.to_menu()

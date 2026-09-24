@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 11     // … 9 Medics; 10 Artillery, Shield Generator, building shield; 11 supply crates
+    static let version = 12     // … 10 Artillery, Shield Generator, building shield; 11 supply crates; 12 unbuild, history
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
@@ -305,6 +305,8 @@ final class NetSession {
     var interval: TimeInterval = 0.1
     var winnerTeam: Int?
     var finalStats: [String: Any]?
+    /// (seconds per sample, army size per slot) for the end screen's timeline.
+    var finalHistory: (step: Double, series: [Int: [Int]])?
     var lobbyMessage: [String: Any]?
     var disconnected: String?
     let startCrystals: [[Any]]

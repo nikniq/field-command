@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (HIGH_SIGHT, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (HIGH_SIGHT, HISTORY_STEP, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -61,6 +61,8 @@ class World:
         self.mission = MISSION_BY_ID.get(mission) if isinstance(mission, str) else mission
         self.mission_timer = 0.0
         self.mission_fired = 0          # how many of the mission's scripted events have gone off
+        self.history = {p.slot: [] for p in players}    # army size per side every HISTORY_STEP seconds
+        self._next_sample = 0.0
         # Supply crates on the field, and when the next one drops.
         self.crates = []
         self.next_crate = CRATE_FIRST
@@ -266,6 +268,10 @@ class World:
             t.update(dt)
         self._check_mission(dt)
         self._run_script()
+        if self.elapsed >= self._next_sample:
+            self._next_sample += HISTORY_STEP
+            for s in self.history:
+                self.history[s].append(sum(1 for u in self.units if u.team == s and u.kind != "worker" and not u.dead))
         for p in self.players.values():
             if p.ai and p.alive:
                 p.ai.update(dt)
@@ -615,6 +621,10 @@ class World:
                 bs = self._own_buildings(slot, [cmd[1]])
                 if bs:
                     self.cancel_queue(bs[0], int(cmd[2]))
+            elif op == "unbuild":
+                bs = self._own_buildings(slot, [cmd[1]])
+                if bs:
+                    self.unbuild(bs[0])
             elif op == "rally":
                 for b in self._own_buildings(slot, cmd[1]):
                     if b.stats.produces:
@@ -780,6 +790,18 @@ class World:
             return False
         self.resources[team] -= s.cost
         b.queue.append(kind)
+        return True
+
+    def unbuild(self, b):
+        """Takes back a building that has barely started: the site goes and the full price comes back."""
+        if b.built or b.dead or b.progress >= UNDO_PROGRESS:
+            return False
+        self.refund(b.stats.cost, b.team)
+        b.dead = True
+        self.buildings.remove(b)
+        self.by_id.pop(b.id, None)
+        self.nav_dirty = True
+        self.emit("msg", b.team, f"{b.stats.name} placement undone", "good")
         return True
 
     def cancel_queue(self, b, index):

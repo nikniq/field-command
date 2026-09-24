@@ -143,6 +143,7 @@ class GameScene:
     def __init__(self, app, session):
         from .music import Threat
         self.threat = Threat()
+        self.last_build = None       # (builder id, kind, x, y, time): the placement U takes back
         from .hud import HUD
         self.app = app
         self.s = session
@@ -923,6 +924,9 @@ class GameScene:
             elif key == pygame.K_ESCAPE:
                 self.to_menu()
             return
+        if self.hud.rebinding is not None:          # the Keys screen is waiting for a key
+            self.hud.rebind(name)
+            return
         if key == pygame.K_ESCAPE:
             if self.placing or self.attack_pending or self.ping_pending:
                 self.cancel_modes()
@@ -937,13 +941,13 @@ class GameScene:
         if key in (pygame.K_RETURN, pygame.K_KP_ENTER) and self.online and not self.hud.overlay_visible:
             self.hud.chat_text = ""
             return
-        if name == "p" or key == pygame.K_PAUSE:
+        if name == settings.key("pause") or key == pygame.K_PAUSE:
             self.toggle_pause()
             return
-        if name in ("h", "/", "?") or key == pygame.K_F1:
+        if name == settings.key("help") or name in ("/", "?") or key == pygame.K_F1:
             self.toggle_help()
             return
-        if name == "y" and not self.s.game_over:
+        if name == settings.key("armory") and not self.s.game_over:
             self.toggle_store()
             return
         if key == pygame.K_F5 and self.can_save():
@@ -954,19 +958,21 @@ class GameScene:
             return
         if self._blocked():
             return
-        if key == pygame.K_TAB:
+        if name == settings.key("satellite"):
             self.toggle_satellite()
-        elif key == pygame.K_SPACE:
+        elif name == settings.key("jump"):
             if self.satellite:
                 self.toggle_satellite()
             self.jump_camera()
+        elif name == settings.key("undo"):
+            self.undo_build()
         elif name in ("=", "+", "[+]"):
             self.zoom(0.9)
         elif name in ("-", "[-]"):
             self.zoom(1.1)
-        elif name == "o":
+        elif name == settings.key("objectives"):
             settings.toggle("objectives")
-        elif key == pygame.K_F2 or name == "`":
+        elif name == settings.key("army") or name == "`":
             self.select_army()
         elif name.isdigit() and len(name) == 1:
             d = int(name)
@@ -982,9 +988,9 @@ class GameScene:
                 if g == d and now - t < 400:
                     self.jump_camera()
                 self._last_group_tap = (d, now)
-        elif name in ("i", "."):
+        elif name == settings.key("idle") or name == ".":
             self.select_idle_worker()
-        elif name == "z":
+        elif name == settings.key("ping"):
             self.begin_ping(1 if mods & pygame.KMOD_SHIFT else 0)
         else:
             self.hud.current_buttons = self.command_buttons()  # selection may have changed this frame
@@ -1125,6 +1131,29 @@ class GameScene:
         w = idle[self._idle_cycle]
         self.set_selection([w])
         self.center_camera(w.x, w.y)
+
+    def undo_build(self):
+        """Takes back the last placement within the undo window: the site if it has barely started (a full
+        refund), or the Engineer's pending build order if it has not begun."""
+        from .defs import UNDO_WINDOW
+        lb = self.last_build
+        if lb is None or self.elapsed - lb[4] > UNDO_WINDOW:
+            self.hud.flash("Nothing to undo", DIM)
+            return False
+        bid, kind, x, y, _t = lb
+        self.last_build = None
+        site = next((b for b in self.s.buildings if self.mine(b) and b.kind == kind and not b.built
+                     and abs(b.x - x) < 1 and abs(b.y - y) < 1), None)
+        if site is not None:
+            self.s.send(["unbuild", site.id])
+            return True
+        builder = next((u for u in self.s.units if u.id == bid), None)
+        if builder is not None and (builder.order[0] == "build" or any(o[0] == "build" for o in builder.queued)):
+            self.s.send(["stop", [bid]])
+            self.hud.flash("Build order cancelled", GOOD)
+            return True
+        self.hud.flash("Too late to undo", DIM)
+        return False
 
     def select_army(self):
         a = self.army()
@@ -1319,6 +1348,7 @@ class GameScene:
         if keep and lb is not None and not lb.dead and lb in workers:
             builder = lb
         self.s.send(["build", builder.id, kind, x, y, keep])
+        self.last_build = (builder.id, kind, x, y, self.elapsed)
         self._last_builder = builder
         self.fx.ring(x, y, BUILDINGS[kind].half, 10, AMBER)
         if not keep or self.s.resources - cost < cost:

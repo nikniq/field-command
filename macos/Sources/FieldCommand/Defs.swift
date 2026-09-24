@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.23.0"
+let appVersion = "1.24.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -398,6 +398,22 @@ let startCrystal = 2000
 // on one sees highSight times as far and shoots highRange further.
 let highSight: Double = 1.3
 let highRange: Double = 40
+
+// The post-game timeline: every side's army size is sampled this often (seconds) for the graph on the end
+// screen. undoWindow is how long after placing a building it can be taken back for a full refund; a site
+// further along than undoProgress stays.
+let historyStep: Double = 15
+let undoWindow: Double = 20
+let undoProgress: Double = 0.5
+
+/// Rebindable keys: (action, label, default key name), as defs.py's KEY_ACTIONS has them.
+let keyActions: [(action: String, label: String, key: String)] = [
+    ("satellite", "Satellite view", "tab"), ("jump", "Jump to the last alert", "space"),
+    ("army", "Select the army", "f2"), ("idle", "Select an idle Engineer", "i"),
+    ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
+    ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "u"),
+    ("pause", "Game menu", "p"), ("help", "Help", "h"),
+]
 
 // Supply crates: one drops somewhere open every crateInterval seconds (at most crateMax on the field, each
 // gone after crateLife), and the first unit to reach one collects its gift for its side: crystal, a squad

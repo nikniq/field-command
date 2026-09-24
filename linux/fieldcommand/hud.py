@@ -18,11 +18,34 @@ GAP = 7
 MM_W = 236
 
 
+ARMY_KINDS = ("marine", "sniper", "tank", "medic")
+TUTORIAL_TARGETS = {0: "hq", 1: "worker", 2: "worker", 3: "barracks", 4: "worker", 5: "factory", 6: "barracks", 7: "worker"}
+
+
+def army_counts(units):
+    """(kind, count) for every combat kind present, in catalogue order — the top bar's unit counter."""
+    counts = {}
+    for u in units:
+        if u.kind in ARMY_KINDS and not u.dead:
+            counts[u.kind] = counts.get(u.kind, 0) + 1
+    return [(k, counts[k]) for k in ARMY_KINDS if k in counts]
+
+
+def graph_points(series, x0, y0, w, h):
+    """Screen points for a series of samples in a box: x spread over the width, y scaled to the tallest sample
+    the caller passes as `h`'s worth (see _draw_graph)."""
+    n = len(series)
+    if n < 2:
+        return []
+    return [(x0 + i * w / (n - 1), y0 + h - v) for i, v in enumerate(series)]
+
+
 class HUD:
     def __init__(self, game):
         self.game = game
         self.messages = []  # [text, color, age]
         self.objective_done = {}
+        self.rebinding = None        # the action waiting for a key on the Keys screen
         self.current_buttons = []
         self.button_rects = []
         self.queue_rects = []
@@ -281,6 +304,8 @@ class HUD:
                 self._draw_scoreboard(screen)
         if self.chat_text is not None:
             self._draw_chat_input(screen)
+        if not self.overlay_visible:
+            self._draw_tutorial(screen)
         self._draw_messages(screen)
         if not self.overlay_visible:
             self._draw_tooltip(screen, mouse)
@@ -337,6 +362,13 @@ class HUD:
         clock = fmt_time(g.elapsed) + (f"  ·  {settings.speed_name}" if speed else "") + ("" if g.s.can_pause else "  ·  ONLINE") \
             + ("  ·  REPLAY" if getattr(g.s, "spectating", False) else "")
         ui.blit_text(screen, clock, 16, TEXT, (w / 2, cy), align="center", bold=True, mono=True)
+        # The unit counter: an icon and a count per combat kind, right of the clock.
+        cx = w / 2 + 130
+        for kind, n in army_counts([u for u in g.s.units if u.team == me]):
+            icon = art.sprites.get(("topcount", kind, me), art.unit(kind, me), 90, 20 / max(art.unit(kind, me).get_size()))
+            screen.blit(icon, (cx, cy - icon.get_height() / 2))
+            ui.blit_text(screen, str(n), 13, TEXT, (cx + icon.get_width() + 3, cy), bold=True)
+            cx += icon.get_width() + 3 + 10 * len(str(n)) + 12
         self._top_button(screen, mouse, w - 14 - 72, 72, "Menu", None, False, g.toggle_pause)
         self._top_button(screen, mouse, w - 14 - 72 - 8 - 64, 64, "Help", None, False, g.toggle_help)
         self._top_button(screen, mouse, w - 14 - 72 - 8 - 64 - 8 - 92, 92, "Armory (Y)", None,
@@ -763,7 +795,92 @@ class HUD:
             [(f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives"))],
             [(f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.game.app.toggle_fullscreen),
              (f"Health bars: {'Always' if settings.bars_always else 'When hurt'}", lambda: settings.toggle("bars_always"))],
+            [("Keys…", self.show_keys)],
         ]
+
+    def show_keys(self):
+        """The Keys screen: every rebindable action with its key; click one, press the key you want."""
+        from .defs import KEY_ACTIONS
+        g = self.game
+
+        def row(action, label):
+            key = settings.key(action)
+            name = key.upper() if key else "—"
+            if self.rebinding == action:
+                name = "press a key…"
+            return (f"{label}: {name}", lambda a=action: self.begin_rebind(a))
+
+        rows = [[row(a, l) for a, l, _k in KEY_ACTIONS[i:i + 2]] for i in range(0, len(KEY_ACTIONS), 2)]
+        rows.append([("Reset to defaults", lambda: (settings.reset_keys(), self.show_keys())),
+                     ("Back", self.show_pause if g.s.can_pause or True else self.clear_overlay)])
+        self.overlay = lambda: ("KEYS", TEXT, "Click an action, then press the key for it. Esc cancels.", [], rows)
+
+    def begin_rebind(self, action):
+        self.rebinding = action
+        self.show_keys()
+
+    def rebind(self, name):
+        """A key was pressed while an action waited for one."""
+        if self.rebinding is None:
+            return False
+        if name not in ("escape",):
+            settings.bind(self.rebinding, name)
+            self.flash(f"{self.rebinding}: {name.upper()}", GOOD)
+        self.rebinding = None
+        self.show_keys()
+        return True
+
+    # the first-run tutorial
+
+    def tutorial_step(self):
+        """The objective the arrows point at right now, or None once the first run is walked through."""
+        g = self.game
+        if settings.tutorial_done or not g.s.can_pause or g.s.game_over or not settings.objectives:
+            return None
+        for i in range(len(self.OBJECTIVES) - 1):
+            if i not in self.objective_done:
+                return i
+        settings.set("tutorial_done", True)
+        return None
+
+    def tutorial_target(self, step):
+        """What to point at for a step: an own building of a kind, or an Engineer (an idle one first)."""
+        g = self.game
+        kind = TUTORIAL_TARGETS.get(step)
+        me = g.s.slot
+        if kind == "worker":
+            ws = [u for u in g.s.units if u.team == me and u.kind == "worker" and not u.dead]
+            idle = [u for u in ws if u.order[0] == "idle"]
+            return (idle or ws or [None])[0]
+        return next((b for b in g.s.buildings if b.team == me and b.kind == kind and b.built and not b.dead), None)
+
+    def _draw_tutorial(self, screen):
+        g = self.game
+        step = self.tutorial_step()
+        if step is None:
+            return
+        target = self.tutorial_target(step)
+        bob = math.sin(g.elapsed * 6) * 5
+        text = self.OBJECTIVES[step][0]
+        if target is not None:
+            sx, sy = g.cam.to_screen(target.x, target.y)
+            if 0 <= sx <= self.w and TOP_H <= sy <= self.h - PANEL_H:
+                top = sy - (target.half + 30 if target.is_building else 36) - bob
+                pygame.draw.polygon(screen, to255(AMBER), [(sx, top + 22), (sx - 12, top), (sx + 12, top)])
+                pygame.draw.polygon(screen, (20, 20, 20), [(sx, top + 22), (sx - 12, top), (sx + 12, top)], 2)
+                hint = "Click to select" if not any(e is target for e in g.selection) else text.split(" — ")[-1]
+                img = ui.text(hint, 12, TEXT, bold=True)
+                screen.blit(art.panel(img.get_width() + 16, 22, 6, AMBER), (sx - img.get_width() / 2 - 8, top - 30))
+                screen.blit(img, (sx - img.get_width() / 2, top - 30 + 11 - img.get_height() / 2))
+        # With the target selected, a second arrow points at the card button the objective names.
+        if target is not None and any(e is target for e in g.selection):
+            key = text.split("press ")[-1][:1] if "press " in text else (text.split("(")[-1][:1] if "(" in text else "")
+            for r, b in zip(self.button_rects, self.current_buttons):
+                if key and b.hotkey.upper() == key.upper():
+                    ax, top = r.centerx, r.y - 26 - bob
+                    pygame.draw.polygon(screen, to255(AMBER), [(ax, top + 20), (ax - 11, top), (ax + 11, top)])
+                    pygame.draw.polygon(screen, (20, 20, 20), [(ax, top + 20), (ax - 11, top), (ax + 11, top)], 2)
+                    break
 
     def show_pause(self):
         g = self.game
@@ -827,13 +944,16 @@ class HUD:
         else:
             lines.append("Enter — back to lobby · Esc — main menu")
             rows = [[("Back to Lobby", g.back_to_lobby), ("Main Menu", g.to_menu)]]
+        graph = g.s.history()
         if mission:
             self.overlay = lambda: ("MISSION COMPLETE" if won else "MISSION FAILED", GOOD if won else BAD,
-                                    f"{mission.title} — " + ("well fought." if won else "the field is lost."), lines, rows)
+                                    f"{mission.title} — " + ("well fought." if won else "the field is lost."), lines, rows, graph)
         else:
             self.overlay = lambda: ("VICTORY" if won else "DEFEAT", GOOD if won else BAD,
                                     ("Your team is victorious." if not g.s.can_pause else "The enemy base has fallen.") if won
-                                    else "Your forces have been defeated.", lines, rows)
+                                    else "Your forces have been defeated.", lines, rows, graph)
+        if not settings.tutorial_done:
+            settings.set("tutorial_done", True)          # a game played out is lesson enough
 
     def show_eliminated(self):
         g = self.game
@@ -846,14 +966,41 @@ class HUD:
         self.overlay = lambda: ("DISCONNECTED", BAD, "The connection to the server was lost.", [str(reason)[:80]],
                                 [[("Main Menu", g.to_menu)]])
 
+    GRAPH_H = 120
+
+    def _draw_graph(self, screen, graph, x, y, w, h):
+        """The timeline: every side's army size over the game, one line per side in its colour."""
+        g = self.game
+        step, series = graph
+        pygame.draw.rect(screen, (14, 18, 20), (x, y, w, h))
+        pygame.draw.rect(screen, to255(DIM), (x, y, w, h), 1)
+        peak = max([max(s) for s in series.values() if s] + [1])
+        n = max(len(s) for s in series.values()) if series else 0
+        for slot, s in sorted(series.items()):
+            pts = graph_points([v * (h - 36) / peak for v in s], x + 8, y + 28, w - 16, h - 36)   # under a header band
+            if len(pts) > 1:
+                pygame.draw.lines(screen, to255(TEAM_COLOR[slot]), False, pts, 3 if slot == g.s.slot else 2)
+        ui.blit_text(screen, "ARMY SIZE OVER TIME", 10, DIM, (x + 10, y + 12), bold=True)
+        ui.blit_text(screen, f"peak {peak}", 10, DIM, (x + w - 10, y + 12), align="right")
+        if n > 1:
+            ui.blit_text(screen, fmt_time((n - 1) * step), 10, DIM, (x + w - 10, y + h - 10), align="right")
+        ui.blit_text(screen, "0:00", 10, DIM, (x + 10, y + h - 10))
+        lx = x + 160
+        for slot, s in sorted(series.items()):
+            name = g.s.players[slot].name if slot in g.s.players else f"Player {slot + 1}"
+            pygame.draw.rect(screen, to255(TEAM_COLOR[slot]), (lx, y + 8, 10, 8))
+            ui.blit_text(screen, name + (" (you)" if slot == g.s.slot else ""), 10, TEXT, (lx + 14, y + 12))
+            lx += 14 + 7 * (len(name) + (6 if slot == g.s.slot else 0)) + 16
+
     def _draw_overlay(self, screen, mouse):
-        title, color, subtitle, lines, rows = self.overlay()
+        title, color, subtitle, lines, rows, *rest = self.overlay()
+        graph = rest[0] if rest and rest[0] and any(rest[0][1].values()) else None
         dim = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
         dim.fill((0, 0, 0, 150))
         screen.blit(dim, (0, 0))
         line_h, bh, row_gap, bw, bgap = 24, 42, 12, 220, 16
         box_w = min(self.w - 40, 760)
-        box_h = 104 + len(lines) * line_h + (30 if subtitle else 0) + len(rows) * (bh + row_gap) + 16
+        box_h = 104 + len(lines) * line_h + (30 if subtitle else 0) + len(rows) * (bh + row_gap) + 16 + (self.GRAPH_H + 12 if graph else 0)
         bx, by = (self.w - box_w) // 2, (self.h - box_h) // 2
         glow = art.tinted_glow((int(box_w * 1.3), int(box_h * 1.6)), to255(color), 1)
         screen.blit(glow, (self.w / 2 - box_w * 0.65, self.h / 2 - box_h * 0.8), special_flags=pygame.BLEND_ADD)
@@ -867,6 +1014,9 @@ class HUD:
         for l in lines:
             ui.blit_text(screen, l, 14, DIM, (self.w / 2, y), align="center")
             y += line_h
+        if graph:
+            self._draw_graph(screen, graph, bx + 30, y, box_w - 60, self.GRAPH_H)
+            y += self.GRAPH_H + 12
         y += 8
         self.overlay_buttons = []
         for row in rows:

@@ -20,6 +20,20 @@ final class HUD: SKNode {
     private let topButtonLayer = SKNode()
     private var topButtons: [(CGRect, () -> Void)] = []
     private var lastTopSignature = ""
+    /// The unit counter right of the clock, the first-run arrows, and the action waiting for a key on the Keys screen.
+    private let counterLayer = SKNode()
+    private var lastCounter = ""
+    private let tutorialLayer = SKNode()
+    var rebinding: String?
+    static let armyKinds: [UnitKind] = [.marine, .sniper, .tank, .medic]
+    static let tutorialTargets: [Int: String] = [0: "hq", 1: "worker", 2: "worker", 3: "barracks", 4: "worker", 5: "factory", 6: "barracks", 7: "worker"]
+
+    /// (kind, count) for every combat kind present, in catalogue order — the top bar's unit counter.
+    static func armyCounts(_ units: [Unit]) -> [(UnitKind, Int)] {
+        var counts: [UnitKind: Int] = [:]
+        for u in units where armyKinds.contains(u.kind) && !u.dead { counts[u.kind, default: 0] += 1 }
+        return armyKinds.compactMap { k in counts[k].map { (k, $0) } }
+    }
 
     // Bottom panel
     private let panelBG = SKSpriteNode()
@@ -89,7 +103,9 @@ final class HUD: SKNode {
         for n in [minimapFrame, infoFrame, cardFrame] { n.zPosition = 0; addChild(n) }
         crystalIcon.size = CGSize(width: 18, height: 18)
         supplyIcon.size = CGSize(width: 18, height: 18)
-        for n in [crystalIcon, supplyIcon, resLabel, supplyLabel, clockLabel] as [SKNode] { n.zPosition = 2; addChild(n) }
+        for n in [crystalIcon, supplyIcon, resLabel, supplyLabel, clockLabel, counterLayer] as [SKNode] { n.zPosition = 2; addChild(n) }
+        tutorialLayer.zPosition = 4
+        addChild(tutorialLayer)
         topButtonLayer.zPosition = 2
         addChild(topButtonLayer)
 
@@ -256,6 +272,25 @@ final class HUD: SKNode {
             clockLabel.text = clock + (game.net?.spectating == true ? "  ·  REPLAY" : "")
         }
         refreshTopButtons(mouse)
+        let counts = Self.armyCounts(game.units.filter { $0.team.isLocal })
+        let counterSig = counts.map { "\(NetProtocol.name($0.0))\($0.1)" }.joined(separator: ",")
+        if counterSig != lastCounter {
+            lastCounter = counterSig
+            counterLayer.removeAllChildren()
+            var cx: CGFloat = 130
+            let ty = size.height / 2 - Self.topHeight / 2
+            for (kind, n) in counts {
+                let icon = SKSpriteNode(texture: Art.unit(kind, Team.local))
+                icon.size = CGSize(width: 20, height: 20)
+                icon.position = CGPoint(x: cx + 10, y: ty)
+                counterLayer.addChild(icon)
+                let l = makeLabel("\(n)", size: 13, color: Palette.text, font: Fonts.bold, valign: .center)
+                l.position = CGPoint(x: cx + 23, y: ty)
+                counterLayer.addChild(l)
+                cx += 23 + 10 * CGFloat(String(n).count) + 12
+            }
+        }
+        updateTutorial()
 
         refreshTimer -= dt
         if needsRefresh || refreshTimer <= 0 {
@@ -881,6 +916,111 @@ final class HUD: SKNode {
         builder()
     }
 
+    // MARK: - Keys
+
+    /// The Keys screen: every rebindable action with its key; click one, press the key you want.
+    func showKeys() {
+        present { [unowned self] in
+            func row(_ a: (action: String, label: String, key: String)) -> (String, () -> Void) {
+                let key = Settings.key(a.action)
+                let name = self.rebinding == a.action ? "press a key…" : (key.isEmpty ? "—" : key.uppercased())
+                return ("\(a.label): \(name)", { [unowned self] in self.beginRebind(a.action) })
+            }
+            var rows: [[(String, () -> Void)]] = []
+            var i = 0
+            while i < keyActions.count {
+                rows.append(Array(keyActions[i..<min(i + 2, keyActions.count)]).map(row))
+                i += 2
+            }
+            rows.append([("Reset to defaults", { [unowned self] in Settings.resetKeys(); self.showKeys() }),
+                         ("Back", { [unowned self] in self.showPause() })])
+            self.drawOverlay(title: "KEYS", color: Palette.text, subtitle: "Click an action, then press the key for it. Esc cancels.",
+                             lines: [], rows: rows)
+        }
+    }
+
+    func beginRebind(_ action: String) {
+        rebinding = action
+        showKeys()
+    }
+
+    /// A key was pressed while an action waited for one.
+    @discardableResult
+    func rebind(_ name: String) -> Bool {
+        guard let action = rebinding else { return false }
+        if name != "escape" {
+            Settings.bind(action, name)
+            flash("\(action): \(name.uppercased())", color: Palette.good)
+        }
+        rebinding = nil
+        showKeys()
+        return true
+    }
+
+    // MARK: - The first-run tutorial
+
+    /// The objective the arrows point at right now, or nil once the first run is walked through.
+    func tutorialStep() -> Int? {
+        guard !Settings.tutorialDone, !game.isMultiplayer, !game.gameOver, Settings.objectives else { return nil }
+        for i in 0..<(objectives.count - 1) where objectiveDone[i] == nil { return i }
+        Settings.tutorialDone = true
+        return nil
+    }
+
+    /// What to point at for a step: an own building of a kind, or an Engineer (an idle one first).
+    func tutorialTarget(_ step: Int) -> Entity? {
+        guard let kind = Self.tutorialTargets[step] else { return nil }
+        if kind == "worker" {
+            let ws = game.units.filter { $0.team.isLocal && $0.kind == .worker && !$0.dead }
+            return ws.first { $0.isIdleWorker } ?? ws.first
+        }
+        let bk = NetProtocol.buildingKinds.first { NetProtocol.name($0) == kind }
+        return game.buildings.first { $0.team.isLocal && $0.kind == bk && $0.built && !$0.dead }
+    }
+
+    private func arrow(at x: CGFloat, top: CGFloat, half: CGFloat = 12) -> SKShapeNode {
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: x, y: top - 22)); p.addLine(to: CGPoint(x: x - half, y: top)); p.addLine(to: CGPoint(x: x + half, y: top)); p.closeSubpath()
+        let n = SKShapeNode(path: p)
+        n.fillColor = Palette.amber
+        n.strokeColor = NSColor(white: 0.08, alpha: 1)
+        n.lineWidth = 2
+        return n
+    }
+
+    private func updateTutorial() {
+        tutorialLayer.removeAllChildren()
+        guard !overlayVisible, let step = tutorialStep() else { return }
+        let text = objectives[step].text
+        let bob = CGFloat(sin(Double(game.elapsed) * 6)) * 5
+        guard let target = tutorialTarget(step) else { return }
+        let p = game.convert(target.position, to: self)
+        let selected = game.selection.contains { $0 === target }
+        if p.y < size.height / 2 - Self.topHeight && p.y > -size.height / 2 + Self.panelHeight && abs(p.x) < size.width / 2 {
+            let lift: CGFloat = (target as? Building).map { $0.half + 30 } ?? 36
+            let top = p.y + lift + bob
+            tutorialLayer.addChild(arrow(at: p.x, top: top + 22))
+            let hint = selected ? (text.components(separatedBy: " — ").last ?? text) : "Click to select"
+            let l = makeLabel(hint, size: 12, color: Palette.text, font: Fonts.bold, align: .center, valign: .center)
+            let bg = SKSpriteNode(texture: Art.panel(CGSize(width: l.frame.width + 16, height: 22), radius: 6, accent: Palette.amber))
+            bg.size = CGSize(width: l.frame.width + 16, height: 22)
+            bg.position = CGPoint(x: p.x, y: top + 36)
+            l.position = bg.position
+            tutorialLayer.addChild(bg)
+            tutorialLayer.addChild(l)
+        }
+        // With the target selected, a second arrow points at the card button the objective names.
+        guard selected else { return }
+        var key = ""
+        if let r = text.range(of: "press ") { key = String(text[r.upperBound...].prefix(1)) }
+        else if let r = text.range(of: "(") { key = String(text[r.upperBound...].prefix(1)) }
+        guard !key.isEmpty else { return }
+        for (r, b) in zip(buttonRects, currentButtons) where b.hotkey.uppercased() == key.uppercased() {
+            tutorialLayer.addChild(arrow(at: r.midX, top: r.maxY + 26 + bob, half: 11))
+            break
+        }
+    }
+
     private func settingsRows() -> [[(String, () -> Void)]] {
         [
             [("Speed: \(Settings.speedName)", { [unowned self] in Settings.speedIndex += 1; self.overlayBuilder?() }),
@@ -890,6 +1030,7 @@ final class HUD: SKNode {
              ("Objectives: \(Settings.objectives ? "On" : "Off")", { [unowned self] in Settings.objectives.toggle(); self.overlayBuilder?() })],
             [("Health bars: \(Settings.barsAlways ? "Always" : "When hurt")", { [unowned self] in
                 Settings.barsAlways.toggle(); self.game.refreshBars(); self.overlayBuilder?() })],
+            [("Keys…", { [unowned self] in self.showKeys() })],
         ]
     }
 
@@ -1029,7 +1170,7 @@ final class HUD: SKNode {
                     ?? (won ? (online ? "Your team is victorious." : "The enemy base has fallen.")
                             : (online ? "Your forces have been defeated." : "Your base has been overrun.")),
                 lines: g.endStatsLines() + [online ? "Return — back to lobby · Esc — main menu" : "Return — play again · Esc — main menu"],
-                rows: rows)
+                rows: rows, graph: g.net?.finalHistory)
         }
     }
 
@@ -1090,15 +1231,61 @@ final class HUD: SKNode {
         }
     }
 
-    private func drawOverlay(title: String, color: NSColor, subtitle: String?, lines: [String], rows: [[(String, () -> Void)]]) {
+    static let graphHeight: CGFloat = 120
+
+    /// The timeline: every side's army size over the game, one line per side in its colour.
+    private func drawGraph(_ graph: (step: Double, series: [Int: [Int]]), x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) {
+        let box = SKShapeNode(rect: CGRect(x: x, y: y - h, width: w, height: h))
+        box.fillColor = NSColor.rgb(0.055, 0.07, 0.08)
+        box.strokeColor = Palette.dim
+        box.lineWidth = 1
+        overlay.addChild(box)
+        let peak = max(1, graph.series.values.map { $0.max() ?? 0 }.max() ?? 1)
+        let n = graph.series.values.map { $0.count }.max() ?? 0
+        for slot in graph.series.keys.sorted() {
+            let s = graph.series[slot]!
+            guard s.count > 1 else { continue }
+            let p = CGMutablePath()
+            for (i, v) in s.enumerated() {
+                let px = x + 8 + CGFloat(i) * (w - 16) / CGFloat(s.count - 1)
+                let py = y - h + 8 + CGFloat(v) * (h - 36) / CGFloat(peak)      // under a header band
+                if i == 0 { p.move(to: CGPoint(x: px, y: py)) } else { p.addLine(to: CGPoint(x: px, y: py)) }
+            }
+            let line = SKShapeNode(path: p)
+            line.strokeColor = Team(rawValue: slot).color
+            line.lineWidth = slot == (game.net?.slot ?? 0) ? 3 : 2
+            overlay.addChild(line)
+        }
+        overlay.addChild(at(makeLabel("ARMY SIZE OVER TIME", size: 10, color: Palette.dim, font: Fonts.bold, valign: .center), x + 10, y - 12))
+        overlay.addChild(at(makeLabel("peak \(peak)", size: 10, color: Palette.dim, font: Fonts.medium, align: .right, valign: .center), x + w - 10, y - 12))
+        overlay.addChild(at(makeLabel("0:00", size: 10, color: Palette.dim, font: Fonts.medium, valign: .center), x + 10, y - h + 10))
+        if n > 1 {
+            overlay.addChild(at(makeLabel(formatTime(CGFloat(Double(n - 1) * graph.step)), size: 10, color: Palette.dim, font: Fonts.medium, align: .right, valign: .center), x + w - 10, y - h + 10))
+        }
+        var lx = x + 160
+        for slot in graph.series.keys.sorted() {
+            let name = game.net?.players[slot]?.name ?? "Player \(slot + 1)"
+            let sw = SKSpriteNode(color: Team(rawValue: slot).color, size: CGSize(width: 10, height: 8))
+            sw.position = CGPoint(x: lx + 5, y: y - 12)
+            overlay.addChild(sw)
+            let you = slot == (game.net?.slot ?? 0) ? " (you)" : ""
+            overlay.addChild(at(makeLabel(name + you, size: 10, color: Palette.text, font: Fonts.medium, valign: .center), lx + 14, y - 12))
+            lx += 14 + 7 * CGFloat(name.count + you.count) + 16
+        }
+    }
+
+    private func drawOverlay(title: String, color: NSColor, subtitle: String?, lines: [String], rows: [[(String, () -> Void)]],
+                             graph: (step: Double, series: [Int: [Int]])? = nil) {
         overlay.removeAllChildren()
         overlayButtons = []
         let dim = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: size)
         overlay.addChild(dim)
 
+        let showGraph = graph.map { $0.series.values.contains { $0.count > 1 } } ?? false
         let lineH: CGFloat = 24, bh: CGFloat = 42, rowGap: CGFloat = 12
         let boxW = min(size.width - 40, 740)
         let boxH = 104 + CGFloat(lines.count) * lineH + (subtitle == nil ? 0 : 30) + CGFloat(rows.count) * (bh + rowGap) + 16
+            + (showGraph ? Self.graphHeight + 12 : 0)
         let box = SKSpriteNode(texture: Art.panel(CGSize(width: boxW, height: boxH), radius: 16, accent: color))
         box.size = CGSize(width: boxW, height: boxH)
         overlay.addChild(box)
@@ -1120,6 +1307,10 @@ final class HUD: SKNode {
         for l in lines {
             overlay.addChild(at(makeLabel(l, size: 14, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center), 0, y))
             y -= lineH
+        }
+        if showGraph, let graph {
+            drawGraph(graph, x: -boxW / 2 + 30, y: y + 8, w: boxW - 60, h: Self.graphHeight)
+            y -= Self.graphHeight + 12
         }
         y -= 8
         let bw: CGFloat = 220, bg: CGFloat = 16

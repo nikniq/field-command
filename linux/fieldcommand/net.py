@@ -22,11 +22,11 @@ import time
 import zlib
 
 from . import mapgen
-from .defs import BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_IDS, MAX_PLAYERS, UNIT_KINDS, UPGRADE_KINDS
+from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_IDS, MAX_PLAYERS, UNIT_KINDS, UPGRADE_KINDS
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 11
+PROTOCOL_VERSION = 12
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -460,7 +460,8 @@ class Server:
                 if c.slot is not None and c.slot in w.players:
                     c.send(snapshot_for(w, c.slot, events))
         if w.game_over:
-            self._send_all({"t": "end", "winner_team": w.winner_team, "stats": stats_of(w)})
+            self._send_all({"t": "end", "winner_team": w.winner_team, "stats": stats_of(w),
+                            "history": {str(s): h for s, h in w.history.items()}, "history_step": HISTORY_STEP})
             self.log(f"Game over; winning team {w.winner_team}")
             self.state = "over"
             self._reset_lobby()

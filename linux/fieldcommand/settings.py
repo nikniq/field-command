@@ -25,7 +25,9 @@ class _Settings:
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
                 "campaign_done": [],   # mission ids completed, in any order
                 "bars_always": False,  # health bars on everything, not only the hurt and the selected
-                "ui_scale": 0}  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
+                "ui_scale": 0,  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
+                "keys": {},     # action -> key name, where it differs from defs.DEFAULT_KEYS
+                "tutorial_done": False}   # the first-run arrows have been walked through (or a game played out)
 
     def __init__(self):
         self._data = dict(self.defaults)
@@ -51,6 +53,24 @@ class _Settings:
 
     def toggle(self, name):
         self.set(name, not self._data.get(name))
+
+    def key(self, action):
+        """The key name bound to an action (see defs.KEY_ACTIONS)."""
+        from .defs import DEFAULT_KEYS
+        return (self._data.get("keys") or {}).get(action, DEFAULT_KEYS[action])
+
+    def bind(self, action, name):
+        """Binds `action` to key `name`; a key already used by another action is taken from it."""
+        from .defs import DEFAULT_KEYS
+        keys = dict(self._data.get("keys") or {})
+        for other in DEFAULT_KEYS:
+            if other != action and self.key(other) == name:
+                keys[other] = ""                      # unbound until the player picks a key for it
+        keys[action] = name
+        self.set("keys", keys)
+
+    def reset_keys(self):
+        self.set("keys", {})
 
     def cycle_speed(self):
         self.set("speed_index", (self.speed_index + 1) % len(SPEEDS))

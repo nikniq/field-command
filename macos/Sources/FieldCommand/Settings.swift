@@ -30,6 +30,27 @@ enum Settings {
         set { d.set(newValue, forKey: "music") }
     }
 
+    /// Key bindings that differ from keyActions' defaults (action -> key name); "" is unbound.
+    static var keys: [String: String] {
+        get { d.dictionary(forKey: "keys") as? [String: String] ?? [:] }
+        set { d.set(newValue, forKey: "keys") }
+    }
+    static func key(_ action: String) -> String { keys[action] ?? keyActions.first { $0.action == action }?.key ?? "" }
+    /// Binds `action` to key `name`; a key already used by another action is taken from it.
+    static func bind(_ action: String, _ name: String) {
+        var k = keys
+        for a in keyActions where a.action != action && key(a.action) == name { k[a.action] = "" }
+        k[action] = name
+        keys = k
+    }
+    static func resetKeys() { d.removeObject(forKey: "keys") }
+
+    /// The first-run arrows have been walked through (or a game played out).
+    static var tutorialDone: Bool {
+        get { d.bool(forKey: "tutorialDone") }
+        set { d.set(newValue, forKey: "tutorialDone") }
+    }
+
     /// Health bars on everything friendly, not only the hurt and the selected.
     static var barsAlways: Bool {
         get { d.object(forKey: "barsAlways") as? Bool ?? false }

@@ -259,6 +259,11 @@ class LocalSession(_Base):
         return {s: {"name": p.name, "team": p.team, "trained": w.units_trained[s], "lost": w.units_lost[s],
                     "mined": w.crystals_mined[s], "alive": p.alive} for s, p in w.players.items()}
 
+    def history(self):
+        """(seconds per sample, {slot: [army size, ...]}) for the end screen's timeline."""
+        from .defs import HISTORY_STEP
+        return HISTORY_STEP, {s: list(h) for s, h in self.world.history.items()}
+
     def leave(self):
         pass
 
@@ -473,6 +478,7 @@ class NetSession(_Base):
         self.game_over = False
         self.winner_team = None
         self.final_stats = None
+        self.final_history = None
         self.disconnected = None
         self.trained_kinds = {}
         self._snap_time = None
@@ -506,6 +512,9 @@ class NetSession(_Base):
             self.conn.close()
         except Exception:  # noqa: BLE001
             pass
+
+    def history(self):
+        return self.final_history
 
     def stats(self):
         if self.final_stats:
@@ -619,6 +628,8 @@ class NetSession(_Base):
                 self.game_over = True
                 self.winner_team = m.get("winner_team")
                 self.final_stats = m.get("stats")
+                if m.get("history"):
+                    self.final_history = (float(m.get("history_step", 15)), {int(k): v for k, v in m["history"].items()})
             elif t == "lobby":
                 self.lobby_msg = m
             elif t == "chat":

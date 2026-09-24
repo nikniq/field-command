@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.23.0
+Version:        1.24.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.24.0-1
+- Polish: an army-size timeline on the end screen; U undoes the last placement for a full refund within 20
+  seconds; a unit counter by type on the top bar; rebindable keys (Keys… in the game menu); first-run
+  arrows that point at what each opening objective needs
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.23.0-1
 - Procedural music: three synthesised loops (a pad, a pulse, drums) mixed by a threat meter fed by what you
   see and hear — calm at the base, the pulse as the enemy comes into view, drums when your forces fight;

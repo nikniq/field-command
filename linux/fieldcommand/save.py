@@ -128,6 +128,7 @@ def world_to_dict(world, label=""):
         "crates": [{"id": c.id, "x": c.x, "y": c.y, "kind": c.kind, "amount": c.amount, "born": c.born} for c in w.crates],
         "next_crate": w.next_crate,
         "mission": w.mission.id if w.mission else None, "mission_timer": w.mission_timer, "mission_fired": w.mission_fired,
+        "history": {str(s): h for s, h in w.history.items()}, "next_sample": w._next_sample,
         "seed": w.seed, "rng": [w.rng.getstate()[0], list(w.rng.getstate()[1]), w.rng.getstate()[2]], "tick": w.tick,
         "reveals": {str(t): {str(i): until for i, until in r.items()} for t, r in w.reveals.items()},
         "ai": ai,
@@ -167,6 +168,10 @@ def world_from_dict(data):
     w.mission = MISSION_BY_ID.get(data.get("mission")) if data.get("mission") else None
     w.mission_timer = float(data.get("mission_timer", 0.0))
     w.mission_fired = int(data.get("mission_fired", 0))
+    for s, h in data.get("history", {}).items():
+        if int(s) in w.history:
+            w.history[int(s)] = list(h)
+    w._next_sample = float(data.get("next_sample", w.elapsed))
     for saved, live in zip(data["towers"], w.towers):
         live.id, live.owner, live.capturing, live.progress = saved["id"], saved["owner"], saved["capturing"], saved["progress"]
     for e in w.bridges + w.towers:
