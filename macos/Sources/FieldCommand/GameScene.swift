@@ -73,6 +73,8 @@ final class GameScene: SKScene {
     var gameOver = false
     var minimapDragging = false
     private var lastAlertTime: CGFloat = -100
+    /// What the player is facing, for the music: fed by alerts, gunfire heard and enemies in sight.
+    var threat = Audio.Music.Threat()
     private var lastAlertPos: CGPoint?
     var fogTimer: CGFloat = 0
     var didSetup = false
@@ -598,6 +600,8 @@ final class GameScene: SKScene {
         updateGhost(mouse)
         updateHover(mouse)
         hud.update(realDt, mouse: mouse?.hud)
+        threat.enemiesSeen = units.reduce(0) { $0 + ((!$1.team.isFriendly && $1.visibleToPlayer) ? 1 : 0) }
+        Audio.Music.update(threat.update(Double(realDt), Double(elapsed)))
         updateOrderLines(realDt)
         if fog.render(dt: realDt) { hud.setFog(fog.texture) }
         if let net, net.isLocal, net.sentPause != gamePaused {
@@ -1996,6 +2000,7 @@ final class GameScene: SKScene {
         if visibleWorldRect().insetBy(dx: 100, dy: 100).contains(p) { return }
         lastAlertTime = elapsed
         lastAlertPos = p
+        threat.note("alert", Double(elapsed))
         hud.flash("⚠ Your forces are under attack!  (Space to view)", color: Palette.bad)
         hud.ping(at: p)
         alertRing(at: p)

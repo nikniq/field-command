@@ -759,7 +759,8 @@ class HUD:
             [(f"Speed: {settings.speed_name}", settings.cycle_speed),
              (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll"))],
             [(f"Sound: {'On' if settings.sound else 'Off'}", lambda: settings.toggle("sound")),
-             (f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives"))],
+             (f"Music: {'On' if settings.music else 'Off'}", lambda: settings.toggle("music"))],
+            [(f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives"))],
             [(f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.game.app.toggle_fullscreen),
              (f"Health bars: {'Always' if settings.bars_always else 'When hurt'}", lambda: settings.toggle("bars_always"))],
         ]

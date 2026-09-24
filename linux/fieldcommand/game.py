@@ -141,6 +141,8 @@ def build_ground(map_spec):
 
 class GameScene:
     def __init__(self, app, session):
+        from .music import Threat
+        self.threat = Threat()
         from .hud import HUD
         self.app = app
         self.s = session
@@ -243,6 +245,9 @@ class GameScene:
         for b in self.beacons:
             b[3] += dt
         self.beacons = [b for b in self.beacons if b[3] < 12.0]
+        # The music follows the threat: what is heard, what is seen, and whether the base is under attack.
+        self.threat.enemies_seen = sum(1 for u in self.s.units if not self.s.friendly(u) and self.s.shown(u))
+        audio.music_update(self.threat.update(dt, self.elapsed))
         self._autosave()
         if self.fog_view.update(dt):
             self.hud.fog_changed()
@@ -355,6 +360,7 @@ class GameScene:
         elif k == "sound":
             if self._on_screen(ev[2], ev[3], 150):
                 audio.play(ev[1], SOUND_GAPS.get(ev[1], 0))
+                self.threat.note(ev[1], self.elapsed)
         elif k == "msg":
             self.hud.flash(ev[2], {"bad": BAD, "good": GOOD}.get(ev[3], TEXT))
         elif k == "alert":
@@ -564,6 +570,7 @@ class GameScene:
         self._last_alert = self.elapsed
         self._last_alert_pos = (x, y)
         self.hud.flash("Your forces are under attack!  (Space to view)", BAD)
+        self.threat.note("alert", self.elapsed)
         self.hud.ping(x, y)
         for i in range(3):
             self.fx.ring(x, y, 30, 120, BAD, 0.8, delay=i * 0.35)

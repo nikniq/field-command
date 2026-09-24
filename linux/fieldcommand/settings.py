@@ -19,7 +19,7 @@ def _path():
 
 
 class _Settings:
-    defaults = {"speed_index": 1, "edge_scroll": True, "sound": True, "objectives": True,
+    defaults = {"speed_index": 1, "edge_scroll": True, "sound": True, "music": True, "objectives": True,
                 "last_difficulty": 1, "fullscreen": False,
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into

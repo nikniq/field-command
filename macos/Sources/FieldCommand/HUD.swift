@@ -885,7 +885,8 @@ final class HUD: SKNode {
         [
             [("Speed: \(Settings.speedName)", { [unowned self] in Settings.speedIndex += 1; self.overlayBuilder?() }),
              ("Edge scroll: \(Settings.edgeScroll ? "On" : "Off")", { [unowned self] in Settings.edgeScroll.toggle(); self.overlayBuilder?() })],
-            [("Sound: \(Settings.sound ? "On" : "Off")", { [unowned self] in Settings.sound.toggle(); self.overlayBuilder?() }),
+            [("Music: \(Settings.music ? "On" : "Off")", { [unowned self] in Settings.music.toggle(); self.overlayBuilder?() }),
+             ("Sound: \(Settings.sound ? "On" : "Off")", { [unowned self] in Settings.sound.toggle(); self.overlayBuilder?() }),
              ("Objectives: \(Settings.objectives ? "On" : "Off")", { [unowned self] in Settings.objectives.toggle(); self.overlayBuilder?() })],
             [("Health bars: \(Settings.barsAlways ? "Always" : "When hurt")", { [unowned self] in
                 Settings.barsAlways.toggle(); self.game.refreshBars(); self.overlayBuilder?() })],

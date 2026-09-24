@@ -1,13 +1,17 @@
-"""Procedurally synthesised sound effects (no audio files needed)."""
+"""Procedurally synthesised sound effects (no audio files needed), and the music mixer (see music.py)."""
 import numpy as np
 import pygame
 
+from . import music
 from .settings import settings
 
 RATE = 22050
 _sounds = {}
 _enabled = False
 _last_played = {}
+_music = {}              # layer name -> (Sound, Channel) once the loops are playing
+_music_level = -1.0
+MUSIC_CHANNELS = 3       # the first channels are kept for the loops; effects use the rest
 
 
 def _env(n, attack=0.005, decay=None):
@@ -52,6 +56,7 @@ def init():
         pygame.mixer.pre_init(RATE, -16, 2, 512)
         pygame.mixer.init()
         pygame.mixer.set_num_channels(24)
+        pygame.mixer.set_reserved(MUSIC_CHANNELS)
     except (pygame.error, NotImplementedError, ImportError, AttributeError):
         _enabled = False  # no audio device or mixer support: play silently
         return
@@ -82,6 +87,34 @@ def init():
     lose = np.concatenate([_tone(f, n(0.3), "square") * 0.4 * _env(n(0.3), decay=0.3) for f in (392, 330, 262)])
     _sounds["defeat"] = _make(lose, 0.25)
     _enabled = True
+
+
+def music_update(threat):
+    """Keeps the three loops playing and sets their gains from the threat level (0..1). Off with the music
+    setting: the loops pause and pick up where they were when it comes back."""
+    global _music_level
+    if not _enabled:
+        return
+    if not settings.music or not settings.sound:
+        if _music and _music_level >= 0:
+            for _s, ch in _music.values():
+                ch.pause()
+            _music_level = -1.0
+        return
+    if not _music:
+        for i, (name, samples) in enumerate(music.synthesise().items()):
+            s = _make(samples, 1.0)
+            ch = pygame.mixer.Channel(i)
+            ch.play(s, loops=-1)
+            ch.set_volume(0.0)
+            _music[name] = (s, ch)
+    elif _music_level < 0:
+        for _s, ch in _music.values():
+            ch.unpause()
+    gains = music.layer_gains(threat)
+    for name, (_s, ch) in _music.items():
+        ch.set_volume(gains[name] * music.MASTER)
+    _music_level = threat
 
 
 def play(name, min_gap=0.0):

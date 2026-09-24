@@ -144,7 +144,7 @@ def test_the_expansion_comes_early_when_the_home_field_runs_low():
 def test_an_expansion_gets_a_turret_and_a_garrison():
     w, ai, hq = ai_world()
     ai.opening = "turtle"                                             # whose timed expansion is not due yet
-    e = w.start_building("hq", hq.x + 900, hq.y, 1)
+    e = w.start_building("hq", hq.x - 900, hq.y, 1)                   # toward the middle, inside the map
     e.built = True
     bases = [b for b in w.buildings if b.team == 1]
     assert ai._unguarded_expansion(hq, bases) is e

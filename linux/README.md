@@ -423,6 +423,16 @@ lasts three minutes). The first unit of any side to walk onto one collects its g
 squad of three Rangers, or a Siege Tank, spawned on the spot. Crates show while they are in your sight,
 with a beacon glow; computer players send a trooper for any they can see near home.
 
+## Music
+
+There is no music file: three eight-second loops are synthesised at start (a slow minor **pad**, a bass
+**pulse** at 100 beats a minute, a kick-and-hats **drums** line) and mixed by a threat meter the client keeps
+from what it sees and hears. The pad is always there; the pulse comes up as enemies come into view; the drums
+come up while your forces are fighting and when the base is under attack. The meter climbs in about a
+second and settles over six, so the music breathes rather than flickers. The title screen plays the pad
+alone. *Music: On/Off* sits beside *Sound* on the title screen and in the pause settings; both editions use
+the same recipe (`music.py`, `Audio.swift`).
+
 ## The look
 
 The camera looks down at an angle, not straight down: the ground is foreshortened north to south, every

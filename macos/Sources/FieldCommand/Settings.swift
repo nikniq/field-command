@@ -24,6 +24,12 @@ enum Settings {
         set { d.set(newValue, forKey: "sound") }
     }
 
+    /// The procedural music under the effects.
+    static var music: Bool {
+        get { d.object(forKey: "music") as? Bool ?? true }
+        set { d.set(newValue, forKey: "music") }
+    }
+
     /// Health bars on everything friendly, not only the hurt and the selected.
     static var barsAlways: Bool {
         get { d.object(forKey: "barsAlways") as? Bool ?? false }

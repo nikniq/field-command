@@ -1029,6 +1029,37 @@ enum Debug {
             check(abs(secs - expected[name]!) < 0.02 && peak > 0.05 && peak <= 1 && mean > 0.002,
                   String(format: "%-10@ %.2fs peak %.2f", name as NSString, secs, peak))
         }
+        // The music (1.23): three seamless eight-second loops, gains by threat, a meter that rises fast and falls slow.
+        let loops = Audio.Music.synthesise()
+        check(Set(loops.keys) == Set(Audio.Music.layers), "three music layers: \(loops.keys.sorted().joined(separator: ", "))")
+        let n = Int(Audio.rate * Audio.Music.loopSeconds)
+        for name in Audio.Music.layers {
+            guard let x = loops[name] else { continue }
+            let peak = x.map { abs($0) }.max() ?? 0
+            let mean = x.map { abs($0) }.reduce(0, +) / Float(x.count)
+            check(x.count == n && peak > 0.1 && peak <= 1 && abs(x[0]) < 0.01 && abs(x[n - 1]) < 0.01 && mean > 0.002,
+                  String(format: "%-6@ %.1fs peak %.2f, faded at the seam", name as NSString, Double(x.count) / Audio.rate, peak))
+        }
+        let calm = Audio.Music.layerGains(0), edge = Audio.Music.layerGains(0.5), war = Audio.Music.layerGains(1)
+        check(calm == ["pad": 1, "pulse": 0, "drums": 0] && edge["pad"] == 1 && edge["pulse"]! > 0.5 && edge["drums"] == 0
+              && war == ["pad": 1, "pulse": 1, "drums": 1], "layer gains follow the threat")
+        var t = Audio.Music.Threat()
+        t.enemiesSeen = 2
+        check(t.target(10) == Audio.Music.threatSeen, "an enemy in sight is a low threat")
+        t.note("rifle", 10)
+        check(t.target(11) == Audio.Music.threatShots && t.target(10 + Audio.Music.shotHold + 1) == Audio.Music.threatSeen, "gunfire a higher one, for a while")
+        t.note("alert", 20)
+        var now = 20.0
+        for _ in 0..<30 { now += 1.0 / 30; t.update(1.0 / 30, now) }
+        check(t.target(21) == Audio.Music.threatAlert && t.level > 0.5, "an attack alert is the top, and the meter is most of the way up in a second")
+        for _ in 0..<9 { now += 1; t.update(1, now) }
+        let full = t.level > 0.95
+        t.enemiesSeen = 0
+        now = 20 + Audio.Music.alertHold + 0.1
+        t.update(1, now)
+        let started = full && t.level > 0.6 && t.level < 1
+        for _ in 0..<12 { now += 1; t.update(1, now) }
+        check(started && t.level < 0.15, "and it settles over a dozen seconds once the alert lapses")
         print(ok ? "AUDIO TEST PASSED" : "AUDIO TEST FAILED")
         exit(ok ? 0 : 1)
     }
@@ -1119,7 +1150,7 @@ enum Debug {
             let w = SWorld(map: map, players: ps, difficulty: .normal)
             let ai = SAI(world: w, team: 1, opening: "turtle")
             let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
-            w.startBuilding(.hq, hq.x + 900, hq.y, 1)
+            w.startBuilding(.hq, hq.x - 900, hq.y, 1)       // toward the middle: the far corner's +900 leaves the map
             let e = w.buildings.last!
             e.built = true
             let bases = w.buildings.filter { $0.team == 1 }

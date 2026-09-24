@@ -189,6 +189,24 @@ def test_high_ground_agrees():
         assert sw.get(cam, []) == ridges, m["id"]
 
 
+def test_music_agrees():
+    """The music's loop, tempo, layers and threat numbers match in both editions."""
+    from fieldcommand import music
+    src = swift("Audio.swift")
+    def const(name):
+        return float(re.search(r"static let %s(?:: \w+)? = ([\d.]+)" % name, src).group(1))
+    assert const("loopSeconds") == music.LOOP_SECONDS and const("bpm") == music.BPM and const("master") == music.MASTER
+    assert re.findall(r'"(\w+)"', re.search(r"static let layers = \[(.*?)\]", src).group(1)) == music.LAYERS
+    rise, fall = re.search(r"static let rise = ([\d.]+), fall = ([\d.]+)", src).groups()
+    assert (float(rise), float(fall)) == (music.RISE, music.FALL)
+    ah, sh = re.search(r"static let alertHold = ([\d.]+), shotHold = ([\d.]+)", src).groups()
+    assert (float(ah), float(sh)) == (music.ALERT_HOLD, music.SHOT_HOLD)
+    ta, ts, tn = re.search(r"static let threatAlert = ([\d.]+), threatShots = ([\d.]+), threatSeen = ([\d.]+)", src).groups()
+    assert (float(ta), float(ts), float(tn)) == (music.THREAT_ALERT, music.THREAT_SHOTS, music.THREAT_SEEN)
+    shots = set(re.findall(r'"(\w+)"', re.search(r"static let shots: Set<String> = \[(.*?)\]", src).group(1)))
+    assert shots == set(music.SHOTS)
+
+
 def test_gold_deposits_agree():
     from fieldcommand import mapgen
     from fieldcommand.defs import GOLD_AMOUNT

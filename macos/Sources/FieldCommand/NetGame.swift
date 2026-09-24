@@ -276,6 +276,7 @@ extension GameScene {
             if visibleWorldRect().insetBy(dx: -150, dy: -150).contains(p(2)) {
                 let name = jStr(e[1])
                 Audio.play(name, minGap: Audio.minGaps[name] ?? 0)
+                threat.note(name, Double(elapsed))
             }
         case "muzzle": muzzleFlash(at: p(1), angle: jNum(e[3]), size: jNum(e[4]))
         case "sparks":

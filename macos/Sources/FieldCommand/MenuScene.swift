@@ -130,6 +130,7 @@ final class MenuScene: SKScene {
 
     /// Periodic distant explosions.
     override func update(_ currentTime: TimeInterval) {
+        Audio.Music.update(0)                     // the calm layer alone on the title screen
         let dt = lastTime == 0 ? 0 : currentTime - lastTime
         lastTime = currentTime
         battleTimer -= dt
@@ -232,6 +233,7 @@ final class MenuScene: SKScene {
             ("Speed: \(Settings.speedName)", { Settings.speedIndex += 1 }),
             ("Edge scroll: \(Settings.edgeScroll ? "On" : "Off")", { Settings.edgeScroll.toggle() }),
             ("Sound: \(Settings.sound ? "On" : "Off")", { Settings.sound.toggle() }),
+            ("Music: \(Settings.music ? "On" : "Off")", { Settings.music.toggle() }),
             ("Objectives: \(Settings.objectives ? "On" : "Off")", { Settings.objectives.toggle() }),
         ]
         let tw: CGFloat = 150, th: CGFloat = 34, tg: CGFloat = 12

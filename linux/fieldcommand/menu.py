@@ -316,6 +316,7 @@ class MenuScene:
         self.app.set_scene(MultiplayerScene(self.app))
 
     def update(self, dt, mouse):
+        audio.music_update(0.0)                   # the calm layer alone on the title screen
         self.t += dt
         self._boom -= dt
         if self._boom <= 0:
@@ -425,6 +426,7 @@ class MenuScene:
             (f"Speed: {settings.speed_name}", settings.cycle_speed),
             (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll")),
             (f"Sound: {'On' if settings.sound else 'Off'}", lambda: settings.toggle("sound")),
+            (f"Music: {'On' if settings.music else 'Off'}", lambda: settings.toggle("music")),
             (f"Objectives: {'On' if settings.objectives else 'Off'}", lambda: settings.toggle("objectives")),
             (f"Fullscreen: {'On' if settings.fullscreen else 'Off'}", self.app.toggle_fullscreen),
             (f"UI scale: {'Auto' if not settings.ui_scale else f'{settings.ui_scale:g}x'}"

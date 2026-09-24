@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.22.0 Mac and a 1.22.0 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.23.0 Mac and a 1.23.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -138,6 +138,12 @@ next as it is won; progress is kept in `UserDefaults`. Each is briefed before it
 mission, the objective, the timeline; Enter deploys) and runs a script on its clock: word from Command,
 reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
 and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
+
+## Music
+
+Three synthesised loops — a pad, a pulse, drums — mixed by a threat meter fed by what the client sees and
+hears: calm at the base, the pulse as the enemy comes into view, drums while your forces fight. *Music:
+On/Off* beside *Sound*. Same recipe and numbers as the Linux edition (`FC_AUDIOTEST`).
 
 ## High ground
 
