@@ -790,6 +790,7 @@ final class GameScene: SKScene {
 
     func endGame(won: Bool) {
         gameOver = true
+        recordReplay()
         if won, let m = net?.mission, !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
         cancelModes()
         fog.revealAll = true
@@ -843,6 +844,7 @@ final class GameScene: SKScene {
     func toMenu() {
         NSCursor.arrow.set()
         if canSave && !gameOver, let w = GameServer.hosted?.simulation { try? SaveGame.write(w, name: "autosave", label: "Autosave") }
+        if !gameOver { recordReplay() }
         leaveNetGame()
         view?.presentScene(MenuScene(size: size), transition: .fade(withDuration: 0.5))
     }

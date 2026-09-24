@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.18.1
+Version:        1.19.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.19.0-1
+- Replays: every single-player game is recorded on its way out and can be watched again from the title
+  screen (R); the simulation is now deterministic and fixed-step, so a replay is the seed plus your commands
+- Balance batch runner: python -m fieldcommand.batch (or ./cx.sh batch) plays computer games headless and
+  reports win rates by start slot, game length and the unit mix
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.18.1-1
 - The command card checks every icon it draws and redraws any that comes back blank; the F12 screenshot
   note counts such repairs so a report can say whether it happened

@@ -120,7 +120,7 @@ class LocalSession(_Base):
     can_pause = True
 
     def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
-                 world=None, mission=None):
+                 world=None, mission=None, seed=None):
         self.difficulty = difficulty
         self.slot = slot
         if world is not None:
@@ -135,13 +135,44 @@ class LocalSession(_Base):
         if world is None and players is None:
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
-        self.world = world if world is not None else World(spec, players, difficulty, mission=mission)
+        self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed)
         self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
         self.obstacles = self.world.obstacles
         self.fog = self.world.fog_for(slot)
         self.time_scale = 1
+        self._acc = 0.0
+        self.replay = None          # a loaded replay: commands are fed from it and input is ignored
+
+    def _feed_replay(self):
+        r = self.replay
+        if r is None:
+            return
+        w = self.world
+        while r.next < len(r.commands) and r.commands[r.next][0] <= w.tick:
+            _t, slot, cmd = r.commands[r.next]
+            w._apply(slot, cmd)
+            r.next += 1
+
+    @property
+    def spectating(self):
+        return self.replay is not None
+
+    @classmethod
+    def replay(cls, name="last", autoplay=False):
+        """A session that watches a recorded game: same seed, same setup, the commands fed back at their ticks."""
+        from .replay import read_replay
+        rec = read_replay(name)
+        session = cls(DIFFICULTIES[rec.difficulty], map_id=rec.map, opponents=len(rec.players) - 1,
+                      players=[PlayerInfo(p["slot"], p["name"], p["team"], is_ai=p["ai"]) for p in rec.players],
+                      slot=rec.viewer, mission=rec.mission, seed=rec.seed)
+        session.replay = rec
+        return session
+
+    def write_replay(self, name="last"):
+        from .replay import write_replay
+        return write_replay(self.world, name, viewer=self.slot)
 
     # saving
     def save(self, name, label=""):
@@ -203,15 +234,22 @@ class LocalSession(_Base):
         return out
 
     def send(self, cmd):
-        self.world.apply(self.slot, cmd)
+        if self.replay is None:          # a replay is watched, not played
+            self.world.apply(self.slot, cmd)
+
+    TICK = 1.0 / 30      # the simulation always steps by this; game speed changes how many ticks a second run
 
     def update(self, dt, paused=False):
         if not paused and not self.world.game_over:
-            sdt = dt * settings.game_speed
-            for _ in range(self.time_scale):
-                self.world.step(sdt)
-                if self.world.game_over:
-                    break
+            self._acc += dt * settings.game_speed * self.time_scale / self.TICK
+            steps = 0
+            while self._acc >= 1.0 and steps < 12 and not self.world.game_over:
+                self._acc -= 1.0
+                self._feed_replay()
+                self.world.step(self.TICK)
+                steps += 1
+            if steps == 12:
+                self._acc = 0.0         # a long stall: drop the backlog rather than fast-forward
         events = [ev for ev in self.world.events if event_visible(self.world, self.slot, ev)]
         self.world.events = []
         return events

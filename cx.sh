@@ -72,6 +72,7 @@ ${C_BOLD}Targets${C_OFF}
   icons        regenerate the Linux hicolor icon set
   web          stage the web edition (index.html, app.js, styles.css) into dist/web
   test         run the test suites for whatever this machine can run (see tests/README.md)
+  batch        play computer-only games headless and report balance numbers (python -m fieldcommand.batch)
   all          everything this machine is able to build
   clean        remove build output (macos/.build, linux/rpmbuild, dist, __pycache__)
   version      print the version this tree builds
@@ -219,7 +220,7 @@ target_test() {
         local bin
         bin="$(cd "$MAC_DIR" && swift build -c "$CONFIGURATION" --show-bin-path 2>/dev/null)/FieldCommand"
         if [ -x "$bin" ]; then
-            for t in FC_WORLDTEST FC_REPAIRTEST FC_TEAMSTEST FC_SIEGETEST FC_UPGRADETEST FC_TOWERTEST FC_STORETEST FC_AITEST FC_AUDIOTEST FC_MEDICTEST FC_PINGTEST FC_ARTYTEST FC_CRATETEST FC_CAMPAIGNTEST; do
+            for t in FC_WORLDTEST FC_REPAIRTEST FC_TEAMSTEST FC_SIEGETEST FC_UPGRADETEST FC_TOWERTEST FC_STORETEST FC_AITEST FC_AUDIOTEST FC_MEDICTEST FC_PINGTEST FC_ARTYTEST FC_CRATETEST FC_CAMPAIGNTEST FC_REPLAYTEST; do
                 step "macOS: $t"
                 run env "$t=1" "$bin" 2>&1 | grep -E "PASSED|FAILED|ok  |FAIL" || failed=1
             done
@@ -232,6 +233,12 @@ target_test() {
         fi
     fi
     [ "$failed" -eq 0 ] || die "tests failed"
+}
+
+target_batch() {
+    step "balance batch (headless computer games)"
+    local py; py="$(python_bin)"
+    ( cd "$LINUX_DIR" && run "$py" -m fieldcommand.batch "$@" )
 }
 
 target_all() {
@@ -263,6 +270,13 @@ target_clean() {
 
 # ------------------------------------------------------------------ main ----
 
+# `batch` takes its own options, so it is dispatched before the option loop sees them.
+if [ "${1:-}" = "batch" ]; then
+    shift
+    target_batch "$@"
+    exit $?
+fi
+
 targets=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -290,6 +304,7 @@ for t in "${targets[@]}"; do
         srpm)     target_srpm ;;
         web)      target_web ;;
         test)     target_test ;;
+        batch)    shift; target_batch "$@" ;;
         all)      target_all ;;
         clean)    target_clean ;;
         version)  echo "$VERSION" ;;

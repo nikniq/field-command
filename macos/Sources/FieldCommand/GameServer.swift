@@ -69,6 +69,26 @@ final class GameServer {
 
     /// A private server for a single-player skirmish: slot 0 is the local player, followed by `opponents`
     /// computer players on their own teams. Listens on an ephemeral loopback port (see `port` after `start`).
+    /// A private server that plays a recorded game back: same seed, same setup, the commands at their ticks.
+    static func singlePlayer(replay r: Replay) -> GameServer {
+        let s = GameServer(name: "Replay", port: 0)
+        s.localOnly = true
+        s.difficulty = r.difficulty
+        s.mapId = r.map
+        s.replay = r
+        s.mission = missionNamed(r.mission)
+        for slot in s.slots {
+            if let p = r.players.first(where: { $0.slot == slot.index }) {
+                slot.kind = p.slot == r.viewer ? "open" : "ai"
+                slot.name = p.name
+                slot.team = p.team
+            } else {
+                slot.kind = "closed"
+            }
+        }
+        return s
+    }
+
     /// A campaign mission on a private server: the mission's map, opponents, difficulty and teams.
     static func singlePlayer(mission m: Mission) -> GameServer {
         let s = singlePlayer(opponents: m.opponents, difficulty: m.difficulty, mapId: m.map, teams: m.teams)
@@ -464,9 +484,11 @@ final class GameServer {
         } else {
             map = SMapGen.resolve(mapId, players: active.count)
             players = active.enumerated().map { i, s in
-                SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team, isAI: s.kind == "ai", start: i)
+                let recordedAI = replay?.players.first { $0.slot == s.index }?.ai
+                return SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team,
+                               isAI: recordedAI ?? (s.kind == "ai"), start: i)
             }
-            w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal)
+            w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal, seed: replay?.seed)
             w.mission = mission
         }
         world = w
@@ -480,6 +502,7 @@ final class GameServer {
             guard let s = c.slot else { continue }
             var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals]
             if let m = w.mission { msg["mission"] = m.id }
+            if replay != nil { msg["replay"] = 1 }
             // A resumed game: the client gets back the ground its side had explored.
             if w.elapsed > 0, let alliance = w.players[s]?.team, let g = w.fog[alliance] { msg["explored"] = SaveGame.bitsOut(g.explored) }
             send(c, msg)
@@ -487,11 +510,31 @@ final class GameServer {
         log("Game started: \(active.count) players on \(jStr(map["name"]))")
     }
 
+    /// A loaded replay: commands are fed back at their ticks and the clients only watch.
+    var replay: Replay?
+    private var stepAcc = 0.0
+
     private func gameTick(_ dt: Double) {
         guard let w = world else { return }
-        for (slot, cmd) in pending { w.apply(slot, cmd) }
+        if replay == nil {
+            for (slot, cmd) in pending { w.apply(slot, cmd) }
+        }
         pending = []
-        for _ in 0..<simSpeed where !w.gameOver { w.step(dt * timeScale) }
+        // The simulation always steps by 1/30 s; game speed changes how many steps a tick runs.
+        stepAcc += timeScale * Double(simSpeed)
+        var steps = 0
+        while stepAcc >= 1, steps < 12, !w.gameOver {
+            stepAcc -= 1
+            if let r = replay {
+                while r.next < r.commands.count, r.commands[r.next].0 <= w.tick {
+                    w.applyQuietly(r.commands[r.next].1, r.commands[r.next].2)
+                    r.next += 1
+                }
+            }
+            w.step(dt)
+            steps += 1
+        }
+        if steps == 12 { stepAcc = 0 }
         tick += 1
         if tick % 3 == 0 || w.gameOver {
             let events = w.events

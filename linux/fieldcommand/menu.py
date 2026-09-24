@@ -88,6 +88,10 @@ class MenuScene:
             if ld and ld[0].collidepoint(e.pos):
                 ld[1]()
                 return
+            rp = getattr(self, "toggles_replay", None)
+            if rp and rp[0].collidepoint(e.pos):
+                rp[1]()
+                return
             for r, action in self.toggles:
                 if r.collidepoint(e.pos):
                     audio.play("click")
@@ -108,6 +112,8 @@ class MenuScene:
                 self.toggle_campaign()
             elif e.key == pygame.K_l:
                 self.load_latest()
+            elif e.key == pygame.K_r:
+                self.watch_replay()
             elif e.key == pygame.K_ESCAPE:
                 self.app.quit()
 
@@ -176,6 +182,18 @@ class MenuScene:
         from .session import LocalSession
         try:
             session = LocalSession.load(latest[0], autoplay=self.app.autoplay)
+        except (OSError, ValueError, KeyError):
+            return
+        audio.play("click")
+        self.app.set_scene(GameScene(self.app, session))
+
+    def watch_replay(self):
+        from .replay import list_replays
+        if not list_replays():
+            return
+        from .session import LocalSession
+        try:
+            session = LocalSession.replay(list_replays()[0][0])
         except (OSError, ValueError, KeyError):
             return
         audio.play("click")
@@ -285,6 +303,13 @@ class MenuScene:
             ui.blit_text(screen, f"{label or name} · {int(elapsed) // 60:02d}:{int(elapsed) % 60:02d} in",
                          11, DIM, (lr.centerx, lr.bottom + 12), align="center")
         self.toggles_load = (lr, self.load_latest) if latest else None
+        from .replay import list_replays
+        reps = list_replays()
+        rr_ = pygame.Rect(int(w / 2 + 130), int(cy + ch / 2 + 22 + 60), 250, 34)
+        hover = mouse is not None and rr_.collidepoint(mouse)
+        screen.blit(art.button(rr_.w, rr_.h, "hover" if hover and reps else ("normal" if reps else "disabled")), rr_.topleft)
+        ui.blit_text(screen, "WATCH LAST GAME  (R)", 13, TEXT if reps else DIM, rr_.center, align="center", bold=True)
+        self.toggles_replay = (rr_, self.watch_replay) if reps else None
         rows = [
             (f"Speed: {settings.speed_name}", settings.cycle_speed),
             (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll")),

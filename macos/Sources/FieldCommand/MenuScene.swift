@@ -270,6 +270,16 @@ final class MenuScene: SKScene {
         let ll = makeLabel("LOAD GAME  (L)", size: 16, color: latest == nil ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
         ll.position = lbg.position
         content.addChild(ll)
+        let reps = Replay.list()
+        let rr = CGRect(x: 130, y: cy - ch / 2 - 66 - 60, width: 250, height: 34)
+        let rbg = SKSpriteNode(texture: Art.button(rr.size, reps.isEmpty ? .disabled : .normal))
+        rbg.size = rr.size
+        rbg.position = CGPoint(x: rr.midX, y: rr.midY)
+        content.addChild(rbg)
+        let rl = makeLabel("WATCH LAST GAME  (R)", size: 13, color: reps.isEmpty ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
+        rl.position = rbg.position
+        content.addChild(rl)
+        if !reps.isEmpty { toggles.append((rr, rbg, { [unowned self] in watchReplay(self.view, size: self.size) })) }
         if let (name, label, _, elapsed) = latest {
             let sub = makeLabel("\(label.isEmpty ? name : label) · \(Int(elapsed) / 60):\(String(format: "%02d", Int(elapsed) % 60)) in",
                                 size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
@@ -363,6 +373,7 @@ final class MenuScene: SKScene {
         case "c", "C": toggleCampaign()
         case "\u{1B}": if campaignOpen { toggleCampaign() } else { NSApp.terminate(nil) }
         case "l", "L": loadLatest()
+        case "r", "R": watchReplay(view, size: size)
         case "1": start(.easy)
         case "2": start(.normal)
         case "3": start(.hard)

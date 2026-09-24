@@ -334,7 +334,8 @@ class HUD:
         x = self._top_button(screen, mouse, x, 90, "Attack (Z)", None, g.ping_pending, g.begin_ping)
         self._top_button(screen, mouse, x, 112, "Satellite (Tab)", None, g.satellite, g.toggle_satellite)
         speed = settings.speed_index != 1 and g.s.can_pause
-        clock = fmt_time(g.elapsed) + (f"  ·  {settings.speed_name}" if speed else "") + ("" if g.s.can_pause else "  ·  ONLINE")
+        clock = fmt_time(g.elapsed) + (f"  ·  {settings.speed_name}" if speed else "") + ("" if g.s.can_pause else "  ·  ONLINE") \
+            + ("  ·  REPLAY" if getattr(g.s, "spectating", False) else "")
         ui.blit_text(screen, clock, 16, TEXT, (w / 2, cy), align="center", bold=True, mono=True)
         self._top_button(screen, mouse, w - 14 - 72, 72, "Menu", None, False, g.toggle_pause)
         self._top_button(screen, mouse, w - 14 - 72 - 8 - 64, 64, "Help", None, False, g.toggle_help)

@@ -32,9 +32,16 @@ class PlayerInfo:
 
 
 class World:
-    def __init__(self, map_spec, players, difficulty, mission=None):
+    def __init__(self, map_spec, players, difficulty, mission=None, seed=None):
         self.map = map_spec
         self.difficulty = difficulty
+        # Every random choice the simulation makes comes from this generator, so a game is a pure function of
+        # its seed and the commands it receives — which is what makes replays and batch runs possible.
+        self.seed = random.getrandbits(31) if seed is None else int(seed)
+        self.rng = random.Random(self.seed)
+        # The command record: (tick, slot, command) for everything apply() took, for the replay file.
+        self.tick = 0
+        self.record = []
         self.players = {p.slot: p for p in players}
         self._next_id = 1
         self.units, self.buildings, self.crystals = [], [], []
@@ -238,6 +245,7 @@ class World:
     def step(self, dt):
         if self.game_over:
             return
+        self.tick += 1
         self.elapsed += dt
         if self._nav_dirty:
             self._rebuild_nav()
@@ -400,7 +408,7 @@ class World:
                     continue
                 self.emit("explode", b.x, b.y, b.half * 0.9, 1, 0)
                 for i in range(5):
-                    self.emit("explode", b.x + random.uniform(-b.half, b.half), b.y + random.uniform(-b.half, b.half),
+                    self.emit("explode", b.x + self.rng.uniform(-b.half, b.half), b.y + self.rng.uniform(-b.half, b.half),
                               b.half * 0.5, 0, i * 0.12 + 0.05)
                 self.emit("rubble", b.x, b.y, b.half * 2.4)
                 self.emit("sound", "explosion", b.x, b.y)
@@ -459,6 +467,13 @@ class World:
     # ------------------------------------------------------------ commands
 
     def apply(self, slot, cmd):
+        # Only people are recorded: computer players are deterministic and re-decide the same things on replay.
+        p = self.players.get(slot)
+        if p is not None and not p.is_ai:
+            self.record.append((self.tick, slot, cmd))
+        self._apply(slot, cmd)
+
+    def _apply(self, slot, cmd):
         """Applies a player command. Commands are lists so they can travel as JSON:
             ["move", ids, x, y, queue, attack]      ["attack", ids, target_id, queue]
             ["gather", ids, crystal_id, queue]      ["return", ids, queue]      ["stop", ids]
@@ -867,8 +882,8 @@ class World:
     def drop_crate(self, kind=None):
         """A crate somewhere open: clear of water and cliffs, away from every base and every mineral field."""
         for _ in range(60):
-            x = random.uniform(200, defs.WORLD_W - 200)
-            y = random.uniform(200, defs.WORLD_H - 200)
+            x = self.rng.uniform(200, defs.WORLD_W - 200)
+            y = self.rng.uniform(200, defs.WORLD_H - 200)
             if self.nav.is_blocked(int(x // 40), int(y // 40)):
                 continue
             if any(math.hypot(b.x - x, b.y - y) < 600 for b in self.buildings if not b.dead):
@@ -877,8 +892,8 @@ class World:
                 continue
             if any(rect_distance(w, x, y) < 40 for w in self.walls):
                 continue
-            k = kind or random.choices(CRATE_KINDS, weights=(50, 35, 15))[0]
-            amount = random.choice(CRATE_CRYSTAL) if k == "crystal" else 0
+            k = kind or self.rng.choices(CRATE_KINDS, weights=(50, 35, 15))[0]
+            amount = self.rng.choice(CRATE_CRYSTAL) if k == "crystal" else 0
             c = Crate(self.next_id(), x, y, k, amount, self.elapsed)
             self.crates.append(c)
             self.by_id[c.id] = c

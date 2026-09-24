@@ -257,6 +257,7 @@ class GameScene:
             mission = getattr(self.s, "mission", None)
             if won and mission and mission.id not in settings.campaign_done:
                 settings.set("campaign_done", list(settings.campaign_done) + [mission.id])
+            self._record_replay()
             self.hud.show_end(won)
             self.app.game_ended(self, won)
         disc = getattr(self.s, "disconnected", None)
@@ -611,10 +612,19 @@ class GameScene:
         else:
             self.to_menu()
 
+    def _record_replay(self):
+        """A single-player game is recorded on its way out, so the last one can always be watched again."""
+        if hasattr(self.s, "write_replay") and not getattr(self.s, "spectating", False):
+            try:
+                self.s.write_replay("last")
+            except OSError:
+                pass
+
     def to_menu(self):
         from .menu import MenuScene
         if self.can_save() and not self.s.game_over:
             self.save_game("autosave", "Autosave")      # so Load Game continues where you left off
+            self._record_replay()
         self.leave()
         if getattr(self.app, "server", None) is not None:
             self.app.server.stop()
@@ -843,7 +853,7 @@ class GameScene:
     def _left_down(self, pos, shift):
         if self.hud.handle_click(pos, right=False):
             return
-        if self._blocked():
+        if self._blocked() or getattr(self.s, "spectating", False):
             return
         w = self.cam.to_world(*pos)
         if self.placing:
@@ -877,6 +887,8 @@ class GameScene:
             self._box_select((min(a[0], b[0]), min(a[1], b[1]), max(a[0], b[0]), max(a[1], b[1])), shift)
 
     def _right_click(self, pos, shift):
+        if getattr(self.s, "spectating", False):
+            return
         if self._blocked():
             if self.hud.overlay_visible:
                 self.hud.handle_click(pos, right=True)

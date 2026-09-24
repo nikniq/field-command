@@ -124,6 +124,7 @@ def world_to_dict(world, label=""):
         "crates": [{"id": c.id, "x": c.x, "y": c.y, "kind": c.kind, "amount": c.amount, "born": c.born} for c in w.crates],
         "next_crate": w.next_crate,
         "mission": w.mission.id if w.mission else None, "mission_timer": w.mission_timer,
+        "seed": w.seed, "rng": [w.rng.getstate()[0], list(w.rng.getstate()[1]), w.rng.getstate()[2]], "tick": w.tick,
         "reveals": {str(t): {str(i): until for i, until in r.items()} for t, r in w.reveals.items()},
         "ai": ai,
         "fog": {str(t): _bits_out(g) for t, g in w.fog.items()},
@@ -138,7 +139,10 @@ def world_from_dict(data):
     if data.get("game") != "field-command" or data.get("format") != SAVE_FORMAT:
         raise ValueError(f"not a Field Command save this version can read (format {data.get('format')})")
     players = [PlayerInfo(p["slot"], p["name"], p["team"], is_ai=p["is_ai"], start=p["start"]) for p in data["players"]]
-    w = World(data["map"], players, DIFFICULTIES[data["difficulty"]])
+    w = World(data["map"], players, DIFFICULTIES[data["difficulty"]], seed=data.get("seed"))
+    if data.get("rng") is not None:
+        w.rng.setstate(tuple(tuple(x) if isinstance(x, list) else x for x in data["rng"]))
+    w.tick = int(data.get("tick", 0))
     for p in data["players"]:
         w.players[p["slot"]].alive = p["alive"]
     # Start from nothing but the map: the constructor's opening base is replaced by what was saved.

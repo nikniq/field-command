@@ -139,6 +139,11 @@ jobs:
         run: |
           set -o pipefail
           FC_CAMPAIGNTEST=1 "$BIN" | tee /dev/stderr | grep -q "CAMPAIGN TEST PASSED"
+      - name: Headless Replay
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_REPLAYTEST=1 "$BIN" | tee /dev/stderr | grep -q "REPLAY TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

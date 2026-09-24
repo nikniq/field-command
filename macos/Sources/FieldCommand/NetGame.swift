@@ -412,7 +412,13 @@ extension GameScene {
 
     // MARK: Commands
 
-    func sendNet(_ cmd: [Any]) { net?.send(cmd) }
+    func sendNet(_ cmd: [Any]) { if net?.spectating != true { net?.send(cmd) } }
+
+    /// A single-player game is recorded on its way out, so the last one can always be watched again.
+    func recordReplay() {
+        guard let net, net.isLocal, !net.spectating, let w = GameServer.hosted?.simulation else { return }
+        try? Replay.write(w, name: "last", viewer: net.slot)
+    }
 
     func netSmartCommand(at p: CGPoint, queue: Bool) {
         let us = selectedOwnUnits
@@ -530,11 +536,19 @@ func resumeSkirmish(_ view: SKView?, size: CGSize, world w: SWorld) {
                   teams: teams, restoring: w)
 }
 
+/// Watches the newest recorded game on a private server.
+func watchReplay(_ view: SKView?, size: CGSize) {
+    guard let latest = Replay.list().first, let r = try? Replay.read(latest.0) else { return }
+    startSkirmish(view, size: size, difficulty: Difficulty(rawValue: r.difficulty) ?? .normal, mapId: r.map,
+                  opponents: r.players.count - 1, replay: r)
+}
+
 func startSkirmish(_ view: SKView?, size: CGSize, difficulty: Difficulty, mapId: String, opponents: Int, teams: Int = 0,
-                   restoring: SWorld? = nil, mission: Mission? = nil) {
+                   restoring: SWorld? = nil, mission: Mission? = nil, replay: Replay? = nil) {
     func fallback() { showScene(view, GameScene(size: size, difficulty: difficulty), fade: 0.6) }
     stopHostedServer()
     let server = restoring.map { GameServer.singlePlayer(restoring: $0) }
+        ?? replay.map { GameServer.singlePlayer(replay: $0) }
         ?? mission.map { GameServer.singlePlayer(mission: $0) }
         ?? GameServer.singlePlayer(opponents: opponents, difficulty: difficulty.rawValue, mapId: mapId, teams: teams)
     server.log = { _ in }

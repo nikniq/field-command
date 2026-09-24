@@ -253,7 +253,7 @@ final class HUD: SKNode {
         let clock = "\(formatTime(game.elapsed))" + (game.isMultiplayer ? "  ·  ONLINE" : (Settings.speedIndex == 1 ? "" : "  ·  \(Settings.speedName)"))
         if clock != lastClock {
             lastClock = clock
-            clockLabel.text = clock
+            clockLabel.text = clock + (game.net?.spectating == true ? "  ·  REPLAY" : "")
         }
         refreshTopButtons(mouse)
 

@@ -236,8 +236,8 @@ class AI:
         for attempt in range(90):
             guns = kind in ("turret", "artillery")
             spread = 0.7 if guns else (math.pi * 0.65 if attempt < 30 else math.pi)
-            a = to_center + random.uniform(-spread, spread)
-            d = random.uniform(190, 260 + attempt * 8) + (90 if guns else 0)
+            a = to_center + g.rng.uniform(-spread, spread)
+            d = g.rng.uniform(190, 260 + attempt * 8) + (90 if guns else 0)
             p = g.snapped(cx + math.cos(a) * d, cy + math.sin(a) * d)
             r = square_rect(p[0], p[1], half)
             if all(rect_distance(r, c.x, c.y) > 90 for c in g.crystals) and g.can_place(kind, p[0], p[1], margin=26 if attempt < 45 else 14):
@@ -455,7 +455,7 @@ class AI:
         t = min(unheld, key=lambda t: math.hypot(t.x - hq.x, t.y - hq.y))
         idle = [u for u in home if u.order[0] == "idle" and u.kind != "worker"][:3]
         for u in idle:
-            u.command(("amove", t.x + random.uniform(-40, 40), t.y + random.uniform(-40, 40)))
+            u.command(("amove", t.x + g.rng.uniform(-40, 40), t.y + g.rng.uniform(-40, 40)))
 
     def _siege(self, home):
         """Tanks dig in when an enemy building is within sieged range and pack up when nothing is."""

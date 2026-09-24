@@ -404,6 +404,71 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_REPLAYTEST=1: the simulation is a pure function of its seed and commands — the same seed and commands
+    /// give the same game, a different seed a different one — and a recorded game replays exactly.
+    static func runReplayTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(_ seed: UInt64) -> SWorld {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: $0 > 0, start: $0) }
+            return SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: seed)
+        }
+        func signature(_ w: SWorld) -> String {
+            let u = w.units.filter { !$0.dead }.map { "\($0.id):\(NetProtocol.name($0.kind)):\($0.team):\(Int($0.x * 100)):\(Int($0.y * 100)):\(Int($0.hp * 100)):\($0.order.code)" }
+            let b = w.buildings.filter { !$0.dead }.map { "\($0.id):\(NetProtocol.name($0.kind)):\(Int($0.hp * 100)):\($0.built):\($0.queue.count)" }
+            let r = w.resources.keys.sorted().map { "\($0)=\(Int(w.resources[$0]! * 100))" }
+            return "\(w.tick)|\(u)|\(b)|\(r)|\(w.crates.count)"
+        }
+        func scripted(_ w: SWorld) {
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            let eng = w.units.filter { $0.team == 0 && $0.kind == .worker }
+            for t in 1...(30 * 90) {
+                if t == 10 { w.apply(0, ["train", [hq.id], "worker"]) }
+                if t == 40 { w.apply(0, ["build", eng[0].id, "barracks", hq.x + 300, hq.y, false]) }
+                if t == 900 { w.apply(0, ["move", [eng[1].id, eng[2].id], hq.x + 500, hq.y + 200, false, false]) }
+                w.step(1.0 / 30); w.events.removeAll()
+            }
+        }
+        let a = fresh(7), b = fresh(7), c = fresh(8)
+        scripted(a); scripted(b); scripted(c)
+        check(signature(a) == signature(b), "the same seed and commands give the same game")
+        if signature(a) != signature(b) {
+            // Say where the two runs part ways: the first tick whose signatures differ, and the first differing entry.
+            let x = fresh(7), y = fresh(7)
+            let hq = x.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            let ex = x.units.filter { $0.team == 0 && $0.kind == .worker }, ey = y.units.filter { $0.team == 0 && $0.kind == .worker }
+            for t in 1...(30 * 90) {
+                if t == 10 { x.apply(0, ["train", [hq.id], "worker"]); y.apply(0, ["train", [hq.id], "worker"]) }
+                if t == 40 { x.apply(0, ["build", ex[0].id, "barracks", hq.x + 300, hq.y, false]); y.apply(0, ["build", ey[0].id, "barracks", hq.x + 300, hq.y, false]) }
+                if t == 900 { x.apply(0, ["move", [ex[1].id, ex[2].id], hq.x + 500, hq.y + 200, false, false]); y.apply(0, ["move", [ey[1].id, ey[2].id], hq.x + 500, hq.y + 200, false, false]) }
+                x.step(1.0 / 30); x.events.removeAll(); y.step(1.0 / 30); y.events.removeAll()
+                let sx = signature(x).split(separator: ","), sy = signature(y).split(separator: ",")
+                if sx != sy {
+                    print("  first divergence at tick \(t)")
+                    for (i, pair) in zip(sx, sy).enumerated() where pair.0 != pair.1 { print("    [\(i)] \(pair.0)  vs  \(pair.1)"); break }
+                    if sx.count != sy.count { print("    counts \(sx.count) vs \(sy.count)") }
+                    break
+                }
+            }
+        }
+        check(signature(a) != signature(c), "a different seed gives a different one")
+        check(a.record.count == 3, "only people's commands are recorded (\(a.record.count))")
+        let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: Replay.encode(a, viewer: 0))) as! [String: Any]
+        guard let rec = try? Replay(doc) else { print("  FAIL replay decode"); exit(1) }
+        let ps = rec.players.map { SPlayer(slot: $0.slot, name: $0.name, team: $0.team, isAI: $0.ai, start: $0.slot) }
+        let d = SWorld(map: SMapGen.generate(rec.map), players: ps, difficulty: Difficulty(rawValue: rec.difficulty) ?? .normal, seed: rec.seed)
+        while d.tick < a.tick {
+            while rec.next < rec.commands.count, rec.commands[rec.next].0 <= d.tick {
+                d.applyQuietly(rec.commands[rec.next].1, rec.commands[rec.next].2)
+                rec.next += 1
+            }
+            d.step(1.0 / 30); d.events.removeAll()
+        }
+        check(signature(d) == signature(a), "a recorded game replays exactly")
+        print(ok ? "REPLAY TEST PASSED" : "REPLAY TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_CAMPAIGNTEST=1: the mission rules — survive wins when the clock runs out, hold counts only while the
     /// ring is yours and clear, progress and the mission travel in snapshots and saves.
     static func runCampaignTest() -> Never {

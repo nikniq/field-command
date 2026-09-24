@@ -347,6 +347,25 @@ have standing at home, at least a pair and up to a wave's worth, sets off for th
 there. One alert point every three seconds; enemies never see them. Use it to direct the whole team onto a
 push, a defence or a bridge.
 
+## Replays
+
+Every single-player game is recorded — its seed, its setup and every command you gave, by tick — and
+written to `~/.local/share/fieldcommand/replays/last.json` when it ends or when you leave for the menu.
+**Watch Last Game (R)** on the title screen plays it back: the same simulation runs again from the same seed
+with your commands fed in at the same ticks, so it is the same game to the last shot, and a replay of an
+hour is a few kilobytes. While watching, the clock says *REPLAY* and input is ignored. Attach the file to a
+bug report; it reproduces the game exactly on the same edition.
+
+This works because the simulation is deterministic: every random choice comes from one generator seeded
+per game, and the world always steps by exactly 1/30 s (game speed changes how many steps run per second).
+
+## Balance runs
+
+`./cx.sh batch --games 5 --maps twin_ridges,river_crossing --difficulty 1 --out runs.csv` (or
+`python -m fieldcommand.batch`) plays computer-only games headless and writes a row per player per game —
+who won, how long it took, what was trained, built, lost and mined — then prints win rates by start slot,
+average length and the unit mix per map. Balance changes are judged on those numbers.
+
 ## Saving and loading
 
 Leaving a single-player game for the main menu writes an autosave first, so **Load Game (L)** on the title

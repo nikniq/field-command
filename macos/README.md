@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 11, so a 1.18.1 Mac and a 1.18.1 Linux client play together; neither accepts an
+Both editions speak protocol 11, so a 1.19.0 Mac and a 1.19.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -173,6 +173,13 @@ rate and never running out. Same sites as the Linux edition (the parity tests ch
 jump there. Computer allies send their idle troops.
 Same rules as the Linux edition (`FC_PINGTEST`).
 
+## Replays
+
+Every single-player game is recorded to `~/Library/Application Support/FieldCommand/replays/last.json` and
+**Watch Last Game (R)** on the title screen plays it back exactly: the simulation is deterministic (one
+seeded generator, fixed 1/30 s steps) and the replay is the seed plus your commands by tick. Same file
+format as the Linux edition; `FC_REPLAYTEST` checks determinism and playback.
+
 ## Saving and loading
 
 Leaving a game for the main menu autosaves first, so Load Game continues it. **F5** quick-saves a single-player game and **F9** loads it back; the pause menu has *Save Game* and *Load
@@ -217,6 +224,7 @@ FC_PINGTEST=1 .build/release/FieldCommand                     # alert points: al
 FC_ARTYTEST=1 .build/release/FieldCommand                     # artillery reach, arc and blind spot; shields soak and recharge
 FC_CRATETEST=1 .build/release/FieldCommand                    # supply crates: drop, pickup, gifts, expiry, save
 FC_CAMPAIGNTEST=1 .build/release/FieldCommand                 # mission rules: survive, hold, progress, save
+FC_REPLAYTEST=1 .build/release/FieldCommand                   # determinism, and a recorded game replaying exactly
 FC_SAVETEST=1 FC_SAVE_FIXTURE=../tests/fixtures/save_python.json .build/release/FieldCommand   # save round trip + a Linux save
 FC_CARDSHOT=/tmp/fc .build/release/FieldCommand               # screenshots of the command card for each selection
 ```

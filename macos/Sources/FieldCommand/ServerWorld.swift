@@ -384,6 +384,10 @@ enum SMapGen {
     static let riverlandsBridges: [(Double, Double, Double, Double)] = [(5298, 1940.7, 5526, 2160.7), (4693.2, 1934.8, 4921.2, 2154.8), (2921.7, 3858, 3141.7, 3996), (2877.5, 3577.2, 3097.5, 3715.2), (474, 2056.4, 702, 2276.4), (1078.8, 1983.6, 1306.8, 2203.6), (2842.6, 204, 3062.6, 342), (2883.3, 484.8, 3103.3, 622.8)]
 }
 
+/// Every random choice the simulation makes comes from this generator (seeded per world), so a game is a
+/// pure function of its seed and the commands it receives — what makes replays and batch runs possible.
+var simRNG = SeededRNG(1)
+
 // MARK: - Entities
 
 enum SOrder {
@@ -616,10 +620,10 @@ final class SUnit: SEntity {
     var rank = 0
     var lastX: Double, lastY: Double
     var wasMoving = false
-    var scan = Double.random(in: 0...0.3)
+    var scan = Double.random(in: 0...0.3, using: &simRNG)
     var blocked: (Double, Double)?
     var slideSign = 0.0
-    var angle = Double.random(in: 0...(2 * .pi))
+    var angle = Double.random(in: 0...(2 * .pi), using: &simRNG)
     var gunAngle: Double
     // Path state (see navigate)
     var path: [(Double, Double)]?
@@ -1131,7 +1135,7 @@ final class SUnit: SEntity {
         let d = max(1e-3, hyp(t.x - x, t.y - y))
         let ux = (t.x - x) / d, uy = (t.y - y) / d
         let ang = atan2(uy, ux)
-        let jx = Double.random(in: -6...6), jy = Double.random(in: -6...6)
+        let jx = Double.random(in: -6...6, using: &simRNG), jy = Double.random(in: -6...6, using: &simRNG)
         g.emit(["recoil", id])
         switch kind {
         case .tank:
@@ -1153,7 +1157,7 @@ final class SUnit: SEntity {
             t.takeDamage(Double(stats.damage) * vetMult, from: self)
             g.emit(["tracer", mx, my, t.x + jx, t.y + jy, 0])
             g.emit(["muzzle", mx, my, ang, 12])
-            if Bool.random() { g.emit(["sparks", t.x + jx, t.y + jy, 4, 60, "hit"]) }
+            if Bool.random(using: &simRNG) { g.emit(["sparks", t.x + jx, t.y + jy, 4, 60, "hit"]) }
             g.emit(["sound", "rifle", x, y])
         case .worker:
             t.takeDamage(Double(stats.damage) * vetMult, from: self)
@@ -1181,7 +1185,7 @@ final class SBuilding: SEntity {
     var rally: (Double, Double)?
     var cooldown = 0.0, scan = 0.0
     var turretTarget: SEntity?
-    var gunAngle = Double.random(in: 0...(2 * .pi))
+    var gunAngle = Double.random(in: 0...(2 * .pi), using: &simRNG)
     // Shield points from a generator in range (see SWorld.updateShields), and when they were last hit.
     var shield = 0.0
     var shieldHit = -100.0
@@ -1314,7 +1318,7 @@ final class SBuilding: SEntity {
                 return
             }
             let mx = x + ux * 44, my = y + uy * 44
-            let jx = Double.random(in: -14...14), jy = Double.random(in: -14...14)
+            let jx = Double.random(in: -14...14, using: &simRNG), jy = Double.random(in: -14...14, using: &simRNG)
             g.launchShell(mx, my, t.x + jx, t.y + jy, Double(stats.damage), artillerySplash, team, self, arc: true)
             g.emit(["muzzle", mx, my, a, 34])
             g.emit(["smoke", mx, my, 14])
@@ -1322,7 +1326,7 @@ final class SBuilding: SEntity {
             return
         }
         t.takeDamage(turretDamage, from: self)
-        let side = Bool.random() ? 4.5 : -4.5
+        let side = Bool.random(using: &simRNG) ? 4.5 : -4.5
         let mx = x + ux * 36 + uy * side, my = y + uy * 36 - ux * side
         g.emit(["tracer", mx, my, t.x, t.y, 1])
         g.emit(["muzzle", mx, my, a, 16])
@@ -1393,7 +1397,21 @@ final class SWorld {
     var pathBudget = 0
     private var shells: [(x0: Double, y0: Double, x1: Double, y1: Double, dur: Double, t: Double, damage: Double, splash: Double, team: Int, attacker: SEntity?)] = []
 
-    init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty) {
+    let seed: UInt64
+    /// The command record: (tick, slot, command) for everything people sent through apply(), for the replay
+    /// file. Computer players are deterministic and re-decide the same things on replay, so they are not kept.
+    private(set) var tick = 0
+    private(set) var record: [(Int, Int, [Any])] = []
+    func setTick(_ t: Int) { tick = t }
+    /// This world's random stream. The simulation draws from the global simRNG, so it is swapped in for
+    /// the length of every step and command and kept here between them: two worlds built back to back
+    /// (a replay check, a batch) each keep their own sequence.
+    private var rng = SeededRNG(1)
+    private func withRNG<T>(_ body: () -> T) -> T { simRNG = rng; defer { rng = simRNG }; return body() }
+
+    init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil) {
+        self.seed = seed ?? UInt64.random(in: 1..<(1 << 31))
+        simRNG = SeededRNG(self.seed)
         self.map = map
         self.difficulty = difficulty
         setWorldSize(map: map)  // the map carries its own size; grids below are sized from it
@@ -1454,6 +1472,7 @@ final class SWorld {
             if p.isAI { p.ai = SAI(world: self, team: p.slot) }
         }
         updateVisibility()
+        rng = simRNG
     }
 
     func nextId() -> Int {
@@ -1490,6 +1509,11 @@ final class SWorld {
 
     func step(_ dt: Double) {
         guard !gameOver else { return }
+        withRNG { stepTick(dt) }
+    }
+
+    private func stepTick(_ dt: Double) {
+        tick += 1
         elapsed += dt
         if navDirty { rebuildNav() }
         pathBudget = 6
@@ -1501,7 +1525,7 @@ final class SWorld {
         updateCrates()
         for t in towers { t.update(dt) }
         checkMission(dt)
-        for p in players.values where p.alive { p.ai?.update(dt) }
+        for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive { p.ai?.update(dt) }
         cleanupDead()
         fogTimer -= dt
         if fogTimer <= 0 {
@@ -1676,7 +1700,8 @@ final class SWorld {
             u.blocked = nil
             grid[Int(u.x / 48) * 1000 + Int(u.y / 48), default: []].append(u)
         }
-        for (key, cell) in grid {
+        for key in grid.keys.sorted() {
+            let cell = grid[key]!
             let gx = key / 1000, gy = key % 1000
             var neighbours: [SUnit] = []
             for (ox, oy) in [(0, 1), (1, -1), (1, 0), (1, 1)] { neighbours += grid[(gx + ox) * 1000 + (gy + oy)] ?? [] }
@@ -1757,7 +1782,7 @@ final class SWorld {
             for b in buildings where b.dead {
                 emit(["explode", b.x, b.y, b.half * 0.9, 1, 0])
                 for i in 0..<5 {
-                    emit(["explode", b.x + Double.random(in: -b.half...b.half), b.y + Double.random(in: -b.half...b.half),
+                    emit(["explode", b.x + Double.random(in: -b.half...b.half, using: &simRNG), b.y + Double.random(in: -b.half...b.half, using: &simRNG),
                           b.half * 0.5, 0, Double(i) * 0.12 + 0.05])
                 }
                 emit(["rubble", b.x, b.y, b.half * 2.4])
@@ -1799,7 +1824,7 @@ final class SWorld {
     }
 
     private func checkVictory() {
-        for p in players.values where p.alive && !buildings.contains(where: { $0.team == p.slot }) {
+        for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive && !buildings.contains(where: { $0.team == p.slot }) {
             p.alive = false
             for u in units where u.team == p.slot { u.dead = true }
             emit(["elim", p.slot, p.name])
@@ -1807,7 +1832,7 @@ final class SWorld {
         let teams = Set(players.values.filter { $0.alive }.map { $0.team })
         if teams.count <= 1 && !gameOver {
             gameOver = true
-            winnerTeam = teams.first
+            winnerTeam = teams.min()
             emit(["gameover", winnerTeam ?? -1])
         }
     }
@@ -1815,7 +1840,18 @@ final class SWorld {
     // MARK: Commands (same list format as the Python server)
 
     func apply(_ slot: Int, _ cmd: [Any]) {
-        guard !gameOver, let p = players[slot], p.alive, let op = cmd.first as? String else { return }
+        if let p = players[slot], !p.isAI { record.append((tick, slot, cmd)) }
+        applyQuietly(slot, cmd)
+    }
+
+    /// A command from a replay: applied, not recorded again.
+    func applyQuietly(_ slot: Int, _ cmd: [Any]) {
+        guard !gameOver, let p = players[slot], p.alive, cmd.first is String else { return }
+        withRNG { applyCommand(slot, p, cmd) }
+    }
+
+    private func applyCommand(_ slot: Int, _ p: SPlayer, _ cmd: [Any]) {
+        let op = cmd.first as! String
         func ids(_ v: Any?) -> [Int] { jArr(v).map { jInt($0) } }
         func flag(_ i: Int) -> Bool { i < cmd.count && ((cmd[i] as? Bool) ?? (jInt(cmd[i]) != 0)) }
         func num(_ i: Int) -> Double { i < cmd.count ? Double(jNum(cmd[i])) : 0 }
@@ -2187,14 +2223,14 @@ final class SWorld {
     @discardableResult
     func dropCrate(kind: String? = nil) -> SCrate? {
         for _ in 0..<60 {
-            let x = Double.random(in: 200...(worldW - 200)), y = Double.random(in: 200...(worldH - 200))
+            let x = Double.random(in: 200...(worldW - 200), using: &simRNG), y = Double.random(in: 200...(worldH - 200), using: &simRNG)
             if nav.isBlocked(Int(x / 40), Int(y / 40)) { continue }
             if buildings.contains(where: { !$0.dead && hyp($0.x - x, $0.y - y) < 600 }) { continue }
             if crystals.contains(where: { !$0.dead && hyp($0.x - x, $0.y - y) < 120 }) { continue }
             if walls.contains(where: { $0.distance(x, y) < 40 }) { continue }
-            let roll = Int.random(in: 0..<100)
+            let roll = Int.random(in: 0..<100, using: &simRNG)
             let k = kind ?? (roll < 50 ? "crystal" : roll < 85 ? "squad" : "tank")
-            let amount = k == "crystal" ? crateCrystal.randomElement()! : 0
+            let amount = k == "crystal" ? crateCrystal.randomElement(using: &simRNG)! : 0
             let c = SCrate(id: nextId(), x: x, y: y, kind: k, amount: amount, born: elapsed)
             crates.append(c)
             byId[c.id] = c
@@ -2320,7 +2356,7 @@ final class SAI {
     /// Snipers answer tanks, tanks and Rangers together answer Snipers.
     func composition() -> [UnitKind: Double] {
         var w: [UnitKind: Double] = [.marine: 3, .sniper: 1, .tank: 2]
-        let total = seen.values.reduce(0, +)
+        let total = [UnitKind.marine, .sniper, .tank].reduce(0.0) { $0 + (seen[$1] ?? 0) }
         if total >= 3 {
             let share = seen.mapValues { $0 / total }
             w[.sniper]! += 3 * share[.tank]!
@@ -2337,7 +2373,8 @@ final class SAI {
         for u in army where counts[u.kind] != nil { counts[u.kind]! += 1 }
         let n = Double(max(1, counts.values.reduce(0, +)))
         let comp = composition()
-        let deficit = counts.map { ($0.key, comp[$0.key]! * (n + 1) - Double($0.value)) }
+        let order: [UnitKind] = [.marine, .sniper, .tank]
+        let deficit = order.map { ($0, comp[$0]! * (n + 1) - Double(counts[$0] ?? 0)) }
         return deficit.max { $0.1 < $1.1 }!.0
     }
 
@@ -2457,7 +2494,7 @@ final class SAI {
         guard g.elapsed >= 240, (g.resources[team] ?? 0) >= 800, !army.isEmpty else { return }
         var counts: [UnitKind: Int] = [:]
         for u in army { counts[u.kind, default: 0] += 1 }
-        guard let kind = counts.max(by: { $0.value < $1.value })?.key, let owned = g.playerKits[team] else { return }
+        guard let kind = NetProtocol.unitKinds.max(by: { (counts[$0] ?? 0) < (counts[$1] ?? 0) }), let owned = g.playerKits[team] else { return }
         if let cheapest = kits.filter({ $0.unit == kind && !owned.contains($0.id) }).min(by: { $0.cost < $1.cost }) {
             g.buyKit(team, cheapest.id)
         }
@@ -2529,8 +2566,8 @@ final class SAI {
         for attempt in 0..<90 {
             let guns = k == .turret || k == .artillery
             let spread = guns ? 0.7 : (attempt < 30 ? Double.pi * 0.65 : .pi)
-            let a = toCenter + Double.random(in: -spread...spread)
-            let d = Double.random(in: 190...(260 + Double(attempt) * 8)) + (guns ? 90 : 0)
+            let a = toCenter + Double.random(in: -spread...spread, using: &simRNG)
+            let d = Double.random(in: 190...(260 + Double(attempt) * 8), using: &simRNG) + (guns ? 90 : 0)
             let p = g.snapped(cx + cos(a) * d, cy + sin(a) * d)
             let r = SRect(cx: p.0, cy: p.1, half: half)
             if g.crystals.allSatisfy({ r.distance($0.x, $0.y) > 90 }) && g.canPlace(k, p.0, p.1, margin: attempt < 45 ? 26 : 14) { return p }
@@ -2679,7 +2716,7 @@ final class SAI {
         let unheld = g.towers.filter { $0.owner.flatMap { g.players[$0]?.team } != mine }
         guard let t = unheld.min(by: { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }) else { return }
         for u in home.filter({ $0.order.isIdle && $0.kind != .worker }).prefix(3) {
-            u.command(.amove(t.x + Double.random(in: -40...40), t.y + Double.random(in: -40...40)))
+            u.command(.amove(t.x + Double.random(in: -40...40, using: &simRNG), t.y + Double.random(in: -40...40, using: &simRNG)))
         }
     }
 

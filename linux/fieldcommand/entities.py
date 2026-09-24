@@ -240,10 +240,10 @@ class Unit(Entity):
         self.stuck = 0.0
         self.last_x, self.last_y = x, y
         self.was_moving = False
-        self.scan = random.uniform(0, 0.3)
+        self.scan = game.rng.uniform(0, 0.3)
         self.blocked = None
         self.slide_sign = 0
-        self.angle = random.uniform(0, 2 * math.pi)
+        self.angle = game.rng.uniform(0, 2 * math.pi)
         self.gun_angle = self.angle
         # Siege mode (tanks only): MODE_* and the time left in a transition.
         self.mode = MODE_MOBILE
@@ -821,7 +821,7 @@ class Unit(Entity):
         d = max(1e-3, math.hypot(t.x - self.x, t.y - self.y))
         ux, uy = (t.x - self.x) / d, (t.y - self.y) / d
         ang = math.atan2(uy, ux)
-        jx, jy = random.uniform(-6, 6), random.uniform(-6, 6)
+        jx, jy = g.rng.uniform(-6, 6), g.rng.uniform(-6, 6)
         g.emit("recoil", self.id)
         if self.kind == "tank":
             mx, my = self.x + ux * 33, self.y + uy * 33
@@ -843,7 +843,7 @@ class Unit(Entity):
             t.take_damage(self.stats.damage * self.vet_mult, self)
             g.emit("tracer", mx, my, t.x + jx, t.y + jy, 0)
             g.emit("muzzle", mx, my, ang, 12)
-            if random.random() < 0.5:
+            if g.rng.random() < 0.5:
                 g.emit("sparks", t.x + jx, t.y + jy, 4, 60, "hit")
             g.emit("sound", "rifle", self.x, self.y)
         else:
@@ -875,8 +875,8 @@ class Building(Entity):
         self.cooldown = 0.0
         self.scan = 0.0
         self.turret_target = None
-        self.gun_angle = random.uniform(0, 2 * math.pi)
-        self.dish_angle = random.uniform(0, 2 * math.pi)
+        self.gun_angle = game.rng.uniform(0, 2 * math.pi)
+        self.dish_angle = game.rng.uniform(0, 2 * math.pi)
         # Shield points from a generator in range (see World.step), and when they were last hit.
         self.shield = 0.0
         self.shield_hit = -100.0
@@ -1021,14 +1021,14 @@ class Building(Entity):
                 self.cooldown = 0.2          # still traversing: wait for the barrel
                 return
             mx, my = self.x + ux * 44, self.y + uy * 44
-            jx, jy = random.uniform(-14, 14), random.uniform(-14, 14)
+            jx, jy = g.rng.uniform(-14, 14), g.rng.uniform(-14, 14)
             g.launch_shell(mx, my, t.x + jx, t.y + jy, self.stats.damage, ARTILLERY_SPLASH, self.team, self, arc=True)
             g.emit("muzzle", mx, my, a, 34)
             g.emit("smoke", mx, my, 14)
             g.emit("sound", "cannon", self.x, self.y)
             return
         t.take_damage(self.turret_damage, self)
-        side = 4.5 if random.random() < 0.5 else -4.5
+        side = 4.5 if g.rng.random() < 0.5 else -4.5
         mx, my = self.x + ux * 36 + uy * side, self.y + uy * 36 - ux * side
         g.emit("tracer", mx, my, t.x, t.y, 1)
         g.emit("muzzle", mx, my, a, 16)

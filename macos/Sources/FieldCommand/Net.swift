@@ -293,6 +293,8 @@ final class NetSession {
     let explored: String?
     /// The campaign mission this game is, if any, and the seconds run up toward its timed objective.
     let mission: Mission?
+    /// Watching a replay: the server feeds the commands, and input here is ignored.
+    let spectating: Bool
     var missionProgress = 0
     /// Kit bought from the Armory this match.
     var kits: Set<String> = []
@@ -322,6 +324,7 @@ final class NetSession {
         map = jDict(start["map"])
         explored = start["explored"] as? String
         mission = missionNamed(start["mission"] as? String)
+        spectating = jInt(start["replay"]) == 1
         difficulty = Difficulty(rawValue: jInt(start["difficulty"])) ?? .normal
         for p in jArr(start["players"]) {
             let d = jDict(p)
