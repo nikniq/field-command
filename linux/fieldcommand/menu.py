@@ -443,20 +443,21 @@ class MenuScene:
 
         # Campaign, Multiplayer and Load Game in a row under the difficulty cards.
         from .defs import CAMPAIGN
-        kr = pygame.Rect(int(w / 2 - 380), int(cy + ch / 2 + 22), 230, 44)
+        # Four buttons in a row under the difficulty cards: Campaign, Multiplayer, Load Game, Replays.
+        kr = pygame.Rect(int(w / 2 - 455), int(cy + ch / 2 + 22), 210, 44)
         hover = mouse is not None and kr.collidepoint(mouse)
         screen.blit(art.button(kr.w, kr.h, "hover" if hover else "active", GOOD), kr.topleft)
         ui.blit_text(screen, "CAMPAIGN  (C)", 16, TEXT, kr.center, align="center", bold=True)
         ui.blit_text(screen, f"{len(settings.campaign_done)} of {len(CAMPAIGN)} missions done", 11, DIM,
                      (kr.centerx, kr.bottom + 12), align="center")
         self.toggles_campaign = (kr, self.toggle_campaign)
-        mr = pygame.Rect(int(w / 2 - 140), int(cy + ch / 2 + 22), 260, 44)
+        mr = pygame.Rect(int(w / 2 - 230), int(cy + ch / 2 + 22), 240, 44)
         hover = mouse is not None and mr.collidepoint(mouse)
         screen.blit(art.button(mr.w, mr.h, "hover" if hover else "active", AMBER), mr.topleft)
         ui.blit_text(screen, "MULTIPLAYER  (M)", 16, TEXT, mr.center, align="center", bold=True)
         self.toggles_mp = (mr, self.multiplayer)
         latest = self._latest_save()
-        lr = pygame.Rect(int(w / 2 + 130), int(cy + ch / 2 + 22), 250, 44)
+        lr = pygame.Rect(int(w / 2 + 25), int(cy + ch / 2 + 22), 210, 44)
         hover = mouse is not None and lr.collidepoint(mouse)
         screen.blit(art.button(lr.w, lr.h, "hover" if hover and latest else ("normal" if latest else "disabled")), lr.topleft)
         ui.blit_text(screen, "LOAD GAME  (L)", 14, TEXT if latest else DIM, lr.center, align="center", bold=True)
@@ -467,10 +468,10 @@ class MenuScene:
         self.toggles_load = (lr, self.load_latest) if latest else None
         from .replay import list_replays
         reps = list_replays()
-        rr_ = pygame.Rect(int(w / 2 + 130), int(cy + ch / 2 + 22 + 60), 250, 34)
+        rr_ = pygame.Rect(int(w / 2 + 250), int(cy + ch / 2 + 22), 210, 44)
         hover = mouse is not None and rr_.collidepoint(mouse)
         screen.blit(art.button(rr_.w, rr_.h, "hover" if hover and reps else ("normal" if reps else "disabled")), rr_.topleft)
-        ui.blit_text(screen, f"REPLAYS  (R)" + (f"  ·  {len(reps)}" if reps else ""), 13, TEXT if reps else DIM, rr_.center, align="center", bold=True)
+        ui.blit_text(screen, "REPLAYS  (R)" + (f"  ·  {len(reps)}" if reps else ""), 14, TEXT if reps else DIM, rr_.center, align="center", bold=True)
         self.toggles_replay = (rr_, self.toggle_replays) if reps else None
         ui.blit_text(screen, settings.career_text(), 11, DIM, (rr_.centerx, rr_.bottom + 12), align="center")
         rows = [

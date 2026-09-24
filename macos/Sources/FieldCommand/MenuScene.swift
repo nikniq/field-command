@@ -239,7 +239,8 @@ final class MenuScene: SKScene {
         let tw: CGFloat = 150, th: CGFloat = 34, tg: CGFloat = 12
         let tt = CGFloat(rows.count) * tw + CGFloat(rows.count - 1) * tg
         // Campaign, Multiplayer and Load Game in a row under the difficulty cards.
-        let kr = CGRect(x: -380, y: cy - ch / 2 - 66, width: 230, height: 44)
+        // Four buttons in a row under the difficulty cards: Campaign, Multiplayer, Load Game, Replays.
+        let kr = CGRect(x: -455, y: cy - ch / 2 - 66, width: 210, height: 44)
         let kbg = SKSpriteNode(texture: Art.button(kr.size, .active, accent: Palette.good))
         kbg.name = "accent"
         kbg.size = kr.size
@@ -253,7 +254,7 @@ final class MenuScene: SKScene {
         ksub.position = CGPoint(x: kr.midX, y: kr.minY - 11)
         content.addChild(ksub)
         toggles.append((kr, kbg, { [unowned self] in self.toggleCampaign() }))
-        let mr = CGRect(x: -140, y: cy - ch / 2 - 66, width: 260, height: 44)
+        let mr = CGRect(x: -230, y: cy - ch / 2 - 66, width: 240, height: 44)
         let mbg = SKSpriteNode(texture: Art.button(mr.size, .active, accent: Palette.amber))
         mbg.size = mr.size
         mbg.name = "accent"
@@ -264,7 +265,7 @@ final class MenuScene: SKScene {
         content.addChild(ml)
         toggles.append((mr, mbg, { [unowned self] in self.multiplayer() }))
         let latest = SaveGame.list().first
-        let lr = CGRect(x: 130, y: cy - ch / 2 - 66, width: 250, height: 44)
+        let lr = CGRect(x: 25, y: cy - ch / 2 - 66, width: 210, height: 44)
         let lbg = SKSpriteNode(texture: Art.button(lr.size, latest == nil ? .disabled : .normal))
         lbg.size = lr.size
         lbg.position = CGPoint(x: lr.midX, y: lr.midY)
@@ -273,17 +274,17 @@ final class MenuScene: SKScene {
         ll.position = lbg.position
         content.addChild(ll)
         let reps = Replay.list()
-        let rr = CGRect(x: 130, y: cy - ch / 2 - 66 - 60, width: 250, height: 34)
+        let rr = CGRect(x: 250, y: cy - ch / 2 - 66, width: 210, height: 44)
         let rbg = SKSpriteNode(texture: Art.button(rr.size, reps.isEmpty ? .disabled : .normal))
         rbg.size = rr.size
         rbg.position = CGPoint(x: rr.midX, y: rr.midY)
         content.addChild(rbg)
-        let rl = makeLabel("REPLAYS  (R)" + (reps.isEmpty ? "" : "  ·  \(reps.count)"), size: 13, color: reps.isEmpty ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
+        let rl = makeLabel("REPLAYS  (R)" + (reps.isEmpty ? "" : "  ·  \(reps.count)"), size: 16, color: reps.isEmpty ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
         rl.position = rbg.position
         content.addChild(rl)
         if !reps.isEmpty { toggles.append((rr, rbg, { [unowned self] in self.toggleReplays() })) }
         let career = makeLabel(Settings.careerText, size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
-        career.position = CGPoint(x: rr.midX, y: rr.minY - 12)
+        career.position = CGPoint(x: rr.midX, y: rr.minY - 11)
         content.addChild(career)
         if let (name, label, _, elapsed) = latest {
             let sub = makeLabel("\(label.isEmpty ? name : label) · \(Int(elapsed) / 60):\(String(format: "%02d", Int(elapsed) % 60)) in",

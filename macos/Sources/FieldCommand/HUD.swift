@@ -857,19 +857,25 @@ final class HUD: SKNode {
             plate.fillColor = NSColor(red: 6 / 255, green: 9 / 255, blue: 12 / 255, alpha: 0.59)
             plate.strokeColor = NSColor(white: 1, alpha: 0.09)
             plate.lineWidth = 1
+            plate.zPosition = 1                   // explicit layers: plate, then picture, then the labels
+            icon.zPosition = 2
             bg.addChild(at(plate, 0, 5))
             bg.addChild(at(icon, 0, 5))
 
             let badge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.55), size: CGSize(width: 16, height: 16))
+            badge.zPosition = 3
             bg.addChild(at(badge, -bs / 2 + 11, bs / 2 - 11))
             let key = makeLabel(b.hotkey, size: 11, color: Palette.amber, font: Fonts.bold, align: .center, valign: .center)
+            key.zPosition = 4
             bg.addChild(at(key, -bs / 2 + 11, bs / 2 - 11))
             let title = makeLabel(b.title, size: 9.5, color: b.enabled ? Palette.text : Palette.dim, font: Fonts.demi, align: .center, valign: .center)
+            title.zPosition = 4
             // The title shrinks until it fits the button, so a long name never runs into its neighbour.
             while title.frame.width > bs - 6 && title.fontSize > 7 { title.fontSize -= 0.5 }
             bg.addChild(at(title, 0, -bs / 2 + 10))
             if let c = b.cost {
                 let cl = makeLabel("\(c)", size: 10, color: afford ? Palette.crystal : Palette.bad, font: Fonts.mono, align: .right, valign: .center)
+                cl.zPosition = 4
                 bg.addChild(at(cl, bs / 2 - 6, bs / 2 - 11))
             }
         }

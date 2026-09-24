@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.acceptsMouseMovedEvents = true
 
         gameView = GameView(frame: frame)
-        gameView.ignoresSiblingOrder = true
+        // Siblings draw in the order they were added. With this true, SpriteKit draws same-z siblings in an
+        // undefined order: labels went under their buttons and card icons under their plates, some frames.
+        gameView.ignoresSiblingOrder = false
         gameView.preferredFramesPerSecond = 60
         window.contentView = gameView
         window.center()

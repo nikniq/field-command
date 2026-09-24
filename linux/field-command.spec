@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.27.0
+Version:        1.27.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,14 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.27.1-1
+- Mac: menu text and command-card icons drew in an undefined order against their backgrounds (the view
+  ignored sibling order), so they showed only some of the time; siblings now draw in order and the card's
+  layers are explicit
+- Title screen, both editions: the Replays button was placed over the quick-settings row since 1.19, so
+  it and the Music/Objectives buttons overdrew each other; Campaign, Multiplayer, Load Game and Replays
+  now share one row under the difficulty cards
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.27.0-1
 - The replay browser: every game is kept (the newest forty), filed by date and map, and R on the title
   screen lists them with map, date, length and result; click one to watch it
