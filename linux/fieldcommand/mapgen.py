@@ -192,6 +192,34 @@ def _rect_dist(r, x, y):
     return math.hypot(dx, dy)
 
 
+def _plateaus(starts, expansions, walls, bridges, cap=4):
+    """Plateaus for a giant map: a grid of candidate 420 x 300 rectangles across the middle band of the map,
+    keeping the ones clear of water, cliffs, bridges, every start and every mineral line, at most `cap` of
+    them spread across the list. Deterministic, so the Mac bake carries the same rectangles."""
+    from .defs import rects_intersect
+    out = []
+    for fy in (0.2, 0.28, 0.36, 0.5, 0.64, 0.72, 0.8):
+        for fx in (0.15, 0.22, 0.35, 0.5, 0.65, 0.78, 0.85):
+            x, y = _W * fx, _H * fy
+            r = (x - 210, y - 150, x + 210, y + 150)
+            margin = (r[0] - 40, r[1] - 40, r[2] + 40, r[3] + 40)
+            if any(rects_intersect(margin, tuple(w[:4])) for w in walls):
+                continue
+            if any(rects_intersect(margin, tuple(b)) for b in bridges):
+                continue
+            if any(math.hypot(s[0] - x, s[1] - y) < 650 for s in starts):
+                continue
+            if any(math.hypot(e[0] - x, e[1] - y) < 330 for e in expansions):
+                continue
+            if any(rects_intersect(margin, o) for o in out):
+                continue
+            out.append(r)
+    if len(out) > cap:
+        step = len(out) / cap
+        out = [out[int(i * step)] for i in range(cap)]
+    return [tuple(round(v, 1) for v in r) for r in out]
+
+
 def _finish(map_id, starts, expansions, roads, seed, walls=(), bridges=(), ridges=()):
     """Adds mineral lines, clearings and forests around the given layout."""
     w, h = _W, _H
@@ -439,7 +467,7 @@ def continental_divide():
     roads = [[*north], [*south]]
     for px in passes:
         roads.append([(px, 760.0), (px, cy), (px, _H - 760.0)])
-    return _finish("continental_divide", starts, expansions, roads, 101, walls)
+    return _finish("continental_divide", starts, expansions, roads, 101, walls, ridges=_plateaus(starts, expansions, walls, ()))
 
 
 def archipelago():
@@ -473,7 +501,7 @@ def archipelago():
         a = math.radians(i * 90)
         far = (cx + math.cos(a) * rx * 0.9, cy + math.sin(a) * ry * 0.9)
         roads.append([far, (cx + math.cos(a) * 1700, cy + math.sin(a) * 1250), (cx, cy)])
-    return _finish("archipelago", starts, expansions, roads, 131, walls, bridges)
+    return _finish("archipelago", starts, expansions, roads, 131, walls, bridges, ridges=_plateaus(starts, expansions, walls, bridges))
 
 
 def six_rivers():
@@ -505,7 +533,7 @@ def six_rivers():
         expansions.append((round(cx + math.cos(a) * 1200, 1), round(cy + math.sin(a) * 1200, 1), 6, rich))
         roads.append([(cx + math.cos(a) * _W * 0.40, cy + math.sin(a) * _H * 0.40), (cx + math.cos(a) * 1200, cy + math.sin(a) * 1200)])
     roads.append([*ring, ring[0]])
-    return _finish("six_rivers", starts, expansions, roads, 149, walls, bridges)
+    return _finish("six_rivers", starts, expansions, roads, 149, walls, bridges, ridges=_plateaus(starts, expansions, walls, bridges))
 
 
 def crater_fields():
@@ -535,7 +563,7 @@ def crater_fields():
     for i in range(12):
         a = math.radians(15 + i * 30)
         roads.append([ring[i], (cx + math.cos(a) * rx * 0.60, cy + math.sin(a) * ry * 0.60), (cx, cy)])
-    return _finish("crater_fields", starts, expansions, roads, 191, walls)
+    return _finish("crater_fields", starts, expansions, roads, 191, walls, ridges=_plateaus(starts, expansions, walls, ()))
 
 
 def long_march():
@@ -568,7 +596,7 @@ def long_march():
     roads = [[*north], [*south]]
     for x in xs:
         roads.append([(x, 820.0), (x, cy), (x, _H - 820.0)])
-    return _finish("long_march", starts, expansions, roads, 223, walls, bridges)
+    return _finish("long_march", starts, expansions, roads, 223, walls, bridges, ridges=_plateaus(starts, expansions, walls, bridges))
 
 
 GENERATORS = {"twin_ridges": twin_ridges, "river_crossing": river_crossing, "highland_pass": highland_pass,
@@ -600,8 +628,9 @@ def bake_swift(path=None):
                 f"    static func {cam}() -> [String: Any] {{",
                 "        setWorldSize(giantWorld.width, giantWorld.height)",
                 f'        return finish("{mid}", starts({cam}Starts), expansions({cam}Expansions), roads({cam}Roads),',
-                f"                      seed: {m['seed']}, walls: walls({cam}Walls), bridges: rects({cam}Bridges))",
+                f"                      seed: {m['seed']}, walls: walls({cam}Walls), bridges: rects({cam}Bridges), ridges: {cam}Ridges)",
                 "    }",
+                f"    static let {cam}Ridges: [(Double, Double, Double, Double)] = [{', '.join('(' + ', '.join(_num(v) for v in r) + ')' for r in m['ridges'])}]",
                 f'    static let {cam}Starts = "{bake_starts(m)}"',
                 f'    static let {cam}Expansions = "{bake_expansions(m)}"',
                 f'    static let {cam}Roads = "{bake_roads(m)}"',

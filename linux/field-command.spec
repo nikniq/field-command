@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.39.1
+Version:        1.40.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.40.0-1
+- High ground on every giant map: up to four plateaus across the middle band, placed clear of water,
+  cliffs, bridges, starts and mineral lines, baked into the Mac edition
+- The computer answers a Gunship over its base with only what can shoot up (its tanks stay put), and
+  puts a turret where the raider was seen if nothing there can reach it
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.39.1-1
 - The computer commits a wave after three pull-backs without the enemy losing a building, so two
   cautious sides cannot stalemate; a test read the wrong snapshot column; the save round-trip test is

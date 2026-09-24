@@ -82,3 +82,36 @@ def test_it_passes_over_ground_units_without_pushing_them():
     run(w, 6)
     assert ship.x > hq.x + 600
     assert all(math.hypot(u.x - bx, u.y - by) < 1 for u, (bx, by) in zip(crowd, before))
+
+
+def test_the_computer_sends_only_what_can_shoot_up_and_puts_a_turret_by_the_raided_field():
+    from fieldcommand.ai import AI
+    w = make_world("twin_ridges")
+    ai = AI(w, 1)
+    w.players[1].is_ai, w.players[1].ai = True, ai
+    hq = hq_of(w, 1)
+    for u in list(w.units):
+        u.command(("idle",))
+    tank = Unit(w, "tank", 1, hq.x - 200, hq.y + 100)
+    ranger = Unit(w, "marine", 1, hq.x - 240, hq.y + 100)
+    for u in (tank, ranger):
+        w._add(u)
+        u.command(("idle",))
+    ship = Unit(w, "gunship", 0, hq.x - 400, hq.y - 300)
+    w._add(ship)
+    ship.command(("idle",))
+    bases = [b for b in w.buildings if b.team == 1]
+    ai._defend(bases, [tank, ranger])
+    assert ranger.order[0] == "amove" and tank.order[0] == "idle"          # the tank cannot help
+    assert ai.air_alarm is not None and abs(ai.air_alarm[0] - ship.x) < 1
+    bk = w.start_building("barracks", hq.x + 300, hq.y, 1)
+    bk.built, bk.progress, bk.hp = True, 1.0, bk.max_hp
+    for dy in (-250, 250):                                              # supply in hand, so the alarm comes first
+        d = w.start_building("depot", hq.x + 300, hq.y + dy, 1)
+        d.built, d.progress, d.hp = True, 1.0, d.max_hp
+    w.resources[1] = 1000
+    workers = [u for u in w.units if u.team == 1 and u.kind == "worker"]
+    ai._construct(hq, [b for b in w.buildings if b.team == 1], workers)
+    building = [u for u in workers if u.order[0] == "build"]
+    assert building and building[0].order[1] == "turret"
+    assert math.hypot(building[0].order[2] - ship.x, building[0].order[3] - ship.y) < 500

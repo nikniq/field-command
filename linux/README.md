@@ -82,7 +82,9 @@ has something to count. It expands on the clock, or earlier when the field by it
 takes gets a turret of its own and a standing garrison (two, three or four troops by difficulty) that
 answers raids on that post instead of leaving with the next wave. The balance runner reports wins by
 opening, so its openings are tuned on evidence. It fields **Gunships** once it has a Factory and a Radar
-Station — more of them against massed tanks, and more Rangers and Snipers when it sees yours — and it
+Station — more of them against massed tanks, and more Rangers and Snipers when it sees yours. A Gunship
+over one of its bases is answered only by what can shoot up (its tanks stay home), and a turret goes up
+where the raider was seen if nothing there can reach it — and it
 walls its approach with **Barricades**: a turtle from the third minute, anyone within a minute of a
 building taking damage, six blocks in two lines either side of a gap so its own army still marches out.
 
@@ -419,7 +421,8 @@ Settings (game speed, edge scrolling, sound, objectives, fullscreen, health bars
 
 Some maps have raised plateaus — drier, lighter grass with a lit rim and a shadow down the far side — on
 Twin Ridges (two flanking the gold), Highland Pass (one on the middle side of each outer pass) and Four
-Corners (either side of the gold). They are walkable and buildable, and anything standing on one, turrets
+Corners (either side of the gold), and every giant map has up to four across its middle band, placed on
+open ground clear of water, cliffs, bridges, starts and mineral lines. They are walkable and buildable, and anything standing on one, turrets
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 

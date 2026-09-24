@@ -14,7 +14,9 @@ def test_three_maps_have_plateaus_inside_the_world_and_clear_of_walls():
             assert 0 <= x0 < x1 <= spec["w"] and 0 <= y0 < y1 <= spec["h"], m["id"]
             assert not any(rects_intersect((x0, y0, x1, y1), tuple(w[:4])) for w in spec["walls"]), m["id"]
             with_ridges.append(m["id"])
-    assert set(with_ridges) == {"twin_ridges", "highland_pass", "four_corners"}
+    assert {"twin_ridges", "highland_pass", "four_corners"} <= set(with_ridges)
+    for mid in mapgen.GIANT_IDS:                                         # every giant map has some high ground
+        assert mid in with_ridges, mid
 
 
 def test_standing_on_a_plateau_sees_and_shoots_further():

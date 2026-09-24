@@ -831,7 +831,9 @@ enum Debug {
                 withRidges.append(m.id)
             }
         }
-        check(Set(withRidges) == ["twin_ridges", "highland_pass", "four_corners"], "three maps have high ground")
+        let giants: Set<String> = ["continental_divide", "archipelago", "six_rivers", "crater_fields", "long_march"]
+        check(Set(withRidges).isSuperset(of: ["twin_ridges", "highland_pass", "four_corners"]) && giants.isSubset(of: Set(withRidges)),
+              "the three hand-drawn maps and every giant map have high ground")
         let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
         let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
         let r = w.ridges[0]
@@ -1030,6 +1032,37 @@ enum Debug {
             run(w, 6)
             let still = zip(crowd, before).allSatisfy { hypot($0.x - $1.0, $0.y - $1.1) < 1 }
             check(ship.x > hq.x + 600 && still, "it passes over ground units without pushing them")
+        }
+        do {
+            let (w, hq0) = fresh()
+            let ai = SAI(world: w, team: 1)
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            _ = hq0
+            for u in w.units { u.command(.idle) }
+            let tank = SUnit(world: w, kind: .tank, team: 1, x: hq.x - 200, y: hq.y + 100)
+            let ranger = SUnit(world: w, kind: .marine, team: 1, x: hq.x - 240, y: hq.y + 100)
+            for u in [tank, ranger] { w.add(u); u.command(.idle) }
+            let ship = SUnit(world: w, kind: .gunship, team: 0, x: hq.x - 400, y: hq.y - 300)
+            w.add(ship); ship.command(.idle)
+            let bases = w.buildings.filter { $0.team == 1 }
+            ai.defend(bases, [tank, ranger])
+            var rangerGoes = false
+            if case .amove = ranger.order { rangerGoes = true }
+            let alarm = ai.airAlarm.map { abs($0.0 - ship.x) < 1 } ?? false
+            w.startBuilding(.barracks, hq.x + 300, hq.y, 1)
+            let bk = w.buildings.last!
+            bk.built = true; bk.progress = 1; bk.hp = bk.maxHp
+            for dy in [-250.0, 250.0] {                                     // supply in hand, so the alarm comes first
+                w.startBuilding(.depot, hq.x + 300, hq.y + dy, 1)
+                let d = w.buildings.last!
+                d.built = true; d.progress = 1; d.hp = d.maxHp
+            }
+            w.resources[1] = 1000
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            ai.constructForTests(hq, w.buildings.filter { $0.team == 1 }, workers)
+            var turretNear = false
+            for wk in workers { if case .build(let k, let x, let y) = wk.order, k == .turret, hypot(x - ship.x, y - ship.y) < 500 { turretNear = true } }
+            check(rangerGoes && tank.order.isIdle && alarm && turretNear, "the computer sends only what can shoot up, and puts a turret by the raided field")
         }
         print(ok ? "AIR TEST PASSED" : "AIR TEST FAILED")
         exit(ok ? 0 : 1)

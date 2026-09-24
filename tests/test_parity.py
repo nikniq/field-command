@@ -184,7 +184,7 @@ def test_map_catalogue_agrees():
 def test_high_ground_agrees():
     """The hand-written maps' plateaus are the ones mapgen.py places."""
     from fieldcommand import mapgen
-    src = swift("ServerWorld.swift")
+    src = swift("ServerWorld.swift") + swift("GiantMaps.swift")
     sw = {}
     for name, body in re.findall(r"static let (\w+)Ridges: \[\(Double, Double, Double, Double\)\] = \[(.*?)\]\n", src):
         sw[name] = [tuple(float(v) for v in r.split(",")) for r in re.findall(r"\(([\d., ]+)\)", body)]

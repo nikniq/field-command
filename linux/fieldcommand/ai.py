@@ -79,6 +79,7 @@ class AI:
         self.next_raid = 240.0
         self.salvager = None             # the Engineer sent for the derelict Siege Tank
         self.gold_miners = []            # Engineers kept on the gold for alloy
+        self.air_alarm = None            # (x, y, when): where a Gunship was last over one of this side's bases
         # A wave that is being beaten pulls back; a repelled attack on this base is answered at once.
         self.launched = 0                # how many went out with the current wave and raids
         self.threat_seen_at = -1e9       # when an enemy was last near a base of this side
@@ -272,6 +273,14 @@ class AI:
             e = self._expansion_site(hq.x, hq.y)
             if e:
                 want, site = "hq", e
+        if want is None and self.air_alarm is not None and g.elapsed - self.air_alarm[2] < 90 \
+                and self._pending("turret", workers) == 0 and g.has_built("barracks", self.team):
+            # A Gunship over the base: a turret goes up where it was, if nothing there can shoot up already.
+            ax, ay, _ = self.air_alarm
+            if not any(b.kind == "turret" and math.hypot(b.x - ax, b.y - ay) < 450 for b in bases):
+                spot = self._find_spot("turret", ax, ay)
+                if spot:
+                    want, site = "turret", spot
         if want is None and t > 120:
             # An expansion without a turret of its own gets one before the plan goes on.
             e = self._unguarded_expansion(hq, bases)
@@ -547,12 +556,16 @@ class AI:
                 self.threat_seen_at = -1e9
             return
         self.threat_seen_at = g.elapsed
+        flying = threat.stats.flies
+        if flying:
+            self.air_alarm = (threat.x, threat.y, g.elapsed)
+        # Against an aircraft only what can shoot up goes: tanks chasing a Gunship is a wasted army.
         for u in home:
-            if u.order[0] in ("idle", "move"):
+            if u.order[0] in ("idle", "move") and (not flying or u.stats.hits_air):
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
         # A garrison answers what comes at its own post.
         for u in self.guards:
-            if u.order[0] == "idle" and math.hypot(u.x - threat.x, u.y - threat.y) < 700:
+            if u.order[0] == "idle" and math.hypot(u.x - threat.x, u.y - threat.y) < 700 and (not flying or u.stats.hits_air):
                 u.command(("amove", *self._standoff(u, threat.x, threat.y)))
 
     def _salvage(self, hq, workers, home):

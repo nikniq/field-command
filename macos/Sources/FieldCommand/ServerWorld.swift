@@ -2821,6 +2821,8 @@ final class SAI {
     private var salvager: SUnit?
     /// Engineers kept on the gold for alloy.
     private var goldMiners: [SUnit] = []
+    /// Where a Gunship was last over one of this side's bases, and when.
+    var airAlarm: (Double, Double, Double)?
     var goldMinersForTests: [SUnit] { goldMiners }
     /// Time of the last allied alert point this side sent troops to.
     private var answeredPing = -1.0
@@ -2925,6 +2927,7 @@ final class SAI {
     }
     var salvagerForTests: SUnit? { salvager }
     func upgradeForTests(_ hq: SBuilding, _ bases: [SBuilding]) { upgrade(hq, bases) }
+    @discardableResult func constructForTests(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit]) -> Double { construct(hq, bases, workers) }
 
     /// Rangers lob grenades into a knot of enemies, Snipers mark the toughest thing in reach, and a hurt Siege
     /// Tank under fire pops smoke.
@@ -3176,6 +3179,12 @@ final class SAI {
             want = .hq
             site = e
         }
+        if want == nil, let (ax, ay, at) = airAlarm, g.elapsed - at < 90, pending(.turret, workers) == 0, g.hasBuilt(.barracks, team),
+           !bases.contains(where: { $0.kind == .turret && hyp($0.x - ax, $0.y - ay) < 450 }), let spot = findSpot(.turret, ax, ay) {
+            // A Gunship over the base: a turret goes up where it was, if nothing there can shoot up already.
+            want = .turret
+            site = spot
+        }
         if want == nil && t > 120, let e = unguardedExpansion(hq, bases), pending(.turret, workers) == 0,
            let spot = findSpot(.turret, e.x, e.y) {
             // An expansion without a turret of its own gets one before the plan goes on.
@@ -3363,7 +3372,10 @@ final class SAI {
             return
         }
         threatSeenAt = g.elapsed
-        for u in home {
+        let flying = threat.stats.flies
+        if flying { airAlarm = (threat.x, threat.y, g.elapsed) }
+        // Against an aircraft only what can shoot up goes: tanks chasing a Gunship is a wasted army.
+        for u in home where !flying || u.stats.hitsAir {
             switch u.order {
             case .idle, .move:
                 let (x, y) = standoff(u, threat.x, threat.y)
@@ -3372,7 +3384,7 @@ final class SAI {
             }
         }
         // A garrison answers what comes at its own post.
-        for u in guards where u.order.isIdle && hyp(u.x - threat.x, u.y - threat.y) < 700 {
+        for u in guards where u.order.isIdle && hyp(u.x - threat.x, u.y - threat.y) < 700 && (!flying || u.stats.hitsAir) {
             let (x, y) = standoff(u, threat.x, threat.y)
             u.command(.amove(x, y))
         }
