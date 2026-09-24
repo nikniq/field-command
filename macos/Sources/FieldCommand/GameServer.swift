@@ -96,9 +96,15 @@ final class GameServer {
     static func singlePlayer(mission m: Mission) -> GameServer {
         let s = singlePlayer(opponents: m.opponents, difficulty: m.difficulty, mapId: m.map, teams: m.teams)
         s.mission = m
+        s.veterans = pendingVeterans
+        pendingVeterans = []
         return s
     }
+    /// Veterans queued for the next mission server (set by startMissionGame).
+    static var pendingVeterans: [(String, Int)] = []
     var mission: Mission?
+    /// Veterans (kind, kills) carried into a mission by the player, from Settings.campaignVeterans.
+    var veterans: [(String, Int)] = []
     /// The skirmish rule for a new game (Defs.modes), the crystal in the bank at the start and what stands.
     var mode = "annihilation"
     var startCrystal: Int = startCrystalOptions[1]
@@ -500,8 +506,9 @@ final class GameServer {
                                isAI: recordedAI ?? (s.kind == "ai"), start: i)
             }
             w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal, seed: replay?.seed,
-                       startCrystal: startCrystal, startBase: startBase)
+                       startCrystal: startCrystal, startBase: startBase, veterans: replay?.veterans ?? veterans)
             w.mission = mission
+            w.placeVIP()
         }
         world = w
         mission = w.mission
@@ -514,6 +521,7 @@ final class GameServer {
             guard let s = c.slot else { continue }
             var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals, "mode": w.mode, "start_crystal": w.startCrystal, "start_base": w.startBase]
             if let m = w.mission { msg["mission"] = m.id }
+            if let v = w.vip { msg["vip"] = v.id }
             if w.mode == "koth" { msg["ring"] = [w.ring.0, w.ring.1] }
             if let m = w.mission, let h = m.hold { msg["ring"] = [h.0, h.1, h.2] }
             if replay != nil { msg["replay"] = 1 }

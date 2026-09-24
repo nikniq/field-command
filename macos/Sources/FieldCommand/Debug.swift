@@ -415,6 +415,61 @@ enum Debug {
     /// FC_TECHTEST=1: side-wide tech — entrenchment and stabilisers — matching linux/tests/test_tech.py.
     /// FC_ALLOYTEST=1: the second resource — mined from gold, spent on tanks, Gunships, Artillery and tech, refunded
     /// when undone, carried on the wire and in saves — matching linux/tests/test_alloy.py.
+    /// FC_STAKESTEST=1: campaign stakes — veterans, branching unlocks and the named unit — matching
+    /// linux/tests/test_campaign_stakes.py.
+    static func runStakesTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func world(_ id: String, veterans: [(String, Int)] = []) -> (SWorld, Mission) {
+            let m = missionNamed(id)!
+            let spec = SMapGen.resolve(m.map, players: 1 + m.opponents)
+            let ps = (0..<(1 + m.opponents)).map { SPlayer(slot: $0, name: "P\($0)", team: m.teams >= 2 ? $0 % m.teams + 1 : $0 + 1, isAI: $0 > 0, start: $0) }
+            let w = SWorld(map: spec, players: ps, difficulty: Difficulty(rawValue: m.difficulty) ?? .normal, seed: 3, veterans: veterans)
+            w.mission = m
+            w.placeVIP()
+            return (w, m)
+        }
+        func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30 } }
+        do {
+            let by = Dictionary(uniqueKeysWithValues: campaign.map { ($0.id, $0) })
+            var good = by["first_light"]!.requires.isEmpty && by["hold_the_line"]!.requires == ["first_light"] && by["gold_run"]!.requires == ["first_light"]
+            good = good && Set(by["crossfire"]!.requires) == ["hold_the_line", "gold_run"] && by["long_march"]!.requires == ["crossfire"]
+            good = good && by["gold_run"]!.vip?.0 == "sniper" && by["gold_run"]!.vip?.1 == "Sergeant Kade" && by["long_march"]!.vip?.0 == "tank"
+            check(good && veteranCarry == 8, "missions open in branches, two of them with a named unit")
+        }
+        do {
+            let (w, _) = world("first_light", veterans: [("marine", vetThresholds[1]), ("tank", vetThresholds[0]), ("worker", 99)])
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            let vets = w.units.filter { $0.team == 0 && $0.rank > 0 }
+            let kinds = Set(vets.map { NetProtocol.name($0.kind) })
+            let rightKinds: Bool = kinds == ["marine", "tank"] && vets.count == 2
+            var ranked = false, near = true
+            if let r = vets.first(where: { $0.kind == .marine }) {
+                let hpUp: Bool = r.maxHp > Double(UnitKind.marine.stats.hp)
+                ranked = r.rank == 2 && r.kills == vetThresholds[1] && hpUp && r.hp == r.maxHp
+            }
+            for v in vets { if hypot(v.x - hq.x, v.y - hq.y) >= 200 { near = false } }
+            check(rightKinds && ranked && near, "veterans stand by the Command Center with their rank; an Engineer is no veteran")
+        }
+        do {
+            let (w, _) = world("gold_run")
+            for u in w.units { u.command(.idle) }
+            let v = w.vip
+            let stands = v != nil && v!.kind == .sniper && v!.team == 0
+            run(w, 1)
+            let alive = !w.gameOver
+            v!.hp = 0; v!.dead = true
+            run(w, 0.5)
+            check(stands && alive && w.gameOver && w.winnerTeam != w.players[0]!.team, "the named unit stands with you, and its death loses the mission")
+            let (w2, _) = world("first_light", veterans: [("sniper", vetThresholds[0])])
+            let rec = try! Replay(try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: Replay.encode(w2, viewer: 0))) as! [String: Any])
+            check(w2.vip == nil && rec.veterans.count == 1 && rec.veterans[0].0 == "sniper" && rec.veterans[0].1 == vetThresholds[0],
+                  "missions without a named unit, and a replay carries the veterans")
+        }
+        print(ok ? "STAKES TEST PASSED" : "STAKES TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runAlloyTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

@@ -294,6 +294,8 @@ final class NetSession {
     var alloy = alloyStart
     /// Seconds until this side can call reinforcements again.
     var reinforceLeft = 0.0
+    /// The mission's named unit, if any: it must survive.
+    var vipId = -1
     /// Smoke on the ground: (position, seconds left).
     var smokes: [(CGPoint, Double)] = []
     /// Base64 fog bits from a resumed game, applied once the scene's fog exists.
@@ -342,6 +344,7 @@ final class NetSession {
         map = jDict(start["map"])
         explored = start["explored"] as? String
         mission = missionNamed(start["mission"] as? String)
+        vipId = (start["vip"] as? NSNumber)?.intValue ?? -1
         mode = (start["mode"] as? String) ?? "annihilation"
         resources = (start["start_crystal"] as? NSNumber)?.intValue ?? startCrystal
         let r = jArr(start["ring"])

@@ -212,6 +212,11 @@ jobs:
         run: |
           set -o pipefail
           FC_ALLOYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ALLOY TEST PASSED"
+      - name: Headless Stakes
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_STAKESTEST=1 "$BIN" | tee /dev/stderr | grep -q "STAKES TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

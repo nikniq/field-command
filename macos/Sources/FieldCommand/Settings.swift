@@ -85,6 +85,12 @@ enum Settings {
         get { d.stringArray(forKey: "campaignDone") ?? [] }
         set { d.set(newValue, forKey: "campaignDone") }
     }
+    /// Veterans carried between missions, as "kind:kills" entries, best first.
+    static var campaignVeterans: [(String, Int)] {
+        get { (d.stringArray(forKey: "campaignVeterans") ?? []).compactMap { e in
+            let parts = e.split(separator: ":"); return parts.count == 2 ? (String(parts[0]), Int(parts[1]) ?? 0) : nil } }
+        set { d.set(newValue.map { "\($0.0):\($0.1)" }, forKey: "campaignVeterans") }
+    }
 
     static var lastDifficulty: Int {
         get { d.object(forKey: "lastDifficulty") as? Int ?? 1 }

@@ -332,9 +332,12 @@ class Unit(Entity):
         self.repath = 0.0
         self.shortcut = 0.0
 
+    # A mission's named unit carries its name onto the card.
+    custom_name = None
+
     @property
     def name(self):
-        return self.stats.name
+        return self.custom_name or self.stats.name
 
     # ------------------------------------------------------------ the Armory
 

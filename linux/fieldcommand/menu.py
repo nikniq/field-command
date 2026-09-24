@@ -161,7 +161,7 @@ class MenuScene:
         from .defs import DIFFICULTIES
         audio.play("click")
         session = LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay, map_id=m.map,
-                               opponents=m.opponents, teams=m.teams, mission=m.id)
+                               opponents=m.opponents, teams=m.teams, mission=m.id, veterans=settings.campaign_veterans)
         self.app.set_scene(GameScene(self.app, session))
 
     @staticmethod
@@ -241,6 +241,14 @@ class MenuScene:
         for line in ui.wrap(m.brief, 13, rw)[:4]:
             ui.blit_text(screen, line, 13, TEXT, (rx, y))
             y += 18
+        if m.vip:
+            from .defs import UNITS
+            ui.blit_text(screen, f"Must survive: {m.vip[1]} ({UNITS[m.vip[0]].name})", 12, BAD, (rx, y), bold=True)
+            y += 18
+        vets = len(settings.campaign_veterans)
+        if vets:
+            ui.blit_text(screen, f"Veterans deploying with you: {vets}", 12, GOOD, (rx, y), bold=True)
+            y += 18
         y += 10
         ui.blit_text(screen, "OBJECTIVE", 12, AMBER, (rx, y), bold=True)
         ui.blit_text(screen, self.objective_text(m), 13, TEXT, (rx, y + 18))
@@ -271,11 +279,14 @@ class MenuScene:
         bx, by = (w - box_w) // 2, max(10, (h - box_h) // 2)
         screen.blit(art.panel(box_w, box_h, 16, GOOD), (bx, by))
         ui.blit_text(screen, "CAMPAIGN", 36, GOOD, (w / 2, by + 44), align="center", bold=True)
-        ui.blit_text(screen, "Five missions, played in order. Each unlocks the next.", 13, TEXT, (w / 2, by + 78), align="center", bold=True)
+        vets = len(settings.campaign_veterans)
+        ui.blit_text(screen, "Five missions. Finishing one opens the next; the middle two open together."
+                     + (f"  {vets} veteran{'s' if vets != 1 else ''} ready to deploy." if vets else ""),
+                     13, TEXT, (w / 2, by + 78), align="center", bold=True)
         self.campaign_rows = []
         y = by + 118
         for i, m in enumerate(CAMPAIGN):
-            unlocked = i == 0 or CAMPAIGN[i - 1].id in done
+            unlocked = not m.requires or any(r in done for r in m.requires)
             finished = m.id in done
             r = pygame.Rect(bx + 20, int(y), box_w - 40, row_h - 8)
             hover = mouse is not None and r.collidepoint(mouse) and unlocked

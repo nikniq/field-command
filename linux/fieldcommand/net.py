@@ -433,7 +433,8 @@ class Server:
         for c in self.clients:
             if c.slot is not None:
                 c.send({"t": "start", "slot": c.slot, "map": spec, "players": info, "difficulty": self.difficulty,
-                        "crystals": crystals, "mode": w.mode, "start_crystal": w.start_crystal, "start_base": w.start_base})
+                        "crystals": crystals, "mode": w.mode, "start_crystal": w.start_crystal, "start_base": w.start_base,
+                        "vip": w.vip.id if w.vip is not None else -1})
         self.log(f"Game started: {len(active)} players on {spec['name']}")
 
     async def _tick_loop(self):

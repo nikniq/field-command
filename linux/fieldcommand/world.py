@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ABILITIES, ALLOY_BUILD, ALLOY_COST, ALLOY_START, ALLOY_UPGRADE, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ABILITIES, VETERAN_KINDS, VETERAN_CARRY, VET_BONUS, VET_THRESHOLDS, UNITS, ALLOY_BUILD, ALLOY_COST, ALLOY_START, ALLOY_UPGRADE, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -33,7 +33,7 @@ class PlayerInfo:
 
 class World:
     def __init__(self, map_spec, players, difficulty, mission=None, seed=None, mode="annihilation",
-                 start_crystal=START_CRYSTAL, start_base="fresh"):
+                 start_crystal=START_CRYSTAL, start_base="fresh", veterans=()):
         self.map = map_spec
         self.difficulty = difficulty
         # Every random choice the simulation makes comes from this generator, so a game is a pure function of
@@ -67,6 +67,8 @@ class World:
         self.mission = MISSION_BY_ID.get(mission) if isinstance(mission, str) else mission
         self.mission_timer = 0.0
         self.mission_fired = 0          # how many of the mission's scripted events have gone off
+        self.veterans = [(str(k), int(n)) for k, n in veterans][:VETERAN_CARRY]   # (kind, kills) slot 0 brought along
+        self.vip = None                 # the mission's named unit that must survive
         # The skirmish mode (defs.MODES); King of the Hill keeps a hold timer per alliance around the gold.
         self.mode = mode if mode in MODE_BY_ID and mission is None else "annihilation"
         self.hold = {}
@@ -137,6 +139,25 @@ class World:
                 self._add(u)
             if p.is_ai:
                 p.ai = AI(self, p.slot)
+            if p.slot == 0:
+                # Veterans from the last mission stand ready by the Command Center, ranked as they left it.
+                for i, (kind, kills) in enumerate(self.veterans):
+                    if kind not in UNITS or kind not in VETERAN_KINDS:
+                        continue
+                    a = base + math.pi + (i - 3) * 0.5
+                    u = Unit(self, kind, 0, sx + math.cos(a) * 150, sy + math.sin(a) * 150)
+                    u.kills = kills
+                    u.rank = sum(1 for t in VET_THRESHOLDS if kills >= t)
+                    u.max_hp += u.stats.hp * VET_BONUS * u.rank
+                    u.hp = u.max_hp
+                    self._add(u)
+                m = self.mission
+                if m is not None and m.vip and m.vip[0] in UNITS:
+                    # The mission's named unit: it must survive.
+                    v = Unit(self, m.vip[0], 0, sx, sy - 160)
+                    v.custom_name = f"{m.vip[1]} ({UNITS[m.vip[0]].name})"
+                    self._add(v)
+                    self.vip = v
         self.update_visibility()
 
     # ------------------------------------------------------------ identity & alliances
@@ -489,9 +510,19 @@ class World:
         return self.elapsed if m.win == "survive" else self.mission_timer
 
     def _check_mission(self, dt):
-        """A timed mission ends in victory for the player's side when its clock or its hold is done."""
+        """A timed mission ends in victory for the player's side when its clock or its hold is done; any
+        mission ends in defeat the moment its named unit falls."""
         m = self.mission
-        if m is None or self.game_over or m.win == "destroy":
+        if m is None or self.game_over:
+            return
+        if self.vip is not None and self.vip.dead:
+            self.game_over = True
+            self.winner_team = next((p.team for p in self.players.values() if self.enemies(p.slot, 0)), None)
+            for s in self.players:
+                self.emit("msg", s, f"{m.vip[1]} is down — mission failed", "bad")
+            self.emit("gameover", -1 if self.winner_team is None else self.winner_team)
+            return
+        if m.win == "destroy":
             return
         me = self.players[0]
         if not me.alive:

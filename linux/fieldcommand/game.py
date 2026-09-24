@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, ALLOY, ALLOY_BUILD, ALLOY_COST, ALLOY_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, VETERAN_CARRY, VETERAN_KINDS, VET_THRESHOLDS, ALLOY, ALLOY_BUILD, ALLOY_COST, ALLOY_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -271,8 +271,13 @@ class GameScene:
             won = self.s.winner_team == my_team
             audio.play("victory" if won else "defeat")
             mission = getattr(self.s, "mission", None)
-            if won and mission and mission.id not in settings.campaign_done:
-                settings.set("campaign_done", list(settings.campaign_done) + [mission.id])
+            if won and mission:
+                if mission.id not in settings.campaign_done:
+                    settings.set("campaign_done", list(settings.campaign_done) + [mission.id])
+                # The survivors with a rank carry over, best first, up to VETERAN_CARRY of them.
+                vets = sorted((u for u in self.s.units if self.mine(u) and not u.dead and getattr(u, "rank", 0) > 0
+                               and u.kind in VETERAN_KINDS), key=lambda u: -u.rank)[:VETERAN_CARRY]
+                settings.set("campaign_veterans", [[u.kind, VET_THRESHOLDS[min(u.rank, len(VET_THRESHOLDS)) - 1]] for u in vets])
             if self.s.can_pause and not getattr(self.s, "spectating", False) and self.s.players[self.s.slot].alive or won:
                 settings.record_result(won, self.difficulty.index)
             self._record_replay()
@@ -633,7 +638,7 @@ class GameScene:
         from .session import LocalSession
         self.app.set_scene(GameScene(self.app, LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay,
                                                             map_id=m.map, opponents=m.opponents, teams=m.teams,
-                                                            mission=m.id)))
+                                                            mission=m.id, veterans=settings.campaign_veterans)))
 
     def next_mission(self):
         from .defs import CAMPAIGN

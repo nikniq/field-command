@@ -285,11 +285,15 @@ def test_campaign_agrees():
     from fieldcommand.defs import CAMPAIGN
     src = swift("Defs.swift")
     rows = re.findall(r'Mission\(id: "(\w+)", title: "([^"]+)", map: "(\w+)", opponents: (\d+), difficulty: (\d+), teams: (\d+), '
-                      r'win: "(\w+)", seconds: (\d+), hold: (nil|\([\d., ]+\)),\s*brief: "([^"]+)",\s*events: \[(.*?)\]\)', src, re.S)
+                      r'win: "(\w+)", seconds: (\d+), hold: (nil|\([\d., ]+\)),\s*brief: "([^"]+)",\s*events: \[(.*?)\],'
+                      r'\s*requires: \[(.*?)\], vip: (nil|\("\w+", "[^"]+"\))\)', src, re.S)
     assert len(rows) == len(CAMPAIGN)
     for r, m in zip(rows, CAMPAIGN):
         assert (r[0], r[1], r[2], int(r[3]), int(r[4]), int(r[5]), r[6], float(r[7]), r[9]) == \
             (m.id, m.title, m.map, m.opponents, m.difficulty, m.teams, m.win, float(m.seconds), m.brief), m.id
+        assert tuple(re.findall(r'"(\w+)"', r[11])) == m.requires, m.id
+        vip = () if r[12] == "nil" else tuple(re.findall(r'"([^"]+)"', r[12]))
+        assert vip == m.vip, m.id
         hold = () if r[8] == "nil" else tuple(float(v) for v in r[8].strip("()").split(","))
         assert hold == tuple(float(v) for v in m.hold), m.id
         evs = re.findall(r'MissionEvent\(kind: "(\w+)", at: (\d+)(?:, owner: (\d+), unit: "(\w+)", count: (\d+), from: (\d+), target: (-?\d+))?, '

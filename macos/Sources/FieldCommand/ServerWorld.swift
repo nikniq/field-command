@@ -1543,9 +1543,14 @@ final class SWorld {
     /// The second resource, per slot.
     var alloy: [Int: Double] = [:]
 
+    /// The named unit of a mission that must survive, and the veterans (kind, kills) that came in with slot 0.
+    private(set) var vip: SUnit?
+    private(set) var veterans: [(String, Int)] = []
+
     init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil,
-         startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh") {
+         startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh", veterans vets: [(String, Int)] = []) {
         self.startCrystal = crystal
+        self.veterans = vets
         for p in list { alloy[p.slot] = Double(alloyStart) }
         self.startBase = base == "established" ? "established" : "fresh"
         self.seed = seed ?? UInt64.random(in: 1..<(1 << 31))
@@ -1628,6 +1633,19 @@ final class SWorld {
                 add(u)
             }
             if p.isAI { p.ai = SAI(world: self, team: p.slot) }
+            if p.slot == 0 {
+                // Veterans from the last mission stand ready by the Command Center, ranked as they left it.
+                for (i, (kindName, kills)) in veterans.prefix(veteranCarry).enumerated() {
+                    guard let k = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == kindName }), veteranKinds.contains(k) else { continue }
+                    let a = base + .pi + Double(i - 3) * 0.5
+                    let u = SUnit(world: self, kind: k, team: 0, x: sx + cos(a) * 150, y: sy + sin(a) * 150)
+                    u.kills = kills
+                    u.rank = vetThresholds.filter { kills >= $0 }.count
+                    u.maxHp += Double(u.stats.hp) * vetBonus * Double(u.rank)
+                    u.hp = u.maxHp
+                    add(u)
+                }
+            }
         }
         updateVisibility()
         rng = simRNG
@@ -2003,7 +2021,25 @@ final class SWorld {
     }
 
     /// A timed mission ends in victory for the player's side when its clock or its hold is done.
+    /// The mission's named unit, placed once the map is set (called by the server after `mission` is assigned).
+    func placeVIP() {
+        guard let m = mission, let (kindName, _) = m.vip, vip == nil,
+              let k = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == kindName }),
+              let hq = buildings.first(where: { $0.team == 0 && $0.kind == .hq }) else { return }
+        let u = SUnit(world: self, kind: k, team: 0, x: hq.x, y: hq.y - 160)
+        add(u)
+        vip = u
+        updateVisibility()
+    }
+
     private func checkMission(_ dt: Double) {
+        if let v = vip, v.dead, !gameOver, let m = mission, let (_, name) = m.vip {
+            gameOver = true
+            winnerTeam = players.values.first { enemies($0.slot, 0) }?.team
+            for slot in players.keys.sorted() { emit(["msg", slot, "\(name) is down — mission failed", "bad"]) }
+            emit(["gameover", winnerTeam ?? -1])
+            return
+        }
         guard let m = mission, !gameOver, m.win != "destroy", let me = players[0], me.alive else { return }
         if m.win == "hold", let (hx, hy, hr) = m.hold {
             let mine = units.contains { !$0.dead && allied($0.team, 0) && hyp($0.x - hx, $0.y - hy) <= hr }

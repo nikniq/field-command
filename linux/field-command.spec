@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.38.0
+Version:        1.39.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.39.0-1
+- Campaign with stakes: up to eight ranked survivors of a won mission deploy with you in the next, at
+  their rank; missions open in branches (Hold the Line and The Gold Run both open after First Light,
+  Crossfire after either); The Gold Run and The Long March each field a named unit — Sergeant Kade, a
+  Sniper, and Colonel Rook, a Siege Tank — whose death loses the mission
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.38.0-1
 - Alloy, a second resource: gold deposits now yield alloy instead of crystal, every side starts with 100,
   and Siege Tanks (30), Gunships (40), Artillery (50), the Twin cannon (20), Entrenchment (40) and

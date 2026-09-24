@@ -422,6 +422,17 @@ Corners (either side of the gold). They are walkable and buildable, and anything
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 
+## The campaign has stakes
+
+Three things carry weight between missions. **Veterans**: when you win, up to eight of your surviving units
+with a rank (Rangers, Snipers, tanks, Medics, Gunships) are kept, and deploy with you at the start of the
+next mission at the rank they earned, standing behind the Command Center. Lose them and they are gone; win
+without them and the roster is whatever survived. **Branches**: First Light opens both Hold the Line and
+The Gold Run, either of those opens Crossfire, and Crossfire opens The Long March, so the middle of the
+campaign is yours to order. **Named units**: The Gold Run puts **Sergeant Kade**, a Sniper, and The Long
+March **Colonel Rook**, a Siege Tank, at your Command Center from the first second. The briefing says
+*must survive*, the card carries the name, and the moment one falls the mission is lost.
+
 ## Alloy: the second resource
 
 Crystal pays for everything, but the heavy end of the army also costs **alloy**, shown as an ingot beside the

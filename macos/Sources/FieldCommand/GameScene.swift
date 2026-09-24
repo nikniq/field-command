@@ -934,7 +934,13 @@ final class GameScene: SKScene {
         gameOver = true
         if !Settings.tutorialDone { Settings.tutorialDone = true }         // a game played out is lesson enough
         recordReplay()
-        if won, let m = net?.mission, !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
+        if won, let m = net?.mission {
+            if !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
+            // The survivors with a rank carry over, best first, up to veteranCarry of them.
+            let vets = units.filter { $0.team.isLocal && !$0.dead && $0.rank > 0 && veteranKinds.contains($0.kind) }
+                .sorted { $0.rank > $1.rank }.prefix(veteranCarry)
+            Settings.campaignVeterans = vets.map { (NetProtocol.name($0.kind), vetThresholds[min($0.rank, vetThresholds.count) - 1]) }
+        }
         if let net, net.isLocal, !net.spectating { Settings.recordResult(won: won, difficulty: difficulty.rawValue) }
         cancelModes()
         fog.revealAll = true

@@ -247,7 +247,9 @@ final class Unit: Entity {
 
     var radius: CGFloat { stats.radius }
     override var bodyRadius: CGFloat { stats.radius }
-    override var displayName: String { stats.name }
+    /// A mission's named unit carries its name onto the card.
+    var customName: String?
+    override var displayName: String { customName ?? stats.name }
     override var glyph: String { stats.glyph }
     override var portrait: SKTexture { Art.unit(kind, team) }
 

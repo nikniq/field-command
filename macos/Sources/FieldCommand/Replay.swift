@@ -37,7 +37,9 @@ final class Replay {
         mode = (d["mode"] as? String) ?? "annihilation"
         startCrystal = (d["start_crystal"] as? NSNumber)?.intValue ?? 2000
         startBase = (d["start_base"] as? String) ?? "fresh"
+        veterans = jArr(d["veterans"]).map { jArr($0) }.filter { $0.count == 2 }.map { (jStr($0[0]), jInt($0[1])) }
     }
+    let veterans: [(String, Int)]
 
     static var replaysDir: URL { SaveGame.savesDir.deletingLastPathComponent().appendingPathComponent("replays") }
     static func path(_ name: String) -> URL { replaysDir.appendingPathComponent("\(name).json") }
@@ -47,6 +49,7 @@ final class Replay {
          "saved_at": Int(Date().timeIntervalSince1970), "map": jStr(w.map["id"]), "difficulty": w.difficulty.rawValue,
          "seed": Int(w.seed), "mission": w.mission.map { $0.id as Any } ?? NSNull(), "viewer": viewer, "mode": w.mode,
          "start_crystal": w.startCrystal, "start_base": w.startBase,
+         "veterans": w.veterans.map { [$0.0, $0.1] as [Any] },
          "players": w.players.values.sorted { $0.slot < $1.slot }.map {
              ["slot": $0.slot, "name": $0.name, "team": $0.team, "ai": $0.isAI] as [String: Any] },
          "elapsed": w.elapsed, "ticks": w.tick, "winner_team": w.winnerTeam.map { $0 as Any } ?? NSNull(),

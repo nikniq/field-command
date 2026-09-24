@@ -27,6 +27,7 @@ class _Settings:
                 "start_crystal": 5000,    # defs.START_CRYSTAL_OPTIONS
                 "start_base": "fresh",    # defs.START_BASES
                 "campaign_done": [],   # mission ids completed, in any order
+                "campaign_veterans": [],   # [kind, kills] carried from the last won mission, best first
                 "bars_always": False,  # health bars on everything, not only the hurt and the selected
                 "ui_scale": 0,  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
                 "keys": {},     # action -> key name, where it differs from defs.DEFAULT_KEYS

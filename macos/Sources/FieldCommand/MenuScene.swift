@@ -451,12 +451,14 @@ final class MenuScene: SKScene {
         let title = makeLabel("CAMPAIGN", size: 36, color: Palette.good, font: Fonts.heavy, align: .center, valign: .center)
         title.position = CGPoint(x: 0, y: top - 44)
         campaignLayer.addChild(title)
-        let sub = makeLabel("Five missions, played in order. Each unlocks the next.", size: 13, color: Palette.text, font: Fonts.demi, align: .center, valign: .center)
+        let vets = Settings.campaignVeterans.count
+        let sub = makeLabel("Five missions. Finishing one opens the next; the middle two open together." + (vets > 0 ? "  \(vets) veteran\(vets == 1 ? "" : "s") ready to deploy." : ""),
+                            size: 13, color: Palette.text, font: Fonts.demi, align: .center, valign: .center)
         sub.position = CGPoint(x: 0, y: top - 78)
         campaignLayer.addChild(sub)
         var y = top - 118
         for (i, m) in campaign.enumerated() {
-            let unlocked = i == 0 || done.contains(campaign[i - 1].id)
+            let unlocked = m.requires.isEmpty || m.requires.contains { done.contains($0) }
             let finished = done.contains(m.id)
             let r = CGRect(x: -boxW / 2 + 20, y: y - rowH + 6, width: boxW - 40, height: rowH - 8)
             let bg = SKSpriteNode(texture: Art.button(r.size, unlocked ? (finished ? .active : .normal) : .disabled,
@@ -653,6 +655,19 @@ final class MenuScene: SKScene {
         var y = top - 100
         for line in wrapText(m.brief, size: 13, width: rw).prefix(4) {
             let l = makeLabel(line, size: 13, color: Palette.text, font: Fonts.medium, align: .left, valign: .center)
+            l.position = CGPoint(x: rx, y: y)
+            briefingLayer.addChild(l)
+            y -= 18
+        }
+        if let (kindName, name) = m.vip, let k = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == kindName }) {
+            let l = makeLabel("Must survive: \(name) (\(k.stats.name))", size: 12, color: Palette.bad, font: Fonts.bold, align: .left, valign: .center)
+            l.position = CGPoint(x: rx, y: y)
+            briefingLayer.addChild(l)
+            y -= 18
+        }
+        let vets = Settings.campaignVeterans.count
+        if vets > 0 {
+            let l = makeLabel("Veterans deploying with you: \(vets)", size: 12, color: Palette.good, font: Fonts.bold, align: .left, valign: .center)
             l.position = CGPoint(x: rx, y: y)
             briefingLayer.addChild(l)
             y -= 18

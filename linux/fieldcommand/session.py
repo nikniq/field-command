@@ -120,7 +120,8 @@ class LocalSession(_Base):
     can_pause = True
 
     def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
-                 world=None, mission=None, seed=None, mode="annihilation", start_crystal=START_CRYSTAL, start_base="fresh"):
+                 world=None, mission=None, seed=None, mode="annihilation", start_crystal=START_CRYSTAL, start_base="fresh",
+                 veterans=()):
         self.difficulty = difficulty
         self.slot = slot
         if world is not None:
@@ -136,7 +137,7 @@ class LocalSession(_Base):
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
         self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed, mode=mode,
-                                                           start_crystal=start_crystal, start_base=start_base)
+                                                           start_crystal=start_crystal, start_base=start_base, veterans=veterans)
         self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
@@ -168,7 +169,7 @@ class LocalSession(_Base):
         session = cls(DIFFICULTIES[rec.difficulty], map_id=rec.map, opponents=len(rec.players) - 1,
                       players=[PlayerInfo(p["slot"], p["name"], p["team"], is_ai=p["ai"]) for p in rec.players],
                       slot=rec.viewer, mission=rec.mission, seed=rec.seed, mode=rec.mode,
-                      start_crystal=rec.start_crystal, start_base=rec.start_base)
+                      start_crystal=rec.start_crystal, start_base=rec.start_base, veterans=rec.veterans)
         session.replay = rec
         return session
 
@@ -519,6 +520,7 @@ class NetSession(_Base):
         self.elapsed = 0.0
         self.resources = int(start_msg.get("start_crystal", START_CRYSTAL))
         self.alloy = ALLOY_START
+        self.vip_id = int(start_msg.get("vip", -1))
         self._reinforce_left = 0.0
         self.smokes = []
         self.supply_used, self.supply_cap = 0, 10
@@ -611,6 +613,8 @@ class NetSession(_Base):
             ra, rg = math.radians(a), math.radians(g)
             if u is None:
                 u = _ProxyUnit(i, team, UNIT_KINDS[k])
+                if i == self.vip_id and self.mission is not None and self.mission.vip:
+                    u.name = f"{self.mission.vip[1]} ({u.name})"
                 u.x, u.y, u.angle, u.gun_angle = x, y, ra, rg
                 u._from = (x, y, ra, rg)
                 self._units[i] = u

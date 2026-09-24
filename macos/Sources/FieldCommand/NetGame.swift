@@ -130,6 +130,7 @@ extension GameScene {
                 let kind = NetProtocol.unitKinds[min(NetProtocol.unitKinds.count - 1, max(0, jInt(v[2])))]
                 u = Unit(kind: kind, team: Team(rawValue: jInt(v[1])), at: pos, game: self)
                 u.netId = id
+                if id == net.vipId, let (_, name) = net.mission?.vip { u.customName = "\(name) (\(kind.stats.name))" }
                 u.body.zRotation = angle
                 u.gun?.zRotation = gunAngle
                 u.netFrom = (pos, angle, gunAngle)
@@ -563,6 +564,7 @@ struct NetShell {
 /// the built-in SpriteKit simulation if the local server cannot be started.
 /// A campaign mission on a private server.
 func startMissionGame(_ view: SKView?, size: CGSize, mission m: Mission) {
+    GameServer.pendingVeterans = Settings.campaignVeterans
     startSkirmish(view, size: size, difficulty: Difficulty(rawValue: m.difficulty) ?? .normal, mapId: m.map,
                   opponents: m.opponents, teams: m.teams, mission: m)
 }
