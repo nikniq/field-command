@@ -512,6 +512,7 @@ class AI:
             return
         down = [b for b in g.bridges if not b.intact]
         if not down:
+            self.route_open = True        # nothing to rebuild: the way is walled off, and walls are shot down on arrival
             return
         b = min(down, key=lambda b: math.hypot(b.x - hq.x, b.y - hq.y) + math.hypot(target.x - b.x, target.y - b.y))
         self.route_bridge = b

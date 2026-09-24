@@ -502,6 +502,67 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_WALLTEST=1: Barricades block the way until they are shot down; the computer still attacks a walled base —
+    /// matching linux/tests/test_walls.py.
+    static func runWallTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh(ai: Bool = false) -> SWorld {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: ai && $0 > 0, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
+            for u in w.units { u.command(.idle) }
+            return w
+        }
+        func wallLine(_ w: SWorld, x: Double, from y0: Double, to y1: Double, team: Int) -> [SBuilding] {
+            var out: [SBuilding] = []
+            var y = y0
+            while y <= y1 {
+                w.startBuilding(.wall, x, y, team)
+                let b = w.buildings.last!
+                b.built = true; b.progress = 1
+                out.append(b)
+                y += Double(BuildingKind.wall.stats.half) * 2
+            }
+            w.rebuildNavForTests()
+            return out
+        }
+        let s = BuildingKind.wall.stats
+        check(s.cost <= 40 && s.hp >= 500 && s.half <= 24 && s.requires == nil && NetProtocol.buildingKinds.last == .wall, "the Barricade is cheap, tough and last on the wire")
+        let w = fresh()
+        let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        let x = hq.x + 500
+        let walls = wallLine(w, x: x, from: 0, to: worldH, team: 0)          // edge to edge: no way round
+        check(walls.count >= 60 && !w.nav.reaches(hq.x, hq.y, x + 200, hq.y), "a run of Barricades blocks the way")
+        for b in walls { b.takeDamage(99999, from: nil) }
+        w.cleanupDeadForTests()
+        w.rebuildNavForTests()
+        check(w.nav.reaches(hq.x, hq.y, x + 200, hq.y), "until it is shot down")
+        let w2 = fresh()
+        let hq2 = w2.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        let x2 = hq2.x + 500
+        let walls2 = wallLine(w2, x: x2, from: hq2.y - 400, to: hq2.y + 400, team: 0)
+        let hp0 = walls2.reduce(0.0) { $0 + $1.hp }
+        let t = SUnit(world: w2, kind: .tank, team: 1, x: x2 + 300, y: hq2.y)
+        w2.add(t)
+        t.command(.amove(hq2.x, hq2.y))
+        var el = 0.0
+        while el < 25 { w2.step(1.0 / 30); w2.events.removeAll(); el += 1.0 / 30 }
+        let hpNow = walls2.filter { !$0.dead }.reduce(0.0) { $0 + $1.hp }
+        check(hpNow < hp0 - 100 && t.x > x2, "an attacker walks up to the wall and shoots it, not through it")
+        let w3 = fresh(ai: true)
+        let ai = w3.players[1]!.ai!
+        let hq3 = w3.buildings.first { $0.team == 0 && $0.kind == .hq }!
+        _ = wallLine(w3, x: hq3.x + 500, from: 0, to: worldH, team: 0)      // edge to edge: the base is walled off
+        let hqE = w3.buildings.first { $0.team == 1 && $0.kind == .hq }!
+        let cut = !w3.nav.reaches(hqE.x, hqE.y, hq3.x, hq3.y)
+        ai.forceRouteCheck()
+        var el3 = 0.0
+        while el3 < 7 { w3.step(1.0 / 30); w3.events.removeAll(); el3 += 1.0 / 30 }
+        check(cut && ai.routeOpen && ai.routeBridge == nil, "the computer still attacks a walled base: nothing to rebuild, so the wave goes")
+        print(ok ? "WALL TEST PASSED" : "WALL TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runReplayTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

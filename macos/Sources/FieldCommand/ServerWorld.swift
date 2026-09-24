@@ -1672,6 +1672,8 @@ final class SWorld {
         bridges.first { $0.rect.distance(x, y) <= slack }
     }
 
+    func rebuildNavForTests() { rebuildNav() }
+
     private func rebuildNav() {
         nav.rebuild(rects: walls + buildings.filter { !$0.dead }.map { $0.rect },
                     circles: obstacles + crystals.filter { !$0.dead }.map { ($0.x, $0.y, $0.radius) })
@@ -2899,7 +2901,8 @@ final class SAI {
         if routeOpen { routeBridge = nil; return }
         let down = g.bridges.filter { !$0.intact }
         guard let b = down.min(by: { hyp($0.x - hq.x, $0.y - hq.y) + hyp(target.x - $0.x, target.y - $0.y)
-                                   < hyp($1.x - hq.x, $1.y - hq.y) + hyp(target.x - $1.x, target.y - $1.y) }) else { return }
+                                   < hyp($1.x - hq.x, $1.y - hq.y) + hyp(target.x - $1.x, target.y - $1.y) })
+        else { routeOpen = true; return }      // nothing to rebuild: the way is walled off, and walls are shot down on arrival
         routeBridge = b
         let busy = workers.contains { if case .rebuild = $0.order { return true }; return false }
         if !busy && (g.resources[team] ?? 0) >= Double(bridgeCost) {

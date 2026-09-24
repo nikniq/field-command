@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.24.0"
+let appVersion = "1.25.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -251,7 +251,7 @@ struct BuildingStats {
 }
 
 enum BuildingKind: CaseIterable {
-    case hq, depot, barracks, factory, turret, radar, artillery, shield
+    case hq, depot, barracks, factory, turret, radar, artillery, shield, wall
 
     var stats: BuildingStats {
         switch self {
@@ -293,6 +293,11 @@ enum BuildingKind: CaseIterable {
                                  buildTime: 35, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
                                  cooldown: 0, sight: 240, hotkey: "K",
                                  desc: "Shields every building of yours within 320: 300 points soaked before the walls, recharging.")
+        case .wall:
+            return BuildingStats(name: "Barricade", short: "Wall", glyph: "BR", cost: 30, hp: 700, half: 22,
+                                 buildTime: 8, supply: 0, produces: [], requires: nil, range: 0, damage: 0,
+                                 cooldown: 0, sight: 120, hotkey: "V",
+                                 desc: "A block of wall: cheap, tough and in the way. Nothing walks through until it is shot down. Shift places a run.")
         }
     }
 }

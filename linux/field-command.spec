@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.24.0
+Version:        1.25.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.25.0-1
+- Barricades: a 30-crystal block of wall (V on the Engineer card, Shift places a run) that nothing walks
+  through until it is shot down; attackers stop and shoot it, and the computer still comes for a walled base
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.24.0-1
 - Polish: an army-size timeline on the end screen; U undoes the last placement for a full refund within 20
   seconds; a unit counter by type on the top bar; rebindable keys (Keys… in the game menu); first-run

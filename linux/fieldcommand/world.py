@@ -800,7 +800,7 @@ class World:
         b.dead = True
         self.buildings.remove(b)
         self.by_id.pop(b.id, None)
-        self.nav_dirty = True
+        self._nav_dirty = True
         self.emit("msg", b.team, f"{b.stats.name} placement undone", "good")
         return True
 

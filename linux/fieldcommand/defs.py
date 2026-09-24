@@ -68,7 +68,7 @@ COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
 # Order matters: the network protocol sends a kind as its index here, so new kinds are appended
 # at the end and the macOS edition's NetProtocol lists must match exactly.
 UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic"]
-BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield"]
+BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall"]
 
 
 # ---------------------------------------------------------------- stats
@@ -151,8 +151,10 @@ BUILDINGS = {
                                "Lobs shells 480 out, further than it sees: spotters find its targets. Blind inside 150."),
     "shield": BuildingStats("Shield Generator", "Shield", "SG", 225, 500, 36, 35, 0, (), "barracks", 0, 0, 0, 240, "K",
                             "Shields every building of yours within 320: 300 points soaked before the walls, recharging."),
+    "wall": BuildingStats("Barricade", "Wall", "BR", 30, 700, 22, 8, 0, (), None, 0, 0, 0, 120, "V",
+                          "A block of wall: cheap, tough and in the way. Nothing walks through until it is shot down. Shift places a run."),
 }
-BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield"]
+BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall"]
 
 # Bridges. They come with the map rather than being built from scratch, so their numbers live here
 # rather than in BUILDINGS: nobody owns one, anybody can shell it down, any Engineer can rebuild it.

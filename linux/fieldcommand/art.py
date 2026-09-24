@@ -550,8 +550,9 @@ def building(kind, team):
             _foundation(c, h)
         _extrude(c, kind, h, team)
         {"hq": _hq, "depot": _depot, "barracks": _barracks, "factory": _factory, "turret": _turret_base,
-         "radar": _radar, "artillery": _artillery_base, "shield": _shield_gen}[kind](c, h, team)
-        _roof_kit(c, kind, h, team)
+         "radar": _radar, "artillery": _artillery_base, "shield": _shield_gen, "wall": _wall}[kind](c, h, team)
+        if kind != "wall":
+            _roof_kit(c, kind, h, team)
     return texture(("bld", kind, team), building_canvas(kind), d)
 
 
@@ -565,6 +566,8 @@ def _silhouette(kind, h):
         return _octagon(h * 0.92)
     if kind == "shield":
         return _octagon(h * 0.9)
+    if kind == "wall":
+        return rr(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44, 3)
     if kind == "artillery":
         return rr(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76, 6)
     if kind == "depot":
@@ -870,6 +873,22 @@ def _shield_gen(c, h, team):
     stroke(c, core, col, 1.4)
     fill(c, circle(0, 0, h * 0.13), rgb(0.55, 0.9, 1.0))
     fill(c, circle(-h * 0.04, -h * 0.05, h * 0.05), alpha(WHITE, 0.8))
+
+
+def _wall(c, h, team):
+    """A Barricade: a squat block of poured concrete with a lighter cap, seams, and a team stripe."""
+    col = TEAM_COLOR[team]
+    body = _silhouette("wall", h)
+    lit(c, body, CONCRETE, 0.85)
+    cap = rr(-h * 0.84, h * 0.18, h * 1.68, h * 0.44, 2)
+    lit(c, cap, mix(CONCRETE, WHITE, 0.18))
+    stroke(c, cap, rgb(0, 0, 0, 0.45), 0.9)
+    seams = [((-h * 0.3, -h * 0.66), (-h * 0.3, h * 0.1)), ((h * 0.3, -h * 0.66), (h * 0.3, h * 0.1)),
+             ((-h * 0.85, -h * 0.28), (h * 0.85, -h * 0.28))]
+    lines(c, seams, rgb(0, 0, 0, 0.35), 1.0)
+    stripe = rr(-h * 0.8, -h * 0.6, h * 1.6, h * 0.14, 1)
+    fill(c, stripe, alpha(col, 0.85))
+    stroke(c, body, rgb(0, 0, 0, 0.5), 1.2)
 
 
 def shield_dome(team):

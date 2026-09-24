@@ -118,6 +118,9 @@ if Debug.env["FC_HIGHTEST"] != nil {
 if Debug.env["FC_POLISHTEST"] != nil {
     Debug.runPolishTest()
 }
+if Debug.env["FC_WALLTEST"] != nil {
+    Debug.runWallTest()
+}
 if Debug.env["FC_ARTYTEST"] != nil {
     Debug.runArtilleryTest()
 }

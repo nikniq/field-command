@@ -2092,7 +2092,7 @@ final class GameScene: SKScene {
                 })
             }
             if us.contains(where: { $0.kind == .worker }) {
-                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield] {
+                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall] {
                     let s = k.stats
                     let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                     let tip = s.desc + (reqOK ? "" : "\nRequires \(s.requires!.stats.name).")

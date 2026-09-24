@@ -164,6 +164,15 @@ a second. Overlapping generators do not stack. If the generator falls, the field
 few seconds. Armour plating applies before the shield, so an armoured, shielded Command Center is a very hard
 nut. Computer players build one from about six minutes in.
 
+## Barricades
+
+The **Barricade** (30 crystal, hotkey **V** on the Engineer card, no requirements) is a block of wall: 700
+hit points, 44 across, up in eight seconds, and nothing walks through it. Hold **Shift** to place a run of
+them. Movement, pathfinding and the computer's route-finding treat them like cliffs, so a walled-off base
+has to be shot open: attackers walk up to the nearest block and fire, and the computer, finding no bridge
+to rebuild, sends its wave anyway. Cover a pass with a line of them and a turret behind, or wall your
+expansion's field and make the enemy pay for the way in. Engineers repair them like any building.
+
 ## Point defence
 
 The Command Center can be armed: the **Point defence** upgrade (**J**, half the Center's price, 35 seconds)

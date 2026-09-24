@@ -393,8 +393,9 @@ enum Art {
             case .radar: drawRadar(ctx, h, team)
             case .artillery: drawArtilleryBase(ctx, h, team)
             case .shield: drawShieldGen(ctx, h, team)
+            case .wall: drawWall(ctx, h, team)
             }
-            roofKit(ctx, k, h, team)
+            if k != .wall { roofKit(ctx, k, h, team) }
         }
     }
 
@@ -412,6 +413,7 @@ enum Art {
         case .turret: return circle(.zero, h * 0.8)
         case .radar: return octagon(h * 0.92)
         case .shield: return octagon(h * 0.9)
+        case .wall: return rr(box(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44), 3)
         case .artillery: return rr(box(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76), 6)
         case .depot: return rr(box(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74), 4)
         case .barracks: return rr(box(-h * 0.9, -h * 0.62, h * 1.8, h * 1.52), 4)
@@ -484,7 +486,7 @@ enum Art {
                 fill(ctx, rr(box(-h * 0.2, sy * h - 2, h * 0.4, 4), 2), .rgb(0.1, 0.1, 0.11))
             }
             mast(-h * 0.72, -h * 0.72, h * 0.22)
-        case .turret, .radar, .artillery, .shield:
+        case .turret, .radar, .artillery, .shield, .wall:
             break
         }
 
@@ -710,6 +712,20 @@ enum Art {
     }
 
     /// An octagonal pad with three pylons around a glowing emitter core.
+    /// A Barricade: a squat block of poured concrete with a lighter cap, seams, and a team stripe.
+    private static func drawWall(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        let body = silhouette(.wall, h)
+        lit(ctx, body, concrete, 0.85)
+        let cap = rr(box(-h * 0.84, -h * 0.62, h * 1.68, h * 0.44), 2)
+        lit(ctx, cap, concrete.mix(.white, 0.18))
+        stroke(ctx, cap, NSColor(white: 0, alpha: 0.45), 0.9)
+        lines(ctx, [(CGPoint(x: -h * 0.3, y: h * 0.66), CGPoint(x: -h * 0.3, y: -h * 0.1)),
+                    (CGPoint(x: h * 0.3, y: h * 0.66), CGPoint(x: h * 0.3, y: -h * 0.1)),
+                    (CGPoint(x: -h * 0.85, y: h * 0.28), CGPoint(x: h * 0.85, y: h * 0.28))], NSColor(white: 0, alpha: 0.35), 1)
+        fill(ctx, rr(box(-h * 0.8, h * 0.46, h * 1.6, h * 0.14), 1), team.color.withAlphaComponent(0.85))
+        stroke(ctx, body, NSColor(white: 0, alpha: 0.5), 1.2)
+    }
+
     private static func drawShieldGen(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
         let c = team.color
         let pad = octagon(h * 0.9)
