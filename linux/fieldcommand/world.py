@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (HIGH_SIGHT, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ESTABLISHED, HIGH_SIGHT, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -32,7 +32,8 @@ class PlayerInfo:
 
 
 class World:
-    def __init__(self, map_spec, players, difficulty, mission=None, seed=None, mode="annihilation"):
+    def __init__(self, map_spec, players, difficulty, mission=None, seed=None, mode="annihilation",
+                 start_crystal=START_CRYSTAL, start_base="fresh"):
         self.map = map_spec
         self.difficulty = difficulty
         # Every random choice the simulation makes comes from this generator, so a game is a pure function of
@@ -51,7 +52,10 @@ class World:
         self.game_over = False
         self.winner_team = None
         self.shells = []
-        self.resources = {s: float(START_CRYSTAL) for s in self.players}
+        self.start_crystal = int(start_crystal)
+        self.start_base = start_base if start_base in ("fresh", "established") else "fresh"
+        self.resources = {s: float(self.start_crystal) for s in self.players}
+        self.reinforce_at = {s: -1e9 for s in self.players}     # when each side last called reinforcements in
         self.units_trained = {s: 0 for s in self.players}
         self.units_lost = {s: 0 for s in self.players}
         self.crystals_mined = {s: 0 for s in self.players}
@@ -108,6 +112,14 @@ class World:
         for p in players:
             sx, sy, base = map_spec["starts"][p.start]
             self._add(Building(self, "hq", p.slot, sx, sy, True))
+            if self.start_base == "established":
+                # The same layout for every side, turned to face the middle of the map; a spot that does not
+                # fit (a cliff, the mineral line) is simply left out.
+                to_center = math.atan2(defs.WORLD_H / 2 - sy, defs.WORLD_W / 2 - sx)
+                for kind, dist, off in ESTABLISHED:
+                    bx, by = self.snapped(sx + math.cos(to_center + off) * dist, sy + math.sin(to_center + off) * dist)
+                    if self.can_place(kind, bx, by, margin=10):
+                        self._add(Building(self, kind, p.slot, bx, by, True))
             line = self.crystals[p.start * 8:p.start * 8 + 8]
             for i in range(5):
                 a = base + math.pi / 4 + (i - 2) * 0.28
@@ -567,6 +579,38 @@ class World:
             u.command(("move" if friendly else "amove", tx, ty))
         self.emit("msg", 0, text, "good" if self.allied(owner, 0) else "bad")
 
+    # ------------------------------------------------------------ reinforcements
+
+    def reinforce_left(self, slot):
+        """Seconds until this side can call reinforcements again (0 when it can now)."""
+        return max(0.0, REINFORCE_COOLDOWN - (self.elapsed - self.reinforce_at.get(slot, -1e9)))
+
+    def reinforce(self, slot, kind):
+        """Off-map reinforcements for crystal: a column walks in from the map edge nearest this side's start
+        and stops short of its Command Center."""
+        p = self.players.get(slot)
+        if p is None or not p.alive or kind not in REINFORCEMENTS or self.reinforce_left(slot) > 0:
+            return False
+        count, cost = REINFORCEMENTS[kind]
+        if self.resources[slot] < cost:
+            self.emit("msg", slot, "Not enough crystal", "bad")
+            return False
+        hq = next((b for b in self.buildings if b.team == slot and b.kind == "hq" and not b.dead), None)
+        if hq is None:
+            return False
+        self.resources[slot] -= cost
+        self.reinforce_at[slot] = self.elapsed
+        x0, y0 = self.edge_point(slot)
+        d = math.hypot(hq.x - x0, hq.y - y0) or 1.0
+        tx, ty = hq.x - (hq.x - x0) / d * 220, hq.y - (hq.y - y0) / d * 220
+        for i in range(count):
+            a, r = i * 2.4, 30 + 14 * i
+            u = Unit(self, kind, slot, x0 + math.cos(a) * r, y0 + math.sin(a) * r)
+            self._add(u)
+            u.command(("move", tx, ty))
+        self.emit("msg", slot, f"Reinforcements: {count} {UNITS[kind].name}s are on their way from the edge", "good")
+        return True
+
     def _check_victory(self):
         if self.mode == "sudden":
             # A side without a standing Command Center is out, and everything it owns goes with it.
@@ -653,6 +697,8 @@ class World:
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
             elif op == "upgrade":
                 self._upgrade(slot, self._own_buildings(slot, cmd[1]), cmd[2])
+            elif op == "reinforce":
+                self.reinforce(slot, str(cmd[1]))
             elif op == "cancelup":
                 for b in self._own_buildings(slot, [cmd[1]]):
                     b.cancel_upgrade()

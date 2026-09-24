@@ -7,7 +7,7 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 15     // … 13 Barricades; 14 Gunships; 15 game modes
+    static let version = 16     // … 14 Gunships; 15 game modes; 16 starting crystal, established bases, reinforcements
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
@@ -291,6 +291,8 @@ final class NetSession {
     let difficulty: Difficulty
     var players: [Int: NetPlayer] = [:]
     var resources = startCrystal
+    /// Seconds until this side can call reinforcements again.
+    var reinforceLeft = 0.0
     /// Base64 fog bits from a resumed game, applied once the scene's fog exists.
     let explored: String?
     /// The campaign mission this game is, if any, and the seconds run up toward its timed objective.
@@ -338,6 +340,7 @@ final class NetSession {
         explored = start["explored"] as? String
         mission = missionNamed(start["mission"] as? String)
         mode = (start["mode"] as? String) ?? "annihilation"
+        resources = (start["start_crystal"] as? NSNumber)?.intValue ?? startCrystal
         let r = jArr(start["ring"])
         ring = r.count >= 2 ? (CGPoint(x: jNum(r[0]), y: jNum(r[1])), r.count > 2 ? jNum(r[2]) : CGFloat(kothRadius)) : nil
         spectating = jInt(start["replay"]) == 1

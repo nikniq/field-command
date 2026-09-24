@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.30.0
+Version:        1.31.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,14 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.31.0-1
+- Every side now starts with 5000 crystal, and the title screen lets you set it (2000, 5000, 10000
+  or 20000)
+- Established bases: a Base option starts every side with two depots, a Barracks, a Factory and a turret
+  already standing around its Command Center, facing the middle of the map
+- Off-map reinforcements: from the Command Center's card, call in four Rangers (300) or two Siege Tanks
+  (600); they walk in from your edge of the map, one call a minute
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.30.0-1
 - Skirmish game modes on the title screen: Annihilation (the usual rule), King of the Hill (first side
   to hold the gold ring, uncontested, for three minutes wins; the ring is drawn on the ground in the

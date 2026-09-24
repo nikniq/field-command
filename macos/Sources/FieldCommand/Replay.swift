@@ -15,6 +15,8 @@ final class Replay {
     let elapsed: Double
     let label: String
     let mode: String
+    let startCrystal: Int
+    let startBase: String
     var next = 0
 
     struct Unreadable: Error, CustomStringConvertible { let description: String }
@@ -33,6 +35,8 @@ final class Replay {
         elapsed = Double(jNum(d["elapsed"]))
         label = jStr(d["label"])
         mode = (d["mode"] as? String) ?? "annihilation"
+        startCrystal = (d["start_crystal"] as? NSNumber)?.intValue ?? 2000
+        startBase = (d["start_base"] as? String) ?? "fresh"
     }
 
     static var replaysDir: URL { SaveGame.savesDir.deletingLastPathComponent().appendingPathComponent("replays") }
@@ -42,6 +46,7 @@ final class Replay {
         ["game": "field-command", "format": format, "version": appVersion, "label": label,
          "saved_at": Int(Date().timeIntervalSince1970), "map": jStr(w.map["id"]), "difficulty": w.difficulty.rawValue,
          "seed": Int(w.seed), "mission": w.mission.map { $0.id as Any } ?? NSNull(), "viewer": viewer, "mode": w.mode,
+         "start_crystal": w.startCrystal, "start_base": w.startBase,
          "players": w.players.values.sorted { $0.slot < $1.slot }.map {
              ["slot": $0.slot, "name": $0.name, "team": $0.team, "ai": $0.isAI] as [String: Any] },
          "elapsed": w.elapsed, "ticks": w.tick, "winner_team": w.winnerTeam.map { $0 as Any } ?? NSNull(),

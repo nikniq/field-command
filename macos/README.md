@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 15, so a 1.30.0 Mac and a 1.30.0 Linux client play together; neither accepts an
+Both editions speak protocol 16, so a 1.31.0 Mac and a 1.31.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -138,7 +138,14 @@ minutes), The Gold Run (hold the gold for three), Crossfire (2v2) and The Long M
 next as it is won; progress is kept in `UserDefaults`. Each is briefed before it is deployed (a map of the
 mission, the objective, the timeline; Enter deploys) and runs a script on its clock: word from Command,
 reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
-and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
+and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 5000 crystal.
+
+## The start: crystal, an established base, reinforcements
+
+Every side starts with 5000 crystal; Crystal and Base on the title screen set the bank (2000 to 20000) and
+whether a base already stands (two depots, a Barracks, a Factory and a turret). From the Command Center's
+card, call in four Rangers (G, 300) or two Siege Tanks (K, 600), which walk in from your edge of the map,
+one call a minute. Same numbers as the Linux edition (`FC_STARTTEST`).
 
 ## Game modes
 

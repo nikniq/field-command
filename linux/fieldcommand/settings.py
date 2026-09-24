@@ -24,6 +24,8 @@ class _Settings:
                 "player_name": "", "last_address": "", "map_id": "twin_ridges", "opponents": 1,
                 "teams": 0,   # 0 = free-for-all, otherwise the number of teams the players are dealt into
                 "mode": "annihilation",   # the skirmish rule: see defs.MODES
+                "start_crystal": 5000,    # defs.START_CRYSTAL_OPTIONS
+                "start_base": "fresh",    # defs.START_BASES
                 "campaign_done": [],   # mission ids completed, in any order
                 "bars_always": False,  # health bars on everything, not only the hurt and the selected
                 "ui_scale": 0,  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
@@ -90,6 +92,16 @@ class _Settings:
 
     def cycle_speed(self):
         self.set("speed_index", (self.speed_index + 1) % len(SPEEDS))
+
+    def cycle_start_crystal(self):
+        from .defs import START_CRYSTAL_OPTIONS as opts
+        cur = self.start_crystal
+        self.set("start_crystal", opts[(opts.index(cur) + 1) % len(opts)] if cur in opts else opts[0])
+
+    def cycle_start_base(self):
+        from .defs import START_BASES
+        ids = [b[0] for b in START_BASES]
+        self.set("start_base", ids[(ids.index(self.start_base) + 1) % len(ids)] if self.start_base in ids else ids[0])
 
     def cycle_mode(self):
         from .defs import MODES

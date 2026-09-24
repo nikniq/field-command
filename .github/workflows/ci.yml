@@ -177,6 +177,11 @@ jobs:
         run: |
           set -o pipefail
           FC_MODETEST=1 "$BIN" | tee /dev/stderr | grep -q "MODE TEST PASSED"
+      - name: Headless Start
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_STARTTEST=1 "$BIN" | tee /dev/stderr | grep -q "START TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

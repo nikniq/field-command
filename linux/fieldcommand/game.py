@@ -1167,6 +1167,10 @@ class GameScene:
         self.set_selection([w])
         self.center_camera(w.x, w.y)
 
+    def reinforce(self, kind):
+        self.s.send(["reinforce", kind])
+        self._voice("ack_")
+
     def undo_build(self):
         """Takes back the last placement within the undo window: the site if it has barely started (a full
         refund), or the Engineer's pending build order if it has not begun."""
@@ -1458,6 +1462,20 @@ class GameScene:
                     tip += f"\nRequires {BUILDINGS[s.requires].name}."
                 out.append(CommandButton(("unit", k), s.name, s.hotkey, s.cost, ok, tip,
                                          lambda k=k: self.train(k)))
+            if "hq" in kinds:
+                # Off-map reinforcements, for crystal: a column walks in from your edge of the map.
+                from .defs import REINFORCEMENTS, REINFORCE_COOLDOWN, REINFORCE_ORDER
+                left = self.s.reinforce_left()
+                for i, k in enumerate(REINFORCE_ORDER):
+                    count, cost = REINFORCEMENTS[k]
+                    ok = left <= 0 and self.s.resources >= cost
+                    tip = (f"Call in {count} {UNITS[k].name}s from off the map: they walk in from your edge and report to the "
+                           f"Command Center.\nOne call every {int(REINFORCE_COOLDOWN)}s.")
+                    if left > 0:
+                        tip += f"\nReady in {int(left) + 1}s."
+                    short = {"marine": "Rangers", "tank": "Tanks"}.get(k, UNITS[k].name)
+                    out.append(CommandButton(("reinforce", k), f"{short} ×{count}", "GK"[i], cost, ok, tip,
+                                             lambda k=k: self.reinforce(k)))
             for k in UPGRADE_KINDS:
                 u = UPGRADES[k]
                 targets = [b for b in bs if upgrade_applies(k, b.kind)]

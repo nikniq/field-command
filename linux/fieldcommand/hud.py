@@ -559,7 +559,7 @@ class HUD:
             return art.icon_siege(b.icon[1])
         if kind == "upgrade":
             return art.icon_upgrade(b.icon[1])
-        if kind == "unit":
+        if kind in ("unit", "reinforce"):
             return art.unit(b.icon[1], g.s.slot)
         return art.building(b.icon[1], g.s.slot)
 
@@ -586,8 +586,8 @@ class HUD:
             tex = self._icon_source(b)
             kind = b.icon[0]
             fit = 30 if kind in ("attack", "stop") else 34 if kind in ("siege", "upgrade") else \
-                (40 if kind == "unit" and b.icon[1] == "tank" else 30) if kind == "unit" else 38
-            rot = 90 if kind == "unit" else 0
+                (40 if b.icon[1] == "tank" else 30) if kind in ("unit", "reinforce") else 38
+            rot = 90 if kind in ("unit", "reinforce") else 0
             if not b.enabled:
                 # Locked, not missing: keep the art legible in greyscale so the button still says what it
                 # builds. (At the old 35% opacity it vanished into the dark disabled button.)

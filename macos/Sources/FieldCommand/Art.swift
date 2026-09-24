@@ -1142,7 +1142,7 @@ enum Art {
     static func forgetIcon(_ icon: ButtonIcon) {
         let stem: String
         switch icon {
-        case .unit(let k): stem = "unit-\(k)-"
+        case .unit(let k), .reinforce(let k): stem = "unit-\(k)-"
         case .building(let k): stem = "bld-\(k)-"
         case .upgrade(let k): stem = "icon-upgrade-\(k.rawValue)"
         case .siege(let on): stem = "icon-siege-\(on)"
@@ -1271,7 +1271,7 @@ enum Art {
 
     static func icon(_ icon: ButtonIcon) -> SKTexture {
         switch icon {
-        case .unit(let k): return unit(k, Team.local)
+        case .unit(let k), .reinforce(let k): return unit(k, Team.local)
         case .building(let k): return building(k, Team.local)
         case .attack:
             return texture("icon-attack", size: CGSize(width: 40, height: 40)) { ctx in

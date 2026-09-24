@@ -850,7 +850,7 @@ final class HUD: SKNode {
             let ts = icon.texture!.size()
             let fit: CGFloat
             switch b.icon {
-            case .unit(let k): fit = k == .tank ? 40 : 30
+            case .unit(let k), .reinforce(let k): fit = k == .tank ? 40 : 30
             case .building: fit = 38
             case .siege, .upgrade: fit = 34
             default: fit = 30
@@ -858,6 +858,7 @@ final class HUD: SKNode {
             let k = fit / max(ts.width, ts.height)
             icon.size = CGSize(width: ts.width * k, height: ts.height * k)
             if case .unit = b.icon { icon.zRotation = .pi / 2 }
+            if case .reinforce = b.icon { icon.zRotation = .pi / 2 }
             icon.alpha = b.enabled ? 1 : 0.65
             // A dark plate behind the picture, so the art reads against the button face in every state.
             let side = max(icon.size.width, icon.size.height) + 10

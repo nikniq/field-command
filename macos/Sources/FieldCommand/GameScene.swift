@@ -2155,6 +2155,21 @@ final class GameScene: SKScene {
                     self.train(k, from: self.selectedOwnBuildings)
                 }
             }
+            if kinds.contains(.hq), let net {
+                // Off-map reinforcements, for crystal: a column walks in from your edge of the map.
+                for (i, k) in reinforceOrder.enumerated() {
+                    let (count, cost) = reinforcements[k]!
+                    let ok = net.reinforceLeft <= 0 && myResources >= CGFloat(cost)
+                    var tip = "Call in \(count) \(k.stats.name)s from off the map: they walk in from your edge and report to the Command Center.\nOne call every \(Int(reinforceCooldown))s."
+                    if net.reinforceLeft > 0 { tip += "\nReady in \(Int(net.reinforceLeft) + 1)s." }
+                    let short = k == .marine ? "Rangers" : (k == .tank ? "Tanks" : k.stats.name)
+                    list.append(CommandButton(icon: .reinforce(k), title: "\(short) ×\(count)", hotkey: i == 0 ? "G" : "K", cost: cost,
+                                              enabled: ok, tip: tip) { [weak self] in
+                        self?.sendNet(["reinforce", NetProtocol.name(k)])
+                        self?.unitVoice("ack_")
+                    })
+                }
+            }
             for k in UpgradeKind.allCases {
                 let targets = bs.filter { k.applies(to: $0.kind) }
                 guard let target = targets.first else { continue }

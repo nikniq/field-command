@@ -25,6 +25,8 @@ class Replay:
         self.elapsed = float(data.get("elapsed", 0))
         self.label = data.get("label", "")
         self.mode = data.get("mode", "annihilation")
+        self.start_crystal = int(data.get("start_crystal", 2000))
+        self.start_base = data.get("start_base", "fresh")
 
 
 def replays_dir():
@@ -40,6 +42,7 @@ def replay_to_dict(world, viewer=0, label=""):
     return {"game": "field-command", "format": REPLAY_FORMAT, "version": __version__, "label": label,
             "saved_at": int(time.time()), "map": world.map["id"], "difficulty": world.difficulty.index,
             "seed": world.seed, "mission": world.mission.id if world.mission else None, "viewer": viewer, "mode": world.mode,
+            "start_crystal": world.start_crystal, "start_base": world.start_base,
             "players": [{"slot": p.slot, "name": p.name, "team": p.team, "ai": p.is_ai} for p in world.players.values()],
             "elapsed": world.elapsed, "ticks": world.tick,
             "winner_team": world.winner_team,

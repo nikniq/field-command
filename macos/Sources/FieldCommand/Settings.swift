@@ -108,6 +108,22 @@ enum Settings {
         get { let m = d.string(forKey: "mode") ?? "annihilation"; return modes.contains { $0.id == m } ? m : "annihilation" }
         set { d.set(newValue, forKey: "mode") }
     }
+    static var startCrystal: Int {
+        get { let v = d.object(forKey: "startCrystal") as? Int ?? startCrystalOptions[1]; return startCrystalOptions.contains(v) ? v : startCrystalOptions[1] }
+        set { d.set(newValue, forKey: "startCrystal") }
+    }
+    static func cycleStartCrystal() {
+        startCrystal = startCrystalOptions[((startCrystalOptions.firstIndex(of: startCrystal) ?? 0) + 1) % startCrystalOptions.count]
+    }
+    static var startBase: String {
+        get { let v = d.string(forKey: "startBase") ?? "fresh"; return startBases.contains { $0.id == v } ? v : "fresh" }
+        set { d.set(newValue, forKey: "startBase") }
+    }
+    static func cycleStartBase() {
+        let ids = startBases.map { $0.id }
+        startBase = ids[((ids.firstIndex(of: startBase) ?? 0) + 1) % ids.count]
+    }
+
     static func cycleMode() {
         let ids = modes.map { $0.id }
         mode = ids[((ids.firstIndex(of: mode) ?? 0) + 1) % ids.count]

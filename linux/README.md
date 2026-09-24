@@ -244,6 +244,18 @@ it collapses are pushed clear onto the nearest bank.
 Computer players rebuild a crossing near their base when they have crystal to spare, so cutting a bridge buys
 time rather than winning outright.
 
+## The start: crystal, an established base, reinforcements
+
+Every side starts with **5000 crystal**; the **Crystal** button on the title screen sets it to 2000, 5000,
+10000 or 20000 for a skirmish. The **Base** button starts every side **fresh** (a Command Center and five
+Engineers) or **established**: two Supply Depots, a Barracks, a Factory and a turret already standing around
+the Command Center, turned to face the middle of the map (a spot a cliff or the mineral line will not take
+is left out). Both travel in saves and replays.
+
+**Off-map reinforcements**: select the Command Center and call in **four Rangers (G, 300 crystal)** or
+**two Siege Tanks (K, 600)**. They walk in from your edge of the map and report to the Command Center. One
+call a minute; the button shows when the next is ready.
+
 ## Game modes
 
 The **Mode** button on the title screen sets the skirmish rule. **Annihilation** is the usual one: destroy
@@ -268,8 +280,8 @@ next as it is won:
 | 5 | The Long March | The Long March, twelve commanders in two teams | Destroy the other team |
 
 The mission's objective sits at the top of the objectives panel with its clock; a won mission shows *Mission
-complete* with a *Next Mission* button. Progress is kept in the settings file. Every side, in every mode,
-starts with 2000 crystal.
+complete* with a *Next Mission* button. Progress is kept in the settings file. Every side starts with 5000
+crystal in a mission.
 
 Every mission is **briefed** before it is deployed: a map of the mission (water, cliffs, crystal and gold,
 every side's start, the hold ring), the objective, and a timeline of what the clock will bring. **Enter**

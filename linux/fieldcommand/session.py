@@ -120,7 +120,7 @@ class LocalSession(_Base):
     can_pause = True
 
     def __init__(self, difficulty, autoplay=False, map_id=None, opponents=1, players=None, slot=0, teams=0,
-                 world=None, mission=None, seed=None, mode="annihilation"):
+                 world=None, mission=None, seed=None, mode="annihilation", start_crystal=START_CRYSTAL, start_base="fresh"):
         self.difficulty = difficulty
         self.slot = slot
         if world is not None:
@@ -135,7 +135,8 @@ class LocalSession(_Base):
         if world is None and players is None:
             players = [PlayerInfo(i, name, team_of(i, teams), is_ai=(i > 0 or autoplay))
                        for i, name in enumerate(lineup_names(opponents))]
-        self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed, mode=mode)
+        self.world = world if world is not None else World(spec, players, difficulty, mission=mission, seed=seed, mode=mode,
+                                                           start_crystal=start_crystal, start_base=start_base)
         self.autosave_at = self.world.elapsed + 300
         self.map = self.world.map
         self.players = self.world.players
@@ -166,7 +167,8 @@ class LocalSession(_Base):
         rec = read_replay(name)
         session = cls(DIFFICULTIES[rec.difficulty], map_id=rec.map, opponents=len(rec.players) - 1,
                       players=[PlayerInfo(p["slot"], p["name"], p["team"], is_ai=p["ai"]) for p in rec.players],
-                      slot=rec.viewer, mission=rec.mission, seed=rec.seed, mode=rec.mode)
+                      slot=rec.viewer, mission=rec.mission, seed=rec.seed, mode=rec.mode,
+                      start_crystal=rec.start_crystal, start_base=rec.start_base)
         session.replay = rec
         return session
 
@@ -202,6 +204,9 @@ class LocalSession(_Base):
 
     def hold_standing(self):
         return self.world.hold_standing(self.slot)
+
+    def reinforce_left(self):
+        return self.world.reinforce_left(self.slot)
 
     def mission_progress(self):
         return self.world.mission_progress()
@@ -481,7 +486,8 @@ class NetSession(_Base):
         self.fog = FogGrid()
         self._fog_timer = 0.0
         self.elapsed = 0.0
-        self.resources = START_CRYSTAL
+        self.resources = int(start_msg.get("start_crystal", START_CRYSTAL))
+        self._reinforce_left = 0.0
         self.supply_used, self.supply_cap = 0, 10
         self.game_over = False
         self.winner_team = None
@@ -537,6 +543,9 @@ class NetSession(_Base):
         best = max((v for t, v in self.hold.items() if t != mine), default=0.0)
         return self.hold.get(mine, 0.0), best
 
+    def reinforce_left(self):
+        return self._reinforce_left
+
     @property
     def ring(self):
         gold = [c for c in self.crystals if c.gold]
@@ -555,7 +564,7 @@ class NetSession(_Base):
         self.kits = {k for i, k in enumerate(KIT_IDS) if mask & (1 << i)}
         self.supply_used, self.supply_cap = m["sup"]
         self.hold = {int(k): float(v) for k, v in m.get("hold", {}).items()}
-        self.hold = {int(k): float(v) for k, v in m.get("hold", {}).items()}
+        self._reinforce_left = float(m.get("rf", 0))
         seen = set()
         orders = m.get("o", {})
         for (i, team, k, x, y, a, g, hp, carrying, mode, rank) in m["u"]:

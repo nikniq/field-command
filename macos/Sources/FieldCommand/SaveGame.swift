@@ -110,6 +110,7 @@ enum SaveGame {
             "next_crate": w.nextCrate,
             "mission": w.mission.map { $0.id as Any } ?? NSNull(), "mission_timer": w.missionTimer, "mission_fired": w.missionFired, "history": slots(w.history) { $0 }, "next_sample": w.nextSample,
              "mode": w.mode, "hold": slots(w.hold) { $0 },
+             "start_crystal": w.startCrystal, "start_base": w.startBase, "reinforce_at": slots(w.reinforceAt) { $0 },
             "towers": w.towers.map { ["id": $0.id, "owner": $0.owner.map { $0 as Any } ?? NSNull(),
                                       "capturing": $0.capturing.map { $0 as Any } ?? NSNull(), "progress": $0.progress] as [String: Any] },
             "reveals": reveals, "ai": ai, "fog": fogOut,
@@ -128,7 +129,7 @@ enum SaveGame {
         let players = jArr(d["players"]).map { jDict($0) }.map {
             SPlayer(slot: jInt($0["slot"]), name: jStr($0["name"]), team: jInt($0["team"]), isAI: jBoolean($0["is_ai"]), start: jInt($0["start"]))
         }
-        let w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: jInt(d["difficulty"])) ?? .normal)
+        let w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: jInt(d["difficulty"])) ?? .normal, startCrystal: (d["start_crystal"] as? NSNumber)?.intValue ?? startCrystal, startBase: (d["start_base"] as? String) ?? "fresh")
         for p in jArr(d["players"]).map({ jDict($0) }) { w.players[jInt(p["slot"])]?.alive = jBoolean(p["alive"]) }
         w.beginRestore()          // drops the opening base; bridges and towers keep their constructor ids
         for c in jArr(d["crystals"]).map({ jDict($0) }) {
@@ -151,6 +152,7 @@ enum SaveGame {
         w.nextSample = (d["next_sample"] as? NSNumber)?.doubleValue ?? w.elapsed
         if w.mission == nil, let m = d["mode"] as? String, modes.contains(where: { $0.id == m }) { w.mode = m }
         for (t, v) in jDict(d["hold"]) { w.hold[Int(t) ?? -1] = Double(jNum(v)) }
+        for (s, v) in jDict(d["reinforce_at"]) { w.reinforceAt[Int(s) ?? -1] = Double(jNum(v)) }
         for (s, live) in zip(jArr(d["towers"]).map({ jDict($0) }), w.towers) {
             live.owner = s["owner"] is NSNull || s["owner"] == nil ? nil : jInt(s["owner"])
             live.capturing = s["capturing"] is NSNull || s["capturing"] == nil ? nil : jInt(s["capturing"])

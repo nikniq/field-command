@@ -1449,7 +1449,16 @@ final class SWorld {
     private var rng = SeededRNG(1)
     private func withRNG<T>(_ body: () -> T) -> T { simRNG = rng; defer { rng = simRNG }; return body() }
 
-    init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil) {
+    /// The setup: crystal in the bank at the start, and what already stood; and when each side last called
+    /// reinforcements in.
+    private(set) var startCrystal: Int = startCrystalOptions[1]
+    private(set) var startBase = "fresh"
+    var reinforceAt: [Int: Double] = [:]
+
+    init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil,
+         startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh") {
+        self.startCrystal = crystal
+        self.startBase = base == "established" ? "established" : "fresh"
         self.seed = seed ?? UInt64.random(in: 1..<(1 << 31))
         simRNG = SeededRNG(self.seed)
         self.map = map
@@ -1464,7 +1473,8 @@ final class SWorld {
         ridges = jArr(map["ridges"]).map { r in let v = jArr(r); return SRect(Double(jNum(v[0])), Double(jNum(v[1])), Double(jNum(v[2])), Double(jNum(v[3]))) }
         for p in list {
             players[p.slot] = p
-            resources[p.slot] = Double(startCrystal)
+            resources[p.slot] = Double(self.startCrystal)
+            reinforceAt[p.slot] = -1e9
             playerKits[p.slot] = []
             unitsTrained[p.slot] = 0
             unitsLost[p.slot] = 0
@@ -1503,6 +1513,15 @@ final class SWorld {
             let s = starts[p.start]
             let sx = Double(jNum(s[0])), sy = Double(jNum(s[1])), base = Double(jNum(s[2]))
             add(SBuilding(world: self, kind: .hq, team: p.slot, x: sx, y: sy, built: true))
+            if self.startBase == "established" {
+                // The same layout for every side, turned to face the middle of the map; a spot that does not fit
+                // (a cliff, the mineral line) is simply left out.
+                let toCenter = atan2(worldH / 2 - sy, worldW / 2 - sx)
+                for (kind, dist, off) in established {
+                    let p2 = snapped(sx + cos(toCenter + off) * dist, sy + sin(toCenter + off) * dist)
+                    if canPlace(kind, p2.0, p2.1, margin: 10) { add(SBuilding(world: self, kind: kind, team: p.slot, x: p2.0, y: p2.1, built: true)) }
+                }
+            }
             let line = Array(crystals[(p.start * 8)..<(p.start * 8 + 8)])
             for i in 0..<5 {
                 let a = base + .pi / 4 + Double(i - 2) * 0.28
@@ -1898,6 +1917,33 @@ final class SWorld {
         }
     }
 
+    // MARK: Reinforcements
+
+    /// Seconds until this side can call reinforcements again (0 when it can now).
+    func reinforceLeft(_ slot: Int) -> Double { max(0, reinforceCooldown - (elapsed - (reinforceAt[slot] ?? -1e9))) }
+
+    /// Off-map reinforcements for crystal: a column walks in from the map edge nearest this side's start and
+    /// stops short of its Command Center.
+    @discardableResult
+    func reinforce(_ slot: Int, _ kind: UnitKind) -> Bool {
+        guard let p = players[slot], p.alive, let (count, cost) = reinforcements[kind], reinforceLeft(slot) <= 0 else { return false }
+        guard (resources[slot] ?? 0) >= Double(cost) else { emit(["msg", slot, "Not enough crystal", "bad"]); return false }
+        guard let hq = buildings.first(where: { $0.team == slot && $0.kind == .hq && !$0.dead }) else { return false }
+        resources[slot, default: 0] -= Double(cost)
+        reinforceAt[slot] = elapsed
+        let (x0, y0) = edgePoint(slot)
+        let d = max(1, hyp(hq.x - x0, hq.y - y0))
+        let tx = hq.x - (hq.x - x0) / d * 220, ty = hq.y - (hq.y - y0) / d * 220
+        for i in 0..<count {
+            let a = Double(i) * 2.4, r = 30 + 14 * Double(i)
+            let u = SUnit(world: self, kind: kind, team: slot, x: x0 + cos(a) * r, y: y0 + sin(a) * r)
+            add(u)
+            u.command(.move(tx, ty))
+        }
+        emit(["msg", slot, "Reinforcements: \(count) \(kind.stats.name)s are on their way from the edge", "good"])
+        return true
+    }
+
     // MARK: Skirmish modes
 
     /// King of the Hill's ring: the gold deposit's centre, or the middle of the map without one.
@@ -2089,6 +2135,8 @@ final class SWorld {
             }
         case "cancel" where cmd.count >= 3:
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { cancelQueue(b, jInt(cmd[2])) }
+        case "reinforce" where cmd.count >= 2:
+            if let k = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == jStr(cmd[1]) }) { _ = reinforce(slot, k) }
         case "unbuild" where cmd.count >= 2:
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { _ = unbuild(b) }
         case "rally" where cmd.count >= 4:

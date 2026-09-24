@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.30.0"
+let appVersion = "1.31.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -406,8 +406,21 @@ func missionNamed(_ id: String?) -> Mission? { id.flatMap { i in campaign.first 
 // by this factor (the camera's y scale is the zoom divided by it). Buildings show their walls below.
 let tilt: CGFloat = 0.8
 
-// Every side starts with this much crystal in the bank.
-let startCrystal = 2000
+// Every side starts with this much crystal in the bank, unless the game was set up with another amount.
+let startCrystal = 5000
+let startCrystalOptions = [2000, 5000, 10000, 20000]
+/// How a side starts, as defs.py's START_BASES and ESTABLISHED: (kind, distance from the Command Center,
+/// angle off the direction to the middle of the map).
+let startBases: [(id: String, name: String, rule: String)] = [
+    ("fresh", "Fresh start", "A Command Center and five Engineers"),
+    ("established", "Established base", "Depots, a Barracks, a Factory and a turret already standing"),
+]
+let established: [(BuildingKind, Double, Double)] = [(.depot, 230, 1.2), (.depot, 230, -1.2), (.barracks, 270, 0.55), (.factory, 300, -0.55), (.turret, 340, 0)]
+/// Off-map reinforcements, called in from the Command Center for crystal: (how many, the price), one call
+/// every reinforceCooldown seconds.
+let reinforcements: [UnitKind: (count: Int, cost: Int)] = [.marine: (4, 300), .tank: (2, 600)]
+let reinforceOrder: [UnitKind] = [.marine, .tank]
+let reinforceCooldown: Double = 60
 
 /// Skirmish game modes, as defs.py's MODES: (id, name, rule). Campaign missions carry their own rules.
 let modes: [(id: String, name: String, rule: String)] = [
@@ -627,7 +640,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind)
+    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind)
 }
 
 struct CommandButton {

@@ -266,8 +266,20 @@ CAMPAIGN = [
 ]
 MISSION_BY_ID = {m.id: m for m in CAMPAIGN}
 
-# Every side starts with this much crystal in the bank.
-START_CRYSTAL = 2000
+# Every side starts with this much crystal in the bank, unless the game was set up with another amount.
+START_CRYSTAL = 5000
+START_CRYSTAL_OPTIONS = [2000, 5000, 10000, 20000]
+# How a side starts: a Command Center and five Engineers, or an established base with these already standing
+# — (kind, distance from the Command Center, angle off the direction to the middle of the map).
+START_BASES = [("fresh", "Fresh start", "A Command Center and five Engineers"),
+               ("established", "Established base", "Depots, a Barracks, a Factory and a turret already standing")]
+ESTABLISHED = [("depot", 230.0, 1.2), ("depot", 230.0, -1.2), ("barracks", 270.0, 0.55), ("factory", 300.0, -0.55),
+               ("turret", 340.0, 0.0)]
+# Off-map reinforcements, called in from the Command Center for crystal: unit kind -> (how many, the price).
+# They walk in from the map edge nearest your start; one call per REINFORCE_COOLDOWN seconds.
+REINFORCEMENTS = {"marine": (4, 300), "tank": (2, 600)}
+REINFORCE_ORDER = ["marine", "tank"]
+REINFORCE_COOLDOWN = 60.0
 
 # Skirmish game modes: (id, name, rule). Annihilation is the usual rule; King of the Hill goes to the first
 # side to hold the gold ring, uncontested, for KOTH_HOLD seconds; Sudden Death knocks a side out with its

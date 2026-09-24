@@ -78,6 +78,8 @@ final class GameServer {
         s.replay = r
         s.mission = missionNamed(r.mission)
         s.mode = r.mode
+        s.startCrystal = r.startCrystal
+        s.startBase = r.startBase
         for slot in s.slots {
             if let p = r.players.first(where: { $0.slot == slot.index }) {
                 slot.kind = p.slot == r.viewer ? "open" : "ai"
@@ -97,8 +99,10 @@ final class GameServer {
         return s
     }
     var mission: Mission?
-    /// The skirmish rule for a new game (Defs.modes).
+    /// The skirmish rule for a new game (Defs.modes), the crystal in the bank at the start and what stands.
     var mode = "annihilation"
+    var startCrystal: Int = startCrystalOptions[1]
+    var startBase = "fresh"
 
     /// A private server that resumes a saved single-player game.
     static func singlePlayer(restoring w: SWorld) -> GameServer {
@@ -119,12 +123,15 @@ final class GameServer {
         return s
     }
 
-    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0, mode: String = "annihilation") -> GameServer {
+    static func singlePlayer(opponents: Int, difficulty: Int, mapId: String, teams: Int = 0, mode: String = "annihilation",
+                             startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh") -> GameServer {
         let s = GameServer(name: "Skirmish", port: 0)
         s.localOnly = true
         s.difficulty = difficulty
         s.mapId = mapId
         s.mode = mode
+        s.startCrystal = crystal
+        s.startBase = base
         for slot in s.slots {
             slot.team = teamOf(slot: slot.index, teams: teams)
             if slot.index == 0 { slot.kind = "open" } else if slot.index <= opponents {
@@ -492,7 +499,8 @@ final class GameServer {
                 return SPlayer(slot: s.index, name: s.name.isEmpty ? "Computer \(s.index + 1)" : s.name, team: s.team,
                                isAI: recordedAI ?? (s.kind == "ai"), start: i)
             }
-            w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal, seed: replay?.seed)
+            w = SWorld(map: map, players: players, difficulty: Difficulty(rawValue: difficulty) ?? .normal, seed: replay?.seed,
+                       startCrystal: startCrystal, startBase: startBase)
             w.mission = mission
         }
         world = w
@@ -504,7 +512,7 @@ final class GameServer {
         let crystals = w.crystals.map { [$0.id, $0.x, $0.y, $0.amount, $0.variant] as [Any] }
         for c in clients {
             guard let s = c.slot else { continue }
-            var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals, "mode": w.mode]
+            var msg: [String: Any] = ["t": "start", "slot": s, "map": map, "players": info, "difficulty": difficulty, "crystals": crystals, "mode": w.mode, "start_crystal": w.startCrystal, "start_base": w.startBase]
             if let m = w.mission { msg["mission"] = m.id }
             if w.mode == "koth" { msg["ring"] = [w.ring.0, w.ring.1] }
             if let m = w.mission, let h = m.hold { msg["ring"] = [h.0, h.1, h.2] }
@@ -636,6 +644,7 @@ final class GameServer {
                 "tw": w.towers.map { [$0.id, r1($0.x), r1($0.y), $0.owner ?? -1, $0.capturing ?? -1, Int($0.progress * 100)] },
                 "ms": w.mission != nil ? Int(w.missionProgress()) : 0,
                 "hold": w.mode == "koth" ? Dictionary(uniqueKeysWithValues: w.hold.map { (String($0.key), r1($0.value)) }) : [:],
+                "rf": r1(w.reinforceLeft(slot)),
                 "cr": w.crates.filter { c in w.fog[w.players[slot]?.team ?? -1]?.isVisible(c.x, c.y) == true }
                     .map { [$0.id, r1($0.x), r1($0.y), crateKinds.firstIndex(of: $0.kind) ?? 0, $0.amount] },
                 "c": w.crystals.map { [$0.id, $0.amount] }, "p": alive, "e": packed]

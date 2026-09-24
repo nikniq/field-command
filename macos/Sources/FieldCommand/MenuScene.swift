@@ -330,15 +330,36 @@ final class MenuScene: SKScene {
             toggles.append((r, bg, { [unowned self] in action(); self.buildContent() }))
             px += pw + tg
         }
+        // The start: crystal in the bank and what already stands.
+        let base = startBases.first { $0.id == Settings.startBase } ?? startBases[0]
+        let picks2: [(CGFloat, String, () -> Void)] = [
+            (190, "Crystal: \(Settings.startCrystal)", { Settings.cycleStartCrystal() }),
+            (250, "Base: \(base.name)", { Settings.cycleStartBase() }),
+        ]
+        let py2 = py - th - 10
+        px = -(picks2.reduce(0) { $0 + $1.0 } + tg * CGFloat(picks2.count - 1)) / 2
+        for (pw, label, action) in picks2 {
+            let r = CGRect(x: px, y: py2 - th / 2, width: pw, height: th)
+            let bg = SKSpriteNode(texture: Art.button(r.size, .active, accent: Palette.amber))
+            bg.name = "accent"
+            bg.size = r.size
+            bg.position = CGPoint(x: r.midX, y: r.midY)
+            content.addChild(bg)
+            let l = makeLabel(label, size: 13, font: Fonts.demi, align: .center, valign: .center)
+            l.position = bg.position
+            content.addChild(l)
+            toggles.append((r, bg, { [unowned self] in action(); self.buildContent() }))
+            px += pw + tg
+        }
         let desc = makeLabel("\(meta.desc)  ·  \(mode.rule)", size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
-        desc.position = CGPoint(x: 0, y: py - th / 2 - 14)
+        desc.position = CGPoint(x: 0, y: py2 - th / 2 - 14)
         content.addChild(desc)
         // Who is with whom — the round-robin deal is otherwise invisible until the game starts.
         let tc = Settings.teamCount
         let lineup = makeLabel(lineupText(opponents: Settings.opponents, teams: tc), size: 13,
                                color: tc >= 2 ? Palette.amber : Palette.dim, font: tc >= 2 ? Fonts.demi : Fonts.medium,
                                align: .center, valign: .center)
-        lineup.position = CGPoint(x: 0, y: py - th / 2 - 34)
+        lineup.position = CGPoint(x: 0, y: py2 - th / 2 - 34)
         content.addChild(lineup)
 
         let lines = [
@@ -347,7 +368,7 @@ final class MenuScene: SKScene {
         ]
         for (i, l) in lines.enumerated() {
             let t = makeLabel(l, size: 14, color: Palette.text.withAlphaComponent(0.85), font: Fonts.medium, align: .center, valign: .center)
-            t.position = CGPoint(x: 0, y: ty - 52 - th - 38 - CGFloat(i) * 24)
+            t.position = CGPoint(x: 0, y: ty - 52 - th * 2 - 48 - CGFloat(i) * 24)
             content.addChild(t)
         }
         let foot = makeLabel("1 / 2 / 3 or Return to deploy  ·  ⌃⌘F full screen  ·  ⌘Q quit", size: 12, color: Palette.dim,
@@ -687,6 +708,6 @@ final class MenuScene: SKScene {
     private func start(_ d: Difficulty) {
         Settings.lastDifficulty = d.rawValue
         startSkirmish(view, size: size, difficulty: d, mapId: Settings.mapId, opponents: Settings.opponents,
-                      teams: Settings.teamCount, mode: Settings.mode)
+                      teams: Settings.teamCount, mode: Settings.mode, startCrystal: Settings.startCrystal, startBase: Settings.startBase)
     }
 }

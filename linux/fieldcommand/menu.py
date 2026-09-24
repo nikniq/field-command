@@ -145,7 +145,7 @@ class MenuScene:
         audio.play("click")
         session = LocalSession(d, autoplay=self.app.autoplay, map_id=settings.map_id,
                                opponents=min(settings.opponents, settings.max_opponents), teams=settings.team_count,
-                               mode=settings.mode)
+                               mode=settings.mode, start_crystal=settings.start_crystal, start_base=settings.start_base)
         self.app.set_scene(GameScene(self.app, session))
 
     def toggle_campaign(self):
@@ -516,11 +516,26 @@ class MenuScene:
             ui.blit_text(screen, label, 13, TEXT, r.center, align="center", bold=True)
             self.toggles.append((r, action))
             x += pw + tg
-        ui.blit_text(screen, f"{meta.get('desc', '')}  ·  {mode[2]}", 12, DIM, (w / 2, py + th + 14), align="center")
+        # The start: crystal in the bank and what already stands.
+        from .defs import START_BASES
+        base = next((b for b in START_BASES if b[0] == settings.start_base), START_BASES[0])
+        picks2 = [(190, f"Crystal: {settings.start_crystal}", settings.cycle_start_crystal),
+                  (250, f"Base: {base[1]}", settings.cycle_start_base)]
+        pt = sum(p[0] for p in picks2) + tg * (len(picks2) - 1)
+        x = w / 2 - pt / 2
+        py2 = py + th + 10
+        for pw, label, action in picks2:
+            r = pygame.Rect(int(x), int(py2), pw, th)
+            hover = mouse is not None and r.collidepoint(mouse)
+            screen.blit(art.button(pw, th, "hover" if hover else "active", AMBER), r.topleft)
+            ui.blit_text(screen, label, 13, TEXT, r.center, align="center", bold=True)
+            self.toggles.append((r, action))
+            x += pw + tg
+        ui.blit_text(screen, f"{meta.get('desc', '')}  ·  {mode[2]}", 12, DIM, (w / 2, py2 + th + 14), align="center")
         # Who is with whom — the round-robin deal is otherwise invisible until the game starts.
-        ui.blit_text(screen, lineup_text(n, tc), 13, AMBER if tc >= 2 else DIM, (w / 2, py + th + 34),
+        ui.blit_text(screen, lineup_text(n, tc), 13, AMBER if tc >= 2 else DIM, (w / 2, py2 + th + 34),
                      align="center", bold=tc >= 2)
-        ty += th + 38
+        ty += th * 2 + 48
         lines = ["Mine crystal with Engineers, expand, and train an army of Rangers and Siege Tanks.",
                  "Destroy every enemy building to win. Objectives on screen will guide your first minutes."]
         for i, l in enumerate(lines):

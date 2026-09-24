@@ -748,6 +748,60 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_STARTTEST=1: the start of a game — crystal in the bank, an established base, off-map reinforcements
+    /// for crystal — matching linux/tests/test_start.py.
+    static func runStartTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func world(crystal: Int = startCrystal, base: String = "fresh") -> SWorld {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 6, startCrystal: crystal, startBase: base)
+            for u in w.units { u.command(.idle) }
+            return w
+        }
+        check(startCrystal == 5000 && startCrystalOptions.contains(startCrystal) && world().resources[0] == 5000 && world(crystal: 20000).resources[1] == 20000,
+              "starting crystal defaults to 5000 and can be set")
+        let fresh = world()
+        let w = world(base: "established")
+        var layout = fresh.buildings.filter { $0.team == 0 }.count == 1 && established.count == 5
+        for slot in 0..<2 {
+            let mine = w.buildings.filter { $0.team == slot && $0.built }
+            let kinds = mine.map { $0.kind }
+            let hq = mine.first { $0.kind == .hq }!
+            layout = layout && kinds.filter { $0 == .depot }.count == 2 && kinds.contains(.barracks) && kinds.contains(.factory) && kinds.contains(.turret)
+            for b in mine where b.kind != .hq { let d = hypot(b.x - hq.x, b.y - hq.y); layout = layout && d > 150 && d < 420 }
+        }
+        check(layout && w.supplyCap(0) > fresh.supplyCap(0), "an established base stands from the first second, facing the middle")
+        do {
+            let w = world()
+            let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
+            let before = w.units.count
+            w.apply(0, ["reinforce", "marine"])
+            let (count, cost) = reinforcements[.marine]!
+            let new = w.units.filter { $0.team == 0 && $0.kind == .marine }
+            let (ex, ey) = w.edgePoint(0)
+            var walking = new.count == count && w.units.count == before + count && w.resources[0] == Double(startCrystal - cost)
+            walking = walking && min(ex, ey, worldW - ex, worldH - ey) == 80 && new.allSatisfy { hypot($0.x - ex, $0.y - ey) < 120 }
+            for u in new { if case .move(let x, let y) = u.order { let d = hypot(x - hq.x, y - hq.y); walking = walking && d > 150 && d < 300 } else { walking = false } }
+            check(walking && w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("Reinforcements") }, "reinforcements walk in from your edge for crystal")
+            w.apply(0, ["reinforce", "tank"])
+            let tooSoon = !w.units.contains { $0.team == 0 && $0.kind == .tank } && abs(w.reinforceLeft(0) - reinforceCooldown) < 1e-6
+            w.elapsed += reinforceCooldown
+            w.apply(0, ["reinforce", "tank"])
+            let later = w.units.filter { $0.team == 0 && $0.kind == .tank }.count == reinforcements[.tank]!.count
+            w.resources[1] = 10
+            w.apply(1, ["reinforce", "marine"])
+            check(tooSoon && later && !w.units.contains { $0.team == 1 && $0.kind == .marine }, "one call a minute, and only with the crystal")
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            let rec = try! Replay(try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: Replay.encode(w, viewer: 0))) as! [String: Any])
+            check(w2.startCrystal == startCrystal && w2.reinforceLeft(0) > 0 && rec.startCrystal == startCrystal && rec.startBase == "fresh",
+                  "the setup and the cooldown travel in saves and replays")
+        }
+        print(ok ? "START TEST PASSED" : "START TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runReplayTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

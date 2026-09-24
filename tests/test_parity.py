@@ -298,8 +298,18 @@ def test_campaign_agrees():
 
 
 def test_starting_crystal_agrees():
-    from fieldcommand.defs import START_CRYSTAL
-    assert int(re.search(r"let startCrystal = (\d+)", swift("Defs.swift")).group(1)) == START_CRYSTAL
+    from fieldcommand.defs import ESTABLISHED, REINFORCEMENTS, REINFORCE_COOLDOWN, REINFORCE_ORDER, START_BASES, START_CRYSTAL, START_CRYSTAL_OPTIONS
+    src = swift("Defs.swift")
+    assert int(re.search(r"let startCrystal = (\d+)", src).group(1)) == START_CRYSTAL
+    assert [int(v) for v in re.findall(r"\d+", re.search(r"let startCrystalOptions = \[(.*?)\]", src).group(1))] == START_CRYSTAL_OPTIONS
+    bases = re.findall(r'\("(\w+)", "([^"]+)", "([^"]+)"\)', re.search(r"let startBases: .*?= \[(.*?)\n\]", src, re.S).group(1))
+    assert [tuple(b) for b in bases] == [tuple(b) for b in START_BASES]
+    layout = re.findall(r"\(\.(\w+), ([\d.]+), (-?[\d.]+)\)", re.search(r"let established: .*?= \[(.*?)\]", src).group(1))
+    assert [(k, float(d), float(a)) for k, d, a in layout] == [(k, float(d), float(a)) for k, d, a in ESTABLISHED]
+    rows = re.findall(r"\.(\w+): \((\d+), (\d+)\)", re.search(r"let reinforcements: .*?= \[(.*?)\]", src).group(1))
+    assert {k: (int(n), int(c)) for k, n, c in rows} == REINFORCEMENTS
+    assert re.findall(r"\.(\w+)", re.search(r"let reinforceOrder: \[UnitKind\] = \[(.*?)\]", src).group(1)) == REINFORCE_ORDER
+    assert float(re.search(r"let reinforceCooldown: Double = ([\d.]+)", src).group(1)) == REINFORCE_COOLDOWN
 
 
 def test_healing_constants_agree():
