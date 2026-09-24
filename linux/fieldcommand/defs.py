@@ -290,6 +290,12 @@ SMOKE_DURATION = 8.0
 SMOKE_FACTOR = 0.5          # ranged damage taken inside smoke
 SMOKE_RANGED = 60.0         # a hit from further than this is ranged
 
+# Cover: anyone on foot standing among trees (within COVER_REACH of a trunk's edge) takes COVER_FACTOR of
+# ranged damage (a hit from further than SMOKE_RANGED). Tanks and aircraft get nothing from a forest.
+COVER_REACH = 24.0
+COVER_FACTOR = 0.5
+COVER_KINDS = ("worker", "marine", "sniper", "medic")
+
 # Off-map reinforcements, called in from the Command Center for crystal: unit kind -> (how many, the price).
 # They walk in from the map edge nearest your start; one call per REINFORCE_COOLDOWN seconds.
 REINFORCEMENTS = {"marine": (4, 300), "tank": (2, 600)}

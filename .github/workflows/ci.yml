@@ -192,6 +192,11 @@ jobs:
         run: |
           set -o pipefail
           FC_COUNTERTEST=1 "$BIN" | tee /dev/stderr | grep -q "COUNTER TEST PASSED"
+      - name: Headless Cover
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_COVERTEST=1 "$BIN" | tee /dev/stderr | grep -q "COVER TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

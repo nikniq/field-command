@@ -409,6 +409,55 @@ enum Debug {
     /// give the same game, a different seed a different one — and a recorded game replays exactly.
     /// FC_HIGHTEST=1: high ground — plateaus are walkable and buildable, and whatever stands on one sees and
     /// shoots further; matching linux/tests/test_highground.py.
+    /// FC_COVERTEST=1: cover among trees on the server simulation — matching linux/tests/test_cover.py.
+    static func runCoverTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, (Double, Double, Double)) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }
+            return (w, w.obstacles[0])
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u)
+            u.command(.idle)
+            u.cooldown = 1e9
+            return u
+        }
+        check(Set(coverKinds) == Set(UnitKind.allCases.filter { !$0.stats.flies && $0 != .tank }), "the rule covers everyone on foot and nobody else")
+        do {
+            let (w, t) = fresh()
+            let r = unit(w, .marine, 0, t.0 + t.2 + coverReach - 2, t.1)
+            let far = unit(w, .sniper, 1, r.x + smokeRanged + 300, r.y)
+            let near = unit(w, .marine, 1, r.x + 30, r.y)
+            let covered = w.inCover(r.x, r.y)
+            var hp = r.hp
+            r.takeDamage(10, from: far)
+            let half = abs(hp - r.hp - 10 * coverFactor) < 1e-9
+            hp = r.hp
+            r.takeDamage(10, from: near)
+            check(covered && half && abs(hp - r.hp - 10) < 1e-9, "infantry among trees takes half from a distance, all point blank")
+            let tank = unit(w, .tank, 0, t.0 + t.2 + coverReach - 2, t.1 + 30)
+            hp = tank.hp
+            tank.takeDamage(10, from: far)
+            check(abs(hp - tank.hp - 10) < 1e-9, "tanks get nothing from a forest")
+        }
+        do {
+            let (w, t) = fresh()
+            let r = unit(w, .marine, 0, t.0 + t.2 + coverReach - 2, t.1)
+            let tank = unit(w, .tank, 0, r.x + 20, r.y)
+            let popped = w.useAbility(0, [tank], 0, 0) == 1
+            let far = unit(w, .sniper, 1, r.x + 400, r.y)
+            let hp = r.hp
+            r.takeDamage(10, from: far)
+            check(popped && abs(hp - r.hp - 10 * coverFactor) < 1e-9, "cover and smoke do not stack")
+        }
+        print(ok ? "COVER TEST PASSED" : "COVER TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runHighGroundTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

@@ -1956,15 +1956,25 @@ final class SWorld {
 
     // MARK: Abilities
 
-    /// A marked target takes more; anything inside smoke takes less from a distance.
+    /// A marked target takes more; anything inside smoke, and anyone on foot among trees, takes less from a
+    /// distance (the two do not stack: the better of them applies).
     func modifyDamage(_ victim: SEntity, _ amount: Double, _ attacker: SEntity?) -> Double {
         var amount = amount
         if victim.markedUntil > elapsed { amount *= 1 + markBonus }
-        if !victim.isBuilding, let a = attacker, !smokes.isEmpty, hyp(a.x - victim.x, a.y - victim.y) > smokeRanged,
-           smokes.contains(where: { $0.until > elapsed && hyp($0.x - victim.x, $0.y - victim.y) <= smokeRadius }) {
-            amount *= smokeFactor
+        if let u = victim as? SUnit, let a = attacker, hyp(a.x - victim.x, a.y - victim.y) > smokeRanged {
+            var factor = 1.0
+            if !smokes.isEmpty, smokes.contains(where: { $0.until > elapsed && hyp($0.x - victim.x, $0.y - victim.y) <= smokeRadius }) {
+                factor = smokeFactor
+            }
+            if coverKinds.contains(u.kind) && inCover(u.x, u.y) { factor = min(factor, coverFactor) }
+            amount *= factor
         }
         return amount
+    }
+
+    /// True among trees: within coverReach of a trunk's edge.
+    func inCover(_ x: Double, _ y: Double) -> Bool {
+        nearbyObstacles(x, y).contains { hyp(x - $0.0, y - $0.1) <= $0.2 + coverReach }
     }
 
     /// Every selected unit of a kind with its ability ready uses it: a grenade at the point, a mark on the target,

@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.34.0
+Version:        1.35.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.35.0-1
+- Cover: anyone on foot standing among trees takes half damage from ranged fire (not tanks, not
+  aircraft, not point-blank hits; it does not stack with smoke); the unit card says "in cover" and a
+  green badge sits by the health bar
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.34.0-1
 - The computer pulls a wave back to its Command Center once it has lost most of itself with the enemy
   still on it, and waits longer before the next; on Normal and Hard it counterattacks within twenty

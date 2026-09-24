@@ -843,6 +843,13 @@ final class GameScene: SKScene {
         }
     }
 
+    /// True for anyone on foot standing among trees (the same rule the server applies to damage).
+    func inCover(_ e: Entity) -> Bool {
+        guard let u = e as? Unit, coverKinds.contains(u.kind) else { return false }
+        let p = u.position
+        return obstacles.contains { hypot(Double(p.x - $0.position.x), Double(p.y - $0.position.y)) <= Double($0.radius) + coverReach }
+    }
+
     // MARK: Abilities
 
     /// The selected units whose kind has an ability, and how many of them can use it right now.

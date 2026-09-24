@@ -486,6 +486,8 @@ class HUD:
             stats = f"DMG {int(s.damage)}{'+splash' if s.splash else ''}   RANGE {int(s.range)}   SPEED {int(s.speed)}"
             ui.blit_text(screen, stats, 11, DIM, (tx, top + 72), mono=True)
             status = e.status_text() if mine else ("Allied unit" if ally else "Hostile unit")
+            if mine and " in cover" not in status and self.game.in_cover(e):
+                status += " · in cover"
             if e.carrying and mine:
                 status += f" · carrying {e.carrying}"
             if e.queued and mine:

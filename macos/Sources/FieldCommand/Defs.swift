@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.34.0"
+let appVersion = "1.35.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -435,6 +435,12 @@ let smokeRadius: Double = 120
 let smokeDuration: Double = 8
 let smokeFactor: Double = 0.5          // ranged damage taken inside smoke
 let smokeRanged: Double = 60           // a hit from further than this is ranged
+
+/// Cover: anyone on foot standing among trees (within coverReach of a trunk's edge) takes coverFactor of
+/// ranged damage (a hit from further than smokeRanged). Tanks and aircraft get nothing from a forest.
+let coverReach: Double = 24
+let coverFactor: Double = 0.5
+let coverKinds: [UnitKind] = [.worker, .marine, .sniper, .medic]
 
 /// Off-map reinforcements, called in from the Command Center for crystal: (how many, the price), one call
 /// every reinforceCooldown seconds.

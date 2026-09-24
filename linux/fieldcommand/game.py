@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, COVER_KINDS, COVER_REACH, GRENADE_DAMAGE, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -160,6 +160,9 @@ class GameScene:
         self.clearings = session.map["clearings"]
         self.roads = session.map["roads"]
         self.ground = build_ground(session.map)
+        self._tree_grid = {}
+        for i, t in enumerate(session.map.get("trees", [])):
+            self._tree_grid.setdefault((int(t[0] // 128), int(t[1] // 128)), []).append((t[0], t[1], t[2]))
         self.clouds = art.cloud_layer()
         self._known_units = {}      # id -> (kind, team, x, y, angle): to mark where the fallen dropped
         self.selection = []
@@ -1360,6 +1363,18 @@ class GameScene:
 
     # ------------------------------------------------------------ abilities
 
+    def in_cover(self, e):
+        """True for anyone on foot standing among trees (the same rule the server applies to damage)."""
+        if e.is_building or e.kind not in COVER_KINDS:
+            return False
+        bx, by = int(e.x // 128), int(e.y // 128)
+        for gx in (bx - 1, bx, bx + 1):
+            for gy in (by - 1, by, by + 1):
+                for x, y, r in self._tree_grid.get((gx, gy), ()):
+                    if math.hypot(e.x - x, e.y - y) <= r + COVER_REACH:
+                        return True
+        return False
+
     def _marked(self, e):
         m = getattr(e, "marked", None)
         if m is None:
@@ -1876,6 +1891,14 @@ class GameScene:
             pygame.draw.rect(screen, (0, 0, 0), (bx - width / 2 - 1, by - 2.5, width + 2, 5))
             col = to255(GOOD if frac > 0.6 else AMBER if frac > 0.3 else BAD)
             pygame.draw.rect(screen, col, (bx - width / 2, by - 1.5, width * frac, 3))
+        if (e.selected or e.hovered) and self.in_cover(e):
+            # In cover: a small green leaf-shaped badge beside the health bar.
+            cx, cy = cam.to_screen(e.x, e.y + e.radius + 10)
+            cx += width / 2 + 7
+            pts = [(cx, cy - 5 / z), (cx + 4 / z, cy), (cx, cy + 5 / z), (cx - 4 / z, cy)]
+            pygame.draw.polygon(screen, (0, 0, 0), pts)
+            pygame.draw.polygon(screen, (110, 200, 90), [(x, y) for x, y in pts], 0 if z < 1.5 else 1)
+            pygame.draw.polygon(screen, (0, 0, 0), pts, 1)
         if self._marked(e):
             # A Sniper's mark: a pulsing amber reticle over the target for as long as it holds.
             mx, my = cam.to_screen(e.x, e.y + ((e.half + 26) if building else (e.radius + 22)))

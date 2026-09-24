@@ -422,6 +422,15 @@ Corners (either side of the gold). They are walkable and buildable, and anything
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 
+## Cover
+
+Forests are more than obstacles. Anyone **on foot** — Rangers, Snipers, Medics, Engineers — standing among
+trees (within 24 of a trunk) takes **half damage from ranged fire**, meaning any hit from further than 60.
+Tanks and Gunships get nothing from a forest, a point-blank burst is not ranged, and cover does not stack
+with a tank's smoke: the better of the two applies. The unit card says *in cover* and a green badge sits by
+the health bar of a selected or hovered unit that has it. Fight from the treeline; make the enemy cross the
+open. Every map's forests are laid out by the generator, so the cover is where the trees are.
+
 ## Gold deposits
 
 Every map has at least one **gold deposit** — nodes drawn in gold, each worth 150,000 crystal, a hundred times

@@ -10,7 +10,7 @@ import math
 import random
 
 from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
-from .defs import (ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+from .defs import (COVER_KINDS, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
@@ -357,6 +357,12 @@ class Unit(Entity):
         return self.kind == "worker" and self.order[0] == "idle" and not self.queued
 
     def status_text(self):
+        text = self._status_text()
+        if self.kind in COVER_KINDS and self.game.in_cover(self.x, self.y):
+            text += " · in cover"
+        return text
+
+    def _status_text(self):
         o = self.order[0]
         if self.mode == MODE_SIEGING:
             return "Digging in"

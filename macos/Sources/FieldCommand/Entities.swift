@@ -380,6 +380,36 @@ final class Unit: Entity {
     }
 
     var statusText: String {
+        let text = baseStatusText
+        return game.inCover(self) ? text + " · in cover" : text
+    }
+
+    /// In cover: a small green leaf-shaped badge beside the health bar while selected or hovered.
+    private var coverBadge: SKShapeNode?
+
+    override func updateHPBar() {
+        super.updateHPBar()
+        let show = (isSelected || isHovered) && !dead && game.inCover(self)
+        if show && coverBadge == nil {
+            let b = SKShapeNode(path: {
+                let p = CGMutablePath()
+                p.move(to: CGPoint(x: 0, y: 5)); p.addLine(to: CGPoint(x: 4, y: 0)); p.addLine(to: CGPoint(x: 0, y: -5)); p.addLine(to: CGPoint(x: -4, y: 0)); p.closeSubpath()
+                return p
+            }())
+            b.fillColor = .rgb(0.43, 0.78, 0.35)
+            b.strokeColor = .black
+            b.lineWidth = 1
+            b.position = CGPoint(x: hpBarWidth / 2 + 7, y: hpBack.position.y)
+            b.zPosition = 22
+            addChild(b)
+            coverBadge = b
+        } else if !show, let b = coverBadge {
+            b.removeFromParent()
+            coverBadge = nil
+        }
+    }
+
+    private var baseStatusText: String {
         if mode == .sieging { return "Digging in" }
         if mode == .unsieging { return "Packing up" }
         if game.isNet {
