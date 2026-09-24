@@ -266,6 +266,8 @@ class GameScene:
             mission = getattr(self.s, "mission", None)
             if won and mission and mission.id not in settings.campaign_done:
                 settings.set("campaign_done", list(settings.campaign_done) + [mission.id])
+            if self.s.can_pause and not getattr(self.s, "spectating", False) and self.s.players[self.s.slot].alive or won:
+                settings.record_result(won, self.difficulty.index)
             self._record_replay()
             self.hud.show_end(won)
             self.app.game_ended(self, won)
@@ -627,7 +629,7 @@ class GameScene:
         """A single-player game is recorded on its way out, so the last one can always be watched again."""
         if hasattr(self.s, "write_replay") and not getattr(self.s, "spectating", False):
             try:
-                self.s.write_replay("last")
+                self.s.write_replay()
             except OSError:
                 pass
 

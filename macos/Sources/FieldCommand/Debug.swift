@@ -738,6 +738,23 @@ enum Debug {
             d.step(1.0 / 30); d.events.removeAll()
         }
         check(signature(d) == signature(a), "a recorded game replays exactly")
+        // The browser's view of a recording: filed by date and map, with its result; the oldest are pruned.
+        check(Replay.name(for: a, at: Date(timeIntervalSince1970: 0)).hasSuffix("_twin_ridges"), "a recording is filed by date and map")
+        let url = try! Replay.write(a, viewer: 0)
+        let newest = Replay.list().first!
+        check(url.lastPathComponent == newest.name + ".json" && newest.map == "twin_ridges" && newest.result == "Unfinished" && newest.difficulty == 1,
+              "and the browser reads its map, length and result")
+        for i in 0..<(Replay.keep + 3) { _ = try? Replay.write(a, name: String(format: "old%03d", i), viewer: 0) }
+        check(Replay.list().count == Replay.keep, "the oldest recordings are pruned past \(Replay.keep)")
+        var doc2 = Replay.encode(a, viewer: 0)
+        doc2["winner_team"] = 1
+        check(Replay.result(of: doc2) == "Won" && Replay.result(of: { var d = doc2; d["viewer"] = 1; return d }()) == "Lost", "won or lost is read from the viewer's side")
+        Settings.career = [:]
+        Settings.recordResult(won: true, difficulty: 1); Settings.recordResult(won: true, difficulty: 2); Settings.recordResult(won: false, difficulty: 1)
+        let cr = Settings.career
+        check(cr["wins"] == 2 && cr["losses"] == 1 && cr["wins_1"] == 1 && cr["wins_2"] == 1 && cr["losses_1"] == 1
+              && Settings.careerText == "Career: 2 won · 1 lost · 66%", "the career record counts wins and losses by difficulty")
+        Settings.career = [:]
         print(ok ? "REPLAY TEST PASSED" : "REPLAY TEST FAILED")
         exit(ok ? 0 : 1)
     }

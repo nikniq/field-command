@@ -170,7 +170,7 @@ class LocalSession(_Base):
         session.replay = rec
         return session
 
-    def write_replay(self, name="last"):
+    def write_replay(self, name=None):
         from .replay import write_replay
         return write_replay(self.world, name, viewer=self.slot)
 

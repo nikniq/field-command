@@ -177,10 +177,10 @@ def test_command_card_icons_survive_a_long_game(game):
             g.draw(app.screen, None)
             for r, b in zip(g.hud.button_rects, g.hud.current_buttons):
                 checks += 1
-                plate = app.screen.subsurface((r.centerx - 15, r.centery - 20, 30, 30))
-                colours = len({tuple(c) for row in pygame.surfarray.array3d(plate)[::3, ::3] for c in row})
-                if colours < 8:
-                    blanks.append((round(g.elapsed), b.icon, b.enabled, colours))
+                plate = pygame.surfarray.array3d(app.screen.subsurface((r.centerx - 15, r.centery - 20, 30, 30)))
+                ink = int((plate.max(axis=2) > 60).sum())                # pixels brighter than the dark plate
+                if ink < 40:
+                    blanks.append((round(g.elapsed), b.icon, b.enabled, ink))
     assert checks > 500
     assert not blanks, blanks[:8]
     assert g.hud.icon_repairs == 0, g.hud.icon_repairs

@@ -27,7 +27,8 @@ class _Settings:
                 "bars_always": False,  # health bars on everything, not only the hurt and the selected
                 "ui_scale": 0,  # 0 = automatic from the screen size, otherwise 1, 1.5 or 2
                 "keys": {},     # action -> key name, where it differs from defs.DEFAULT_KEYS
-                "tutorial_done": False}   # the first-run arrows have been walked through (or a game played out)
+                "tutorial_done": False,   # the first-run arrows have been walked through (or a game played out)
+                "career": {}}             # "wins", "losses", and "wins_<difficulty>" / "losses_<difficulty>"
 
     def __init__(self):
         self._data = dict(self.defaults)
@@ -71,6 +72,20 @@ class _Settings:
 
     def reset_keys(self):
         self.set("keys", {})
+
+    def record_result(self, won, difficulty):
+        """One more game played out, single player: the career record grows by a win or a loss."""
+        c = dict(self._data.get("career") or {})
+        for k in (("wins" if won else "losses"), f"{'wins' if won else 'losses'}_{difficulty}"):
+            c[k] = int(c.get(k, 0)) + 1
+        self.set("career", c)
+
+    def career_text(self):
+        c = self._data.get("career") or {}
+        w, l = int(c.get("wins", 0)), int(c.get("losses", 0))
+        if w + l == 0:
+            return "No games played out yet"
+        return f"Career: {w} won · {l} lost · {100 * w // (w + l)}%"
 
     def cycle_speed(self):
         self.set("speed_index", (self.speed_index + 1) % len(SPEEDS))

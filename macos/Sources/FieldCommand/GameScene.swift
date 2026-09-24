@@ -842,6 +842,7 @@ final class GameScene: SKScene {
         if !Settings.tutorialDone { Settings.tutorialDone = true }         // a game played out is lesson enough
         recordReplay()
         if won, let m = net?.mission, !Settings.campaignDone.contains(m.id) { Settings.campaignDone.append(m.id) }
+        if let net, net.isLocal, !net.spectating { Settings.recordResult(won: won, difficulty: difficulty.rawValue) }
         cancelModes()
         fog.revealAll = true
         for u in units { u.isHidden = false }

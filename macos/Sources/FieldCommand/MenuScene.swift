@@ -278,10 +278,13 @@ final class MenuScene: SKScene {
         rbg.size = rr.size
         rbg.position = CGPoint(x: rr.midX, y: rr.midY)
         content.addChild(rbg)
-        let rl = makeLabel("WATCH LAST GAME  (R)", size: 13, color: reps.isEmpty ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
+        let rl = makeLabel("REPLAYS  (R)" + (reps.isEmpty ? "" : "  ·  \(reps.count)"), size: 13, color: reps.isEmpty ? Palette.dim : Palette.text, font: Fonts.bold, align: .center, valign: .center)
         rl.position = rbg.position
         content.addChild(rl)
-        if !reps.isEmpty { toggles.append((rr, rbg, { [unowned self] in watchReplay(self.view, size: self.size) })) }
+        if !reps.isEmpty { toggles.append((rr, rbg, { [unowned self] in self.toggleReplays() })) }
+        let career = makeLabel(Settings.careerText, size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        career.position = CGPoint(x: rr.midX, y: rr.minY - 12)
+        content.addChild(career)
         if let (name, label, _, elapsed) = latest {
             let sub = makeLabel("\(label.isEmpty ? name : label) · \(Int(elapsed) / 60):\(String(format: "%02d", Int(elapsed) % 60)) in",
                                 size: 11, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
@@ -362,6 +365,10 @@ final class MenuScene: SKScene {
             if deployRect.contains(p) { deploy(m) }
             return
         }
+        if replaysOpen {
+            if let hit = replayRows.first(where: { $0.0.contains(p) }) { watchReplay(view, size: size, name: hit.1) }
+            return
+        }
         if campaignOpen {
             if let hit = campaignRows.first(where: { $0.0.contains(p) }) { startMission(hit.1) }
             return
@@ -385,9 +392,9 @@ final class MenuScene: SKScene {
         switch event.charactersIgnoringModifiers {
         case "m", "M": multiplayer()
         case "c", "C": toggleCampaign()
-        case "\u{1B}": if campaignOpen { toggleCampaign() } else { NSApp.terminate(nil) }
+        case "\u{1B}": if campaignOpen { toggleCampaign() } else if replaysOpen { toggleReplays() } else { NSApp.terminate(nil) }
         case "l", "L": loadLatest()
-        case "r", "R": watchReplay(view, size: size)
+        case "r", "R": toggleReplays()
         case "1": start(.easy)
         case "2": start(.normal)
         case "3": start(.hard)
@@ -461,6 +468,62 @@ final class MenuScene: SKScene {
 
     private func deploy(_ m: Mission) {
         startMissionGame(view, size: size, mission: m)
+    }
+
+    // MARK: - Replays
+
+    private var replaysOpen = false
+    private let replaysLayer = SKNode()
+    private var replayRows: [(CGRect, String)] = []
+
+    /// The replay browser: every recorded game, newest first, with its map, date, length and result.
+    private func toggleReplays() {
+        let reps = Array(Replay.list().prefix(12))
+        if reps.isEmpty && !replaysOpen { return }
+        replaysOpen.toggle()
+        replaysLayer.removeAllChildren()
+        replayRows = []
+        if replaysLayer.parent == nil { replaysLayer.zPosition = 50; addChild(replaysLayer) }
+        guard replaysOpen else { return }
+        let boxW: CGFloat = 700, rowH: CGFloat = 40
+        let boxH = 110 + rowH * CGFloat(max(1, reps.count)) + 50
+        let dim = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: size)
+        replaysLayer.addChild(dim)
+        let box = SKSpriteNode(texture: Art.panel(CGSize(width: boxW, height: boxH), radius: 16, accent: Palette.amber))
+        box.size = CGSize(width: boxW, height: boxH)
+        replaysLayer.addChild(box)
+        let top = boxH / 2
+        let title = makeLabel("REPLAYS", size: 36, color: Palette.amber, font: Fonts.heavy, align: .center, valign: .center)
+        title.position = CGPoint(x: 0, y: top - 44)
+        replaysLayer.addChild(title)
+        let sub = makeLabel("The last \(reps.count) games, newest first. Click one to watch it.", size: 13, color: Palette.text, font: Fonts.demi, align: .center, valign: .center)
+        sub.position = CGPoint(x: 0, y: top - 78)
+        replaysLayer.addChild(sub)
+        let f = DateFormatter()
+        f.dateFormat = "dd MMM HH:mm"
+        var y = top - 104
+        for e in reps {
+            let r = CGRect(x: -boxW / 2 + 20, y: y - rowH + 6, width: boxW - 40, height: rowH - 6)
+            let bg = SKSpriteNode(texture: Art.button(r.size, .normal))
+            bg.size = r.size
+            bg.position = CGPoint(x: r.midX, y: r.midY)
+            replaysLayer.addChild(bg)
+            let when = e.savedAt > 0 ? f.string(from: Date(timeIntervalSince1970: TimeInterval(e.savedAt))) : "?"
+            let mname = SMapGen.info(e.map)?.name ?? e.map
+            let diff = Difficulty(rawValue: e.difficulty)?.name ?? ""
+            let l = makeLabel("\(when)  ·  \(mname)  ·  \(diff)", size: 13, color: Palette.text, font: Fonts.bold, align: .left, valign: .center)
+            l.position = CGPoint(x: r.minX + 14, y: r.midY)
+            replaysLayer.addChild(l)
+            let colour = e.result == "Won" ? Palette.good : (e.result == "Lost" ? Palette.bad : Palette.dim)
+            let res = makeLabel(String(format: "%d:%02d   %@", Int(e.elapsed) / 60, Int(e.elapsed) % 60, e.result as NSString), size: 13, color: colour, font: Fonts.bold, align: .right, valign: .center)
+            res.position = CGPoint(x: r.maxX - 14, y: r.midY)
+            replaysLayer.addChild(res)
+            replayRows.append((r, e.name))
+            y -= rowH
+        }
+        let close = makeLabel("R or Esc closes", size: 12, color: Palette.dim, font: Fonts.medium, align: .center, valign: .center)
+        close.position = CGPoint(x: 0, y: -top + 24)
+        replaysLayer.addChild(close)
     }
 
     // MARK: - Briefing

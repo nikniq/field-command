@@ -1361,6 +1361,16 @@ class SpriteCache:
         if fade < 255:
             surf = surf.copy()
             surf.set_alpha(fade)
+        if surf is not base and surf.get_bounding_rect().width == 0 and base.get_bounding_rect().width > 0:
+            # The transform came back empty for a base that is not (seen once on the command card): scale the
+            # plain way and rotate, and never keep an empty variant.
+            w, h = base.get_size()
+            surf = pygame.transform.scale(base, (max(1, int(w * s)), max(1, int(h * s))))
+            if a != 0:
+                surf = pygame.transform.rotate(surf, a * 5.0)
+            if fade < 255:
+                surf.set_alpha(fade)
+            return surf
         self.items[k] = surf
         if len(self.items) > self.limit:
             self.items.popitem(last=False)
@@ -1378,7 +1388,10 @@ def forget_icon(icon, tex):
         _cache.pop(key, None)
     for key in ("icon_attack", "icon_stop", ("grey", id(tex))):
         _cache.pop(key, None)
-    for k in [k for k in sprites.items if isinstance(k, tuple) and k and k[0] == ("icon", *icon)[:1] and icon in k]:
+    # The sprite cache's keys are (key, angle, scale, tint, fade, squash) with key = ("icon", icon, fit, enabled, team):
+    # every scaled or faded variant of this icon goes too, or a blank one would be served again next frame.
+    for k in [k for k in sprites.items if isinstance(k, tuple) and k and isinstance(k[0], tuple) and len(k[0]) > 1
+              and k[0][0] == "icon" and k[0][1] == icon]:
         sprites.items.pop(k, None)
 
 

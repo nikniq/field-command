@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 14, so a 1.26.0 Mac and a 1.26.0 Linux client play together; neither accepts an
+Both editions speak protocol 14, so a 1.27.0 Mac and a 1.27.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -138,6 +138,13 @@ next as it is won; progress is kept in `UserDefaults`. Each is briefed before it
 mission, the objective, the timeline; Enter deploys) and runs a script on its clock: word from Command,
 reinforcements from your map edge, enemy columns from theirs, a raid on your ally. Same missions, scripts
 and rules as the Linux edition (`FC_CAMPAIGNTEST`). Every side starts with 2000 crystal.
+
+## Replays and the career record
+
+Every single-player game is recorded to `~/Library/Application Support/FieldCommand/replays/`, filed by
+date and map (the newest forty kept). **Replays (R)** on the title screen lists them with map, date, length
+and result; click one to watch it. Your career record (wins, losses, win rate) sits under the button and on
+the end screen. Same files and rules as the Linux edition (`FC_REPLAYTEST`).
 
 ## The Gunship
 

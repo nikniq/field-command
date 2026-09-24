@@ -398,11 +398,16 @@ push, a defence or a bridge.
 ## Replays
 
 Every single-player game is recorded — its seed, its setup and every command you gave, by tick — and
-written to `~/.local/share/fieldcommand/replays/last.json` when it ends or when you leave for the menu.
-**Watch Last Game (R)** on the title screen plays it back: the same simulation runs again from the same seed
-with your commands fed in at the same ticks, so it is the same game to the last shot, and a replay of an
-hour is a few kilobytes. While watching, the clock says *REPLAY* and input is ignored. Attach the file to a
-bug report; it reproduces the game exactly on the same edition.
+written to `~/.local/share/fieldcommand/replays/` when it ends or when you leave for the menu, filed by
+date and map (`20260924-153012_twin_ridges.json`); the newest forty are kept. **Replays (R)** on the title
+screen opens the browser: every recording with its map, date, length and result (won, lost or unfinished),
+newest first; click one to watch it. The same simulation runs again from the same seed with your commands
+fed in at the same ticks, so it is the same game to the last shot, and a replay of an hour is a few
+kilobytes. While watching, the clock says *REPLAY* and input is ignored. Attach the file to a bug report;
+it reproduces the game exactly on the same edition.
+
+Under the button sits your **career record** — games won and lost, and the win rate — kept in the settings
+file, overall and by difficulty; the end screen shows it too. Replays and multiplayer games do not count.
 
 This works because the simulation is deterministic: every random choice comes from one generator seeded
 per game, and the world always steps by exactly 1/30 s (game speed changes how many steps run per second).

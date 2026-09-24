@@ -3,6 +3,7 @@
 Uses pygame's native screen coordinates (origin top-left, y down).
 """
 import math
+import os
 
 import pygame
 
@@ -585,15 +586,18 @@ class HUD:
                 # Locked, not missing: keep the art legible in greyscale so the button still says what it
                 # builds. (At the old 35% opacity it vanished into the dark disabled button.)
                 tex = art.greyscale(tex)
-            img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
-                                  fade=255 if b.enabled else 160)
+            key = ("icon", b.icon, fit, b.enabled, g.s.slot)         # the team's colours are part of the picture
+            img = art.sprites.get(key, tex, rot, fit / max(tex.get_size()), fade=255 if b.enabled else 160)
             if img.get_bounding_rect().width == 0:
                 # A blank icon: whatever produced it (a stale cached surface after a display change, a failed
                 # conversion), throw the cached art away and draw it fresh — and remember it for the F12 note.
+                if os.environ.get("FC_ICON_DEBUG"):
+                    print(f"ICON BLANK {b.icon} enabled={b.enabled} base_size={tex.get_size()} base_bounds={tex.get_bounding_rect()} "
+                          f"base_flags={tex.get_flags():#x} base_alpha={tex.get_alpha()} img_size={img.get_size()} img_flags={img.get_flags():#x} "
+                          f"img_alpha={img.get_alpha()} display={pygame.display.get_surface().get_size() if pygame.display.get_surface() else None}")
                 art.forget_icon(b.icon, tex)
                 tex = art.greyscale(self._icon_source(b)) if not b.enabled else self._icon_source(b)
-                img = art.sprites.get(("icon", b.icon, fit, b.enabled), tex, rot, fit / max(tex.get_size()),
-                                      fade=255 if b.enabled else 160)
+                img = art.sprites.get(key, tex, rot, fit / max(tex.get_size()), fade=255 if b.enabled else 160)
                 self.icon_repairs += 1
             # A dark plate behind the picture, so the art reads against the button face in every state.
             pw, ph = max(img.get_width(), img.get_height()) + 10, max(img.get_width(), img.get_height()) + 10
@@ -923,6 +927,8 @@ class HUD:
         g = self.game
         stats = g.s.stats()
         lines = [f"Mission time  {fmt_time(g.elapsed)}   ·   {g.s.map.get('name', '')}   ·   Difficulty  {g.difficulty.name}"]
+        if g.s.can_pause:
+            lines.append(settings.career_text())
         for slot, st in sorted(stats.items(), key=lambda kv: (kv[1]["team"], kv[0])):
             you = " (you)" if slot == g.s.slot else ""
             lines.append(f"{st['name']}{you}  ·  Team {st['team']}  ·  trained {st['trained']}  ·  lost {st['lost']}"

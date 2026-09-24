@@ -5,7 +5,7 @@ import random
 import pygame
 
 from . import __version__, art, audio, mapgen, ui
-from .defs import AMBER, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, GOOD, PLAYER, TEXT, to255
+from .defs import AMBER, BAD, BUTTON_EDGE, DIFFICULTIES, DIM, ENEMY, GOOD, PLAYER, TEXT, to255
 from .effects import Effects
 from .game import Camera, GameScene
 from .session import LocalSession, lineup_text
@@ -22,6 +22,8 @@ class MenuScene:
         self.toggles = []
         self.campaign_open = False
         self.campaign_rows = []      # (rect, Mission) for the missions that can be started
+        self.replays_open = False    # the replay browser
+        self.replay_rows = []        # (rect, name)
         self.briefing = None         # the mission whose briefing is up, before it is deployed
         self.deploy_rect = None
         self._thumbs = {}            # map id -> briefing map surface
@@ -74,6 +76,15 @@ class MenuScene:
             elif e.type == pygame.KEYDOWN and e.key in (pygame.K_ESCAPE, pygame.K_c):
                 self.briefing, self.campaign_open = None, True
             return
+        if self.replays_open:
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                for r, name in self.replay_rows:
+                    if r.collidepoint(e.pos):
+                        self.watch_replay(name)
+                        return
+            elif e.type == pygame.KEYDOWN and e.key in (pygame.K_r, pygame.K_ESCAPE):
+                self.replays_open = False
+            return
         if self.campaign_open:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 for r, m in self.campaign_rows:
@@ -125,7 +136,7 @@ class MenuScene:
             elif e.key == pygame.K_l:
                 self.load_latest()
             elif e.key == pygame.K_r:
-                self.watch_replay()
+                self.toggle_replays()
             elif e.key == pygame.K_ESCAPE:
                 self.app.quit()
 
@@ -298,17 +309,56 @@ class MenuScene:
         audio.play("click")
         self.app.set_scene(GameScene(self.app, session))
 
-    def watch_replay(self):
+    def toggle_replays(self):
         from .replay import list_replays
-        if not list_replays():
+        if not list_replays() and not self.replays_open:
+            return
+        audio.play("click")
+        self.replays_open = not self.replays_open
+
+    def watch_replay(self, name=None):
+        from .replay import list_replays
+        reps = list_replays()
+        if not reps:
             return
         from .session import LocalSession
         try:
-            session = LocalSession.replay(list_replays()[0][0])
+            session = LocalSession.replay(name or reps[0][0])
         except (OSError, ValueError, KeyError):
             return
         audio.play("click")
         self.app.set_scene(GameScene(self.app, session))
+
+    def _draw_replays(self, screen, mouse):
+        """The replay browser: every recorded game, newest first, with its map, date, length and result."""
+        import time
+        from .defs import DIFFICULTIES
+        from .replay import list_replays
+        reps = list_replays()[:12]
+        w, h = self.w, self.h
+        dim = pygame.Surface((w, h), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 150))
+        screen.blit(dim, (0, 0))
+        box_w, row_h = min(w - 40, 700), 40
+        box_h = 110 + row_h * max(1, len(reps)) + 50
+        bx, by = (w - box_w) // 2, max(10, (h - box_h) // 2)
+        screen.blit(art.panel(box_w, box_h, 16, AMBER), (bx, by))
+        ui.blit_text(screen, "REPLAYS", 36, AMBER, (w / 2, by + 44), align="center", bold=True)
+        ui.blit_text(screen, f"The last {len(reps)} games, newest first. Click one to watch it.", 13, TEXT, (w / 2, by + 78), align="center", bold=True)
+        self.replay_rows = []
+        y = by + 104
+        for name, label, at, elapsed, map_id, result, diff in reps:
+            r = pygame.Rect(bx + 20, int(y), box_w - 40, row_h - 6)
+            hover = mouse is not None and r.collidepoint(mouse)
+            screen.blit(art.button(r.w, r.h, "hover" if hover else "normal"), r.topleft)
+            when = time.strftime("%d %b %H:%M", time.localtime(at)) if at else "?"
+            mname = mapgen.BY_ID.get(map_id, {"name": map_id})["name"]
+            colour = GOOD if result == "Won" else BAD if result == "Lost" else DIM
+            ui.blit_text(screen, f"{when}  ·  {mname}  ·  {DIFFICULTIES[diff].name if 0 <= diff < 3 else ''}", 13, TEXT, (r.x + 14, r.centery), bold=True)
+            ui.blit_text(screen, f"{int(elapsed) // 60}:{int(elapsed) % 60:02d}   {result}", 13, colour, (r.right - 14, r.centery), align="right", bold=True)
+            self.replay_rows.append((r, name))
+            y += row_h
+        ui.blit_text(screen, "R or Esc closes", 12, DIM, (w / 2, by + box_h - 24), align="center")
 
     def multiplayer(self):
         from .lobby import MultiplayerScene
@@ -420,8 +470,9 @@ class MenuScene:
         rr_ = pygame.Rect(int(w / 2 + 130), int(cy + ch / 2 + 22 + 60), 250, 34)
         hover = mouse is not None and rr_.collidepoint(mouse)
         screen.blit(art.button(rr_.w, rr_.h, "hover" if hover and reps else ("normal" if reps else "disabled")), rr_.topleft)
-        ui.blit_text(screen, "WATCH LAST GAME  (R)", 13, TEXT if reps else DIM, rr_.center, align="center", bold=True)
-        self.toggles_replay = (rr_, self.watch_replay) if reps else None
+        ui.blit_text(screen, f"REPLAYS  (R)" + (f"  ·  {len(reps)}" if reps else ""), 13, TEXT if reps else DIM, rr_.center, align="center", bold=True)
+        self.toggles_replay = (rr_, self.toggle_replays) if reps else None
+        ui.blit_text(screen, settings.career_text(), 11, DIM, (rr_.centerx, rr_.bottom + 12), align="center")
         rows = [
             (f"Speed: {settings.speed_name}", settings.cycle_speed),
             (f"Edge scroll: {'On' if settings.edge_scroll else 'Off'}", lambda: settings.toggle("edge_scroll")),
@@ -472,6 +523,8 @@ class MenuScene:
         ui.blit_text(screen, "1 / 2 / 3 or Enter to deploy  ·  C campaign  ·  M multiplayer  ·  F11 full screen  ·  Esc quit", 12, DIM, (w / 2, h - 26), align="center")
         if self.campaign_open:
             self._draw_campaign(screen, mouse)
+        if self.replays_open:
+            self._draw_replays(screen, mouse)
         if self.briefing is not None:
             self._draw_briefing(screen, mouse)
         ui.blit_text(screen, f"v{__version__}", 12, DIM, (w - 18, h - 26), align="right")

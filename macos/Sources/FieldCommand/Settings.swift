@@ -63,6 +63,24 @@ enum Settings {
     }
 
     /// Campaign missions completed, by id.
+    /// The career record: "wins", "losses", and "wins_<difficulty>" / "losses_<difficulty>".
+    static var career: [String: Int] {
+        get { d.dictionary(forKey: "career") as? [String: Int] ?? [:] }
+        set { d.set(newValue, forKey: "career") }
+    }
+    /// One more game played out, single player: the career record grows by a win or a loss.
+    static func recordResult(won: Bool, difficulty: Int) {
+        var c = career
+        for k in [won ? "wins" : "losses", "\(won ? "wins" : "losses")_\(difficulty)"] { c[k, default: 0] += 1 }
+        career = c
+    }
+    static var careerText: String {
+        let c = career
+        let w = c["wins"] ?? 0, l = c["losses"] ?? 0
+        if w + l == 0 { return "No games played out yet" }
+        return "Career: \(w) won · \(l) lost · \(100 * w / (w + l))%"
+    }
+
     static var campaignDone: [String] {
         get { d.stringArray(forKey: "campaignDone") ?? [] }
         set { d.set(newValue, forKey: "campaignDone") }

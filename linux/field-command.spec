@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.26.0
+Version:        1.27.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,14 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.27.0-1
+- The replay browser: every game is kept (the newest forty), filed by date and map, and R on the title
+  screen lists them with map, date, length and result; click one to watch it
+- A career record: wins and losses, overall and by difficulty, on the title screen and the end screen
+- Command-card icons: a blank icon, once cached, was served again every frame — the repair never
+  evicted the scaled variant from the sprite cache. It does now, an empty transform is never cached, the
+  icon key carries the side's colours, and the soak test checks the drawn pixels
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.26.0-1
 - The Gunship: an aircraft from the Factory (needs a Radar Station, Q) that flies straight over cliffs,
   water, walls and other units with a fast chain gun; Siege Tanks and Artillery cannot fire at it,

@@ -421,7 +421,7 @@ extension GameScene {
     /// A single-player game is recorded on its way out, so the last one can always be watched again.
     func recordReplay() {
         guard let net, net.isLocal, !net.spectating, let w = GameServer.hosted?.simulation else { return }
-        try? Replay.write(w, name: "last", viewer: net.slot)
+        try? Replay.write(w, viewer: net.slot)
     }
 
     func netSmartCommand(at p: CGPoint, queue: Bool) {
@@ -541,8 +541,8 @@ func resumeSkirmish(_ view: SKView?, size: CGSize, world w: SWorld) {
 }
 
 /// Watches the newest recorded game on a private server.
-func watchReplay(_ view: SKView?, size: CGSize) {
-    guard let latest = Replay.list().first, let r = try? Replay.read(latest.0) else { return }
+func watchReplay(_ view: SKView?, size: CGSize, name: String? = nil) {
+    guard let which = name ?? Replay.list().first?.name, let r = try? Replay.read(which) else { return }
     startSkirmish(view, size: size, difficulty: Difficulty(rawValue: r.difficulty) ?? .normal, mapId: r.map,
                   opponents: r.players.count - 1, replay: r)
 }

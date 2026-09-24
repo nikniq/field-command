@@ -66,6 +66,17 @@ def test_a_recorded_game_replays_exactly(tmp_path, monkeypatch):
         b.events.clear()
     assert signature(b) == signature(a)
     assert replay.list_replays()[0][0] == "last"
+    # A game recorded without a name is filed by date and map, reads its result, and the oldest are pruned.
+    assert replay.replay_name(a, 0).endswith("_twin_ridges")
+    auto = replay.write_replay(a, viewer=0)
+    newest = replay.list_replays()[0]
+    assert auto.endswith(newest[0] + ".json") and newest[4] == "twin_ridges" and newest[5] == "Unfinished" and newest[6] == 1
+    for i in range(replay.KEEP_REPLAYS + 3):
+        replay.write_replay(a, f"old{i:03d}", viewer=0)
+    assert len(replay.list_replays()) == replay.KEEP_REPLAYS
+    a.game_over, a.winner_team = True, a.players[0].team
+    replay.write_replay(a, "won", viewer=0)
+    assert replay.result_of(replay.replay_to_dict(a, 0)) == "Won" and replay.result_of(replay.replay_to_dict(a, 1)) == "Lost"
 
 
 def test_a_replay_session_watches_and_ignores_input(tmp_path, monkeypatch):

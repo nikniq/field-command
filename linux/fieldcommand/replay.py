@@ -8,6 +8,7 @@ import time
 from .save import saves_dir
 
 REPLAY_FORMAT = 1
+KEEP_REPLAYS = 40        # the newest this many are kept; older ones are pruned as new games are recorded
 
 
 class Replay:
@@ -44,14 +45,39 @@ def replay_to_dict(world, viewer=0, label=""):
             "commands": [[t, s, c] for t, s, c in world.record]}
 
 
-def write_replay(world, name="last", viewer=0, label=""):
+def replay_name(world, when=None):
+    """A file name for a game: the date and time it was recorded and the map, so the browser reads well."""
+    return time.strftime("%Y%m%d-%H%M%S", time.localtime(when)) + "_" + world.map["id"]
+
+
+def write_replay(world, name=None, viewer=0, label=""):
     os.makedirs(replays_dir(), exist_ok=True)
-    path = path_for(name)
+    path = path_for(name or replay_name(world))
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(replay_to_dict(world, viewer, label), f, separators=(",", ":"))
     os.replace(tmp, path)
+    prune_replays()
     return path
+
+
+def prune_replays(keep=KEEP_REPLAYS):
+    """Drops the oldest recordings beyond `keep`."""
+    for r in list_replays()[keep:]:
+        try:
+            os.remove(path_for(r[0]))
+        except OSError:
+            pass
+
+
+def result_of(data):
+    """"Won", "Lost" or "Unfinished" from the viewer's side of a recorded game."""
+    winner = data.get("winner_team")
+    if winner is None:
+        return "Unfinished"
+    viewer = int(data.get("viewer", 0))
+    mine = next((p["team"] for p in data.get("players", []) if p["slot"] == viewer), None)
+    return "Won" if mine == winner else "Lost"
 
 
 def read_replay(name="last"):
@@ -63,7 +89,7 @@ def read_replay(name="last"):
 
 
 def list_replays():
-    """(name, label, saved_at, elapsed), newest first."""
+    """(name, label, saved_at, elapsed, map id, result, difficulty), newest first."""
     out = []
     try:
         names = os.listdir(replays_dir())
@@ -75,7 +101,8 @@ def list_replays():
         try:
             with open(os.path.join(replays_dir(), fn)) as f:
                 d = json.load(f)
-            out.append((fn[:-5], d.get("label", ""), int(d.get("saved_at", 0)), float(d.get("elapsed", 0))))
+            out.append((fn[:-5], d.get("label", ""), int(d.get("saved_at", 0)), float(d.get("elapsed", 0)),
+                        d.get("map", ""), result_of(d), int(d.get("difficulty", 1))))
         except (OSError, ValueError):
             continue
     return sorted(out, key=lambda r: -r[2])

@@ -112,11 +112,14 @@ def test_a_blank_icon_is_caught_and_redrawn(game):
     b = next(b for b in g.hud.current_buttons if b.icon[0] == "building")
     # Poison the sprite cache with an empty surface for this icon and draw again.
     fit = 38
-    keys = [k for k in art.sprites.items if k[0] == ("icon", b.icon, fit, b.enabled)]
+    keys = [k for k in art.sprites.items if k[0] == ("icon", b.icon, fit, b.enabled, g.s.slot)]
     assert keys, "the icon was drawn once"
     art.sprites.items[keys[0]] = pygame.Surface((40, 40), pygame.SRCALPHA)
     before = g.hud.icon_repairs
     g.draw(app.screen, None)
     assert g.hud.icon_repairs == before + 1
     r = g.hud.button_rects[g.hud.current_buttons.index(b)]
+    assert icon_ink(app.screen, r, BTN_SIZE()) > 3
+    g.draw(app.screen, None)
+    assert g.hud.icon_repairs == before + 1                         # repaired for good: the blank variant is gone
     assert icon_ink(app.screen, r, BTN_SIZE()) > 3
