@@ -88,7 +88,8 @@ building taking damage, six blocks in two lines either side of a gap so its own 
 
 It knows when a fight is lost: a wave that has lost more than 60% of itself with the enemy still on it
 **pulls back** to the Command Center rather than dying piecemeal, and the next wave waits at least forty
-seconds more to be worth sending. And it knows when you are spent: on Normal and Hard, within twenty seconds
+seconds more to be worth sending — but after three pull-backs without the enemy losing a building, the
+next wave fights it out, so caution never becomes a stalemate. And it knows when you are spent: on Normal and Hard, within twenty seconds
 of a threat to one of its bases being repelled, if its home army is at least half a wave, it
 **counterattacks** at once — the one time it attacks off the clock — no more than once a minute.
 

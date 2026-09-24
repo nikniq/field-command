@@ -90,3 +90,31 @@ def test_easy_never_counterattacks():
     w._cleanup_dead()
     ai._defend(bases, home)
     assert not ai.counter_pending
+
+
+def test_after_three_retreats_without_progress_the_wave_fights_it_out():
+    w, ai, hq = ai_world()
+    spawn(w, "tank", 0, hq.x - 1100, hq.y)
+    for i in range(3):
+        wave = [spawn(w, "marine", 1, hq.x - 900 + j * 20, hq.y) for j in range(6)]
+        ai.attackers, ai.launched = list(wave), 6
+        for u in wave[:4]:
+            u.dead = True
+        w._cleanup_dead()
+        ai.attackers = [u for u in ai.attackers if not u.dead]
+        ai._retreat(hq)
+        assert ai.retreats == i + 1
+    wave = [spawn(w, "marine", 1, hq.x - 900 + j * 20, hq.y) for j in range(6)]
+    ai.attackers, ai.launched = list(wave), 6
+    for u in wave[:4]:
+        u.dead = True
+    w._cleanup_dead()
+    ai.attackers = [u for u in ai.attackers if not u.dead]
+    ai._retreat(hq)
+    assert ai.retreats == 3 and len(ai.attackers) == 2                     # the fourth wave commits
+    # A dent in the enemy resets the count.
+    b = next(b for b in w.buildings if b.team == 0)
+    b.dead = True
+    w._cleanup_dead()
+    ai._retreat(hq)
+    assert ai.retreats == 4

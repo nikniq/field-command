@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.39.0
+Version:        1.39.1
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.39.1-1
+- The computer commits a wave after three pull-backs without the enemy losing a building, so two
+  cautious sides cannot stalemate; a test read the wrong snapshot column; the save round-trip test is
+  seeded and names what differs
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.39.0-1
 - Campaign with stakes: up to eight ranked survivors of a won mission deploy with you in the next, at
   their rank; missions open in branches (Hold the Line and The Gold Run both open after First Light,

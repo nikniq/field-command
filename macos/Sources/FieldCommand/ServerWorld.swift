@@ -2800,6 +2800,9 @@ final class SAI {
     var counterPending = false
     private(set) var retreats = 0
     private(set) var counters = 0
+    /// Retreats since the enemy last lost a building: after three, the waves commit.
+    private var retreatsRow = 0
+    private var enemyBuildings: Int?
     /// The opening being played, the scout and the way it still has to go, the troops posted at expansions,
     /// and the crystal that lay near the Command Center when the game began.
     private(set) var opening: String
@@ -3451,7 +3454,11 @@ final class SAI {
     /// than dying piecemeal, and the next wave waits a little longer to be worth sending.
     func retreat(_ hq: SBuilding) {
         let g = world
+        let standing = g.buildings.filter { !$0.dead && g.enemies($0.team, team) }.count
+        if let was = enemyBuildings, standing < was { retreatsRow = 0 }      // progress: the enemy is losing ground
+        enemyBuildings = standing
         guard launched >= 4, !attackers.isEmpty, Double(attackers.count) < Double(launched) * 0.4 else { return }
+        guard retreatsRow < 3 else { return }                                 // three pull-backs without a dent: this one fights it out
         let near = g.units.contains { e in g.enemies(e.team, team) && !e.dead && attackers.contains { hyp(e.x - $0.x, e.y - $0.y) < 400 } }
         guard near else { return }
         for u in attackers { u.command(.move(hq.x, hq.y)) }
@@ -3459,6 +3466,7 @@ final class SAI {
         launched = 0
         nextWave = max(nextWave, g.elapsed + 40)
         retreats += 1
+        retreatsRow += 1
     }
 
     /// Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;

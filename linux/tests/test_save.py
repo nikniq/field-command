@@ -14,7 +14,9 @@ from fieldcommand.entities import Unit
 
 def busy_world():
     """A game a few minutes in, with a bit of everything in flight."""
-    w = make_world("river_crossing", players=2, ai=True, difficulty=2)
+    # Seeded: the round trip is about the save format, and an unseeded game once differed on a CI runner in a
+    # way nobody could reproduce; a failure below names the units that differ.
+    w = make_world("river_crossing", players=2, ai=True, difficulty=2, seed=7)
     for p in w.players.values():
         p.ai = AI(w, p.slot)
     run(w, 240)
@@ -55,7 +57,13 @@ def test_round_trip_keeps_the_whole_game():
     data = json.loads(json.dumps(save.world_to_dict(w, "test")))     # through real JSON, as the file would be
     assert data["format"] == save.SAVE_FORMAT and data["game"] == "field-command"
     w2 = save.world_from_dict(data)
-    assert signature(w2) == before
+    after = signature(w2)
+    for key in before:
+        if before[key] != after[key] and isinstance(before[key], list):
+            only_before = [x for x in before[key] if x not in after[key]]
+            only_after = [x for x in after[key] if x not in before[key]]
+            assert False, f"{key}: only before {only_before[:4]} · only after {only_after[:4]}"
+    assert after == before
     # Orders came back pointing at the right things.
     for u in w2.units:
         if u.order[0] in ("attack", "gather"):

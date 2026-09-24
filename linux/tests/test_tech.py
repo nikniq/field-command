@@ -88,7 +88,7 @@ def test_tech_is_bought_once_for_the_whole_side():
     # The bit travels in the building's upgrade mask.
     snap = net.snapshot_for(w, 0, [])
     row = next(b for b in snap["b"] if b[0] == bk.id)
-    assert row[9] & (1 << UPGRADE_KINDS.index("entrench"))
+    assert row[12] & (1 << UPGRADE_KINDS.index("entrench"))          # the installed-upgrades mask
 
 
 def test_stabilised_tanks_fire_on_the_move():

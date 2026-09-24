@@ -86,6 +86,8 @@ class AI:
         self.counter_pending = False
         self.retreats = 0
         self.counters = 0
+        self.retreats_row = 0            # retreats since the enemy last lost a building: after three, the waves commit
+        self.enemy_buildings = None
 
     @property
     def diff(self):
@@ -699,8 +701,14 @@ class AI:
         """A wave that has lost most of itself with the enemy still on it pulls back to the Command Center
         rather than dying piecemeal, and the next wave waits a little longer to be worth sending."""
         g = self.game
+        standing = sum(1 for b in g.buildings if not b.dead and g.enemies(b.team, self.team))
+        if self.enemy_buildings is not None and standing < self.enemy_buildings:
+            self.retreats_row = 0                                   # progress: the enemy is losing ground
+        self.enemy_buildings = standing
         if self.launched < 4 or not self.attackers or len(self.attackers) >= self.launched * 0.4:
             return
+        if self.retreats_row >= 3:
+            return                                                  # three pull-backs without a dent: this one fights it out
         near = any(g.enemies(e.team, self.team) and not e.dead
                    and any(math.hypot(e.x - u.x, e.y - u.y) < 400 for u in self.attackers) for e in g.units)
         if not near:
@@ -711,6 +719,7 @@ class AI:
         self.launched = 0
         self.next_wave = max(self.next_wave, g.elapsed + 40)
         self.retreats += 1
+        self.retreats_row += 1
 
     def _objective(self, target):
         """Where a wave goes: in King of the Hill the gold ring, unless this side already holds the lead there;
