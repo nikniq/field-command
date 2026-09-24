@@ -1336,6 +1336,52 @@ enum Debug {
         check(ai2.wanted([]) == .tank, "massed Rangers are answered with tanks")
         ai2.seen = [.marine: 0, .sniper: 0, .tank: 0]
         check(ai2.wanted([]) == .marine, "the base mix opens with Rangers")
+        ai2.seen = [.marine: 0, .sniper: 0, .tank: 12, .gunship: 0]
+        let vsTanks = ai2.composition()
+        ai2.seen = [.marine: 0, .sniper: 0, .tank: 0, .gunship: 12]
+        let vsAir = ai2.composition()
+        check(vsTanks[.gunship]! > 0.25 && vsTanks[.sniper]! > vsTanks[.tank]! && vsAir[.marine]! > 0.5 && vsAir[.gunship]! < 0.1,
+              "Gunships answer massed tanks; Rangers answer Gunships")
+        do {
+            // A turtle walls its approach with a gap; the Factory trains a Gunship once a Radar stands.
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal)
+            for u in w.units { u.command(.idle) }
+            let ai = SAI(world: w, team: 1, opening: "turtle")
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            w.resources[1] = 2000
+            w.elapsed = 100 * Double(w.difficulty.pace)
+            let bases = w.buildings.filter { $0.team == 1 }
+            let tooEarly = ai.fortify(hq, bases, workers) == 0
+            w.elapsed = 200 * Double(w.difficulty.pace)
+            let placed = ai.fortify(hq, bases, workers)
+            var orders = 0
+            var inLine = true
+            for u in workers {
+                for o in [u.order] + u.queued {
+                    if case .build(.wall, let x, let y) = o { orders += 1; let dd = hypot(x - hq.x, y - hq.y); inLine = inLine && dd > 300 && dd < 600 }
+                }
+            }
+            check(tooEarly && placed >= 4 && orders == placed && inLine && w.resources[1] == 2000 - Double(placed) * Double(BuildingKind.wall.stats.cost),
+                  "a turtle walls its approach at 150s: \(placed) blocks in a line with a gap, paid for")
+            w.startBuilding(.factory, hq.x - 300, hq.y, 1)
+            let fac = w.buildings.last!; fac.built = true
+            for i in 0..<3 { w.startBuilding(.depot, hq.x - 500, hq.y - 200 + Double(i) * 100, 1); w.buildings.last!.built = true }
+            ai.seen = [.marine: 0, .sniper: 0, .tank: 12, .gunship: 0]
+            w.resources[1] = 5000
+            var army = (0..<6).map { SUnit(world: w, kind: .marine, team: 1, x: hq.x, y: hq.y + 200 + Double($0)) }
+            army += (0..<3).map { SUnit(world: w, kind: .sniper, team: 1, x: hq.x, y: hq.y + 240 + Double($0)) }
+            for u in army { w.add(u) }
+            let wantAir = ai.wanted(army) == .gunship
+            ai.produceForTest(hq, w.buildings.filter { $0.team == 1 }, [], 0)
+            let tankFirst = fac.queue == [.tank]
+            fac.queue = []
+            w.startBuilding(.radar, hq.x - 300, hq.y + 200, 1)
+            w.buildings.last!.built = true
+            ai.produceForTest(hq, w.buildings.filter { $0.team == 1 }, [], 0)
+            check(wantAir && tankFirst && fac.queue == [.gunship], "the Factory trains a Gunship once one is wanted and a Radar stands")
+        }
 
         let sn = SUnit(world: w, kind: .sniper, team: 1, x: hq.x, y: hq.y)
         let r = SUnit(world: w, kind: .marine, team: 1, x: hq.x, y: hq.y)

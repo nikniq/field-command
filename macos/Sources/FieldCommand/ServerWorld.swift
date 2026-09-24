@@ -2458,6 +2458,10 @@ let garrison = [2, 3, 4]
 let scoutAt: Double = 45
 let scoutEvery: Double = 150
 let expandAt: Double = 300
+let fortifyAt: Double = 150          // a turtle walls its approach from here (times the pace); others once hit
+let fortifyDist: Double = 380        // the wall line sits this far from the Command Center, toward the middle
+let fortifyOffsets: [Double] = [-4, -3, -2, 2, 3, 4]   // blocks either side of a two-block gap, in wall widths
+let fortifyBlocks = 6
 
 /// One draw from the seeded stream, weighted by difficulty; the same rule as the Python edition's.
 func chooseOpening(_ difficulty: Difficulty, giant: Bool) -> String {
@@ -2488,7 +2492,9 @@ final class SAI {
     private var homeCrystalStart: Int?
     private var factor: [String: Double] { openings[opening]! }
     /// A decaying tally of enemy units this side has seen, by kind — what the army is built to answer.
-    var seen: [UnitKind: Double] = [.marine: 0, .sniper: 0, .tank: 0]
+    var seen: [UnitKind: Double] = [.marine: 0, .sniper: 0, .tank: 0, .gunship: 0]
+    /// When a building of this side last took damage: the walls go up after.
+    var hitAt = -1e9
     private var nextRaid = 240.0
     /// Time of the last allied alert point this side sent troops to.
     private var answeredPing = -1.0
@@ -2515,7 +2521,7 @@ final class SAI {
         var seenOut: [String: Double] = [:]
         for (k, v) in seen { seenOut[NetProtocol.name(k)] = v }
         return ["wave_size": waveSize, "next_wave": nextWave, "attackers": attackers.filter { !$0.dead }.map { $0.id },
-                "seen": seenOut, "next_raid": nextRaid, "opening": opening,
+                "seen": seenOut, "next_raid": nextRaid, "opening": opening, "hit_at": hitAt,
                 "scout": scout.flatMap { $0.dead ? nil : $0.id as Any } ?? NSNull(),
                 "scout_route": scoutRoute.map { [$0.0, $0.1] }, "next_scout": nextScout,
                 "guards": guards.filter { !$0.dead }.map { $0.id }, "home_crystal_start": homeCrystalStart as Any? ?? NSNull()]
@@ -2526,6 +2532,7 @@ final class SAI {
         attackers = jArr(d["attackers"]).compactMap { w.byId[jInt($0)] as? SUnit }
         for (k, v) in jDict(d["seen"]) { if let kind = NetProtocol.unitKinds.first(where: { NetProtocol.name($0) == k }) { seen[kind] = Double(jNum(v)) } }
         if let o = d["opening"] as? String, openings[o] != nil { opening = o }
+        if let h = d["hit_at"] as? NSNumber { hitAt = h.doubleValue }
         scout = (d["scout"] as? NSNumber).flatMap { w.byId[$0.intValue] as? SUnit }
         scoutRoute = jArr(d["scout_route"]).map { let p = jArr($0); return (Double(jNum(p[0])), Double(jNum(p[1]))) }
         if let t = d["next_scout"] as? NSNumber { nextScout = t.doubleValue }
@@ -2546,25 +2553,26 @@ final class SAI {
     /// Target shares by unit kind, from a base mix bent by what has been seen: tanks answer massed Rangers,
     /// Snipers answer tanks, tanks and Rangers together answer Snipers.
     func composition() -> [UnitKind: Double] {
-        var w: [UnitKind: Double] = [.marine: 3, .sniper: 1, .tank: 2]
-        let total = [UnitKind.marine, .sniper, .tank].reduce(0.0) { $0 + (seen[$1] ?? 0) }
+        var w: [UnitKind: Double] = [.marine: 3, .sniper: 1, .tank: 2, .gunship: 0.6]
+        let total = [UnitKind.marine, .sniper, .tank, .gunship].reduce(0.0) { $0 + (seen[$1] ?? 0) }
         if total >= 3 {
-            let share = seen.mapValues { $0 / total }
-            w[.sniper]! += 3 * share[.tank]!
-            w[.tank]! += 2 * share[.marine]! + 1 * share[.sniper]!
-            w[.marine]! += 1.5 * share[.sniper]!
+            func share(_ k: UnitKind) -> Double { (seen[k] ?? 0) / total }
+            w[.sniper]! += 3 * share(.tank) + 1 * share(.gunship)
+            w[.tank]! += 2 * share(.marine) + 1 * share(.sniper)
+            w[.marine]! += 1.5 * share(.sniper) + 2 * share(.gunship)
+            w[.gunship]! += 2.5 * share(.tank)
         }
-        let s = w.values.reduce(0, +)
+        let s = [UnitKind.marine, .sniper, .tank, .gunship].reduce(0.0) { $0 + w[$1]! }
         return w.mapValues { $0 / s }
     }
 
     /// The unit kind furthest below its target share.
     func wanted(_ army: [SUnit]) -> UnitKind {
-        var counts: [UnitKind: Int] = [.marine: 0, .sniper: 0, .tank: 0]
+        var counts: [UnitKind: Int] = [.marine: 0, .sniper: 0, .tank: 0, .gunship: 0]
         for u in army where counts[u.kind] != nil { counts[u.kind]! += 1 }
         let n = Double(max(1, counts.values.reduce(0, +)))
         let comp = composition()
-        let order: [UnitKind] = [.marine, .sniper, .tank]
+        let order: [UnitKind] = [.marine, .sniper, .tank, .gunship]
         let deficit = order.map { ($0, comp[$0]! * (n + 1) - Double(counts[$0] ?? 0)) }
         return deficit.max { $0.1 < $1.1 }!.0
     }
@@ -2613,6 +2621,7 @@ final class SAI {
         upgrade(hq, bases)
         shop(army)
         defend(bases, home)
+        fortify(hq, bases, workers)
         garrisonRun(hq, bases, home)
         scoutRun(hq, home)
         grabCrates(hq, home)
@@ -2652,6 +2661,38 @@ final class SAI {
     /// The first expansion with no turret of its own.
     func unguardedExpansion(_ hq: SBuilding, _ bases: [SBuilding]) -> SBuilding? {
         expansions(hq, bases).first { e in !bases.contains { $0.kind == .turret && hyp($0.x - e.x, $0.y - e.y) < 450 } }
+    }
+
+    /// Barricades across the approach: a turtle walls up early, anyone once the base has been hit. Two lines
+    /// of blocks either side of a gap, so its own army still marches out — through a funnel.
+    @discardableResult
+    func fortify(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit]) -> Int {
+        let g = world
+        let t = g.elapsed / Double(diff.pace)
+        if bases.contains(where: { $0.built && $0.hp < $0.maxHp }) { hitAt = g.elapsed }
+        let early = opening == "turtle" && t > fortifyAt
+        guard early || g.elapsed - hitAt < 60 else { return 0 }
+        let walls = bases.filter { $0.kind == .wall }.count + pending(.wall, workers)
+        let cost = Double(BuildingKind.wall.stats.cost)
+        guard walls < fortifyBlocks, (g.resources[team] ?? 0) >= cost * 2 + 150 else { return 0 }
+        let free = workers.filter { w in
+            w.order.isIdle || { if case .gather = w.order { return true }; if case .ret = w.order { return true }; return false }() }
+        let d = max(1, hyp(worldW / 2 - hq.x, worldH / 2 - hq.y))
+        let ux = (worldW / 2 - hq.x) / d, uy = (worldH / 2 - hq.y) / d
+        let cx = hq.x + ux * fortifyDist, cy = hq.y + uy * fortifyDist
+        guard let builder = free.min(by: { hyp($0.x - cx, $0.y - cy) < hyp($1.x - cx, $1.y - cy) }) else { return 0 }
+        let span = Double(BuildingKind.wall.stats.half) * 2
+        var placed = 0
+        for k in fortifyOffsets {
+            let p = g.snapped(cx - uy * k * span, cy + ux * k * span)
+            if !g.canPlace(.wall, p.0, p.1, margin: 4) { continue }
+            if bases.contains(where: { $0.kind == .wall && abs($0.x - p.0) < span / 2 && abs($0.y - p.1) < span / 2 }) { continue }
+            if (g.resources[team] ?? 0) < cost + 150 { break }
+            g.resources[team, default: 0] -= cost
+            builder.orderBuild(.wall, p.0, p.1, queue: placed > 0)
+            placed += 1
+        }
+        return placed
     }
 
     /// Every expansion keeps a few troops of its own, so a raid on it meets more than Engineers.
@@ -2870,6 +2911,8 @@ final class SAI {
         return nil
     }
 
+    func produceForTest(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit], _ reserve: Double) { produce(hq, bases, workers, reserve) }
+
     private func produce(_ hq: SBuilding, _ bases: [SBuilding], _ workers: [SUnit], _ reserve: Double) {
         let g = world
         func money() -> Double { (g.resources[team] ?? 0) - reserve }
@@ -2894,8 +2937,12 @@ final class SAI {
                 } else if money() >= 50 && (want != .tank || !g.hasBuilt(.factory, team) || money() >= 200) {
                     _ = g.train(.marine, [b], team)
                 }
-            } else if b.kind == .factory && money() >= 150 {
-                _ = g.train(.tank, [b], team)
+            } else if b.kind == .factory {
+                if want == .gunship && money() >= 200 && g.hasBuilt(.radar, team) {
+                    _ = g.train(.gunship, [b], team)
+                } else if money() >= 150 && (want != .gunship || !g.hasBuilt(.radar, team) || money() >= 350) {
+                    _ = g.train(.tank, [b], team)
+                }
             }
         }
     }

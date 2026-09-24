@@ -81,7 +81,10 @@ has something to count. It expands on the clock, or earlier when the field by it
 45% of what it started with or its Engineers outnumber what the field can feed, and every expansion it
 takes gets a turret of its own and a standing garrison (two, three or four troops by difficulty) that
 answers raids on that post instead of leaving with the next wave. The balance runner reports wins by
-opening, so its openings are tuned on evidence.
+opening, so its openings are tuned on evidence. It fields **Gunships** once it has a Factory and a Radar
+Station — more of them against massed tanks, and more Rangers and Snipers when it sees yours — and it
+walls its approach with **Barricades**: a turtle from the third minute, anyone within a minute of a
+building taking damage, six blocks in two lines either side of a gap so its own army still marches out.
 
 When every crossing to you is down, it knows its route is cut: an Engineer goes to rebuild the bridge on
 the way, an escort holds the near bank, and the attack wave waits for the span instead of bouncing off the

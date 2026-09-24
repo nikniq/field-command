@@ -34,6 +34,10 @@ GARRISON = [2, 3, 4]         # troops kept at every expansion, by difficulty
 SCOUT_AT = 45.0              # the first scout leaves at this time (times the difficulty's pace)
 SCOUT_EVERY = 150.0          # and another goes out this long after one comes home
 EXPAND_AT = 300.0            # the timed expansion (times the opening's factor and the pace)
+FORTIFY_AT = 150.0           # a turtle walls its approach from here (times the pace); others once the base has been hit
+FORTIFY_DIST = 380.0         # the wall line sits this far from the Command Center, toward the middle of the map
+FORTIFY_OFFSETS = (-4, -3, -2, 2, 3, 4)   # blocks either side of a two-block gap, in wall widths
+FORTIFY_BLOCKS = 6
 
 
 def choose_opening(rng, difficulty, giant):
@@ -65,7 +69,8 @@ class AI:
         self.next_scout = SCOUT_AT * d.pace
         self.guards = []                 # troops posted at expansions; not part of the home army
         self.home_crystal_start = None   # crystal near the Command Center when the game began
-        self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0}     # decaying count of enemy units seen
+        self.seen = {"marine": 0.0, "sniper": 0.0, "tank": 0.0, "gunship": 0.0}     # decaying count of enemy units seen
+        self.hit_at = -1e9               # when a building of this side last took damage (the walls go up after)
         self.answered_ping = -1.0        # time of the last allied alert point this side sent troops to
         # The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
         self.route_open = True
@@ -114,6 +119,7 @@ class AI:
         self._upgrade(hq, bases)
         self._shop(army)
         self._defend(bases, home)
+        self._fortify(hq, bases, workers)
         self._garrison(hq, bases, home)
         self._scout(hq, home)
         self._grab_crates(hq, home)
@@ -400,20 +406,22 @@ class AI:
 
     def _composition(self):
         """Target shares by unit kind, from a base mix bent by what has been seen: tanks answer massed
-        Rangers, Snipers answer tanks, tanks and Rangers together answer Snipers."""
-        w = {"marine": 3.0, "sniper": 1.0, "tank": 2.0}
+        Rangers, Snipers answer tanks, tanks and Rangers together answer Snipers, Gunships answer massed
+        tanks, and Rangers and Snipers answer Gunships (which tanks cannot touch)."""
+        w = {"marine": 3.0, "sniper": 1.0, "tank": 2.0, "gunship": 0.6}
         total = sum(self.seen.values())
         if total >= 3:
-            share = {k: v / total for k, v in self.seen.items()}
-            w["sniper"] += 3.0 * share["tank"]
+            share = {k: self.seen.get(k, 0.0) / total for k in w}
+            w["sniper"] += 3.0 * share["tank"] + 1.0 * share["gunship"]
             w["tank"] += 2.0 * share["marine"] + 1.0 * share["sniper"]
-            w["marine"] += 1.5 * share["sniper"]
+            w["marine"] += 1.5 * share["sniper"] + 2.0 * share["gunship"]
+            w["gunship"] += 2.5 * share["tank"]
         s = sum(w.values())
         return {k: v / s for k, v in w.items()}
 
     def _wanted(self, army):
         """The unit kind furthest below its target share; None when the army already matches."""
-        counts = {"marine": 0, "sniper": 0, "tank": 0}
+        counts = {"marine": 0, "sniper": 0, "tank": 0, "gunship": 0}
         for u in army:
             if u.kind in counts:
                 counts[u.kind] += 1
@@ -421,6 +429,42 @@ class AI:
         comp = self._composition()
         deficit = {k: comp[k] * (n + 1) - counts[k] for k in counts}
         return max(deficit, key=deficit.get)
+
+    def _fortify(self, hq, bases, workers):
+        """Barricades across the approach: a turtle walls up early, anyone once the base has been hit. Two
+        lines of blocks either side of a gap, so its own army still marches out — through a funnel."""
+        g = self.game
+        t = g.elapsed / self.diff.pace
+        if any(b.hp < b.max_hp and b.built for b in bases):
+            self.hit_at = g.elapsed
+        early = self.opening == "turtle" and t > FORTIFY_AT
+        if not (early or g.elapsed - self.hit_at < 60):
+            return
+        walls = sum(1 for b in bases if b.kind == "wall") + self._pending("wall", workers)
+        if walls >= FORTIFY_BLOCKS or g.resources[self.team] < BUILDINGS["wall"].cost * 2 + 150:
+            return
+        free = [w for w in workers if w.order[0] in ("idle", "gather", "return")]
+        if not free:
+            return
+        dx, dy = defs.WORLD_W / 2 - hq.x, defs.WORLD_H / 2 - hq.y
+        d = math.hypot(dx, dy) or 1.0
+        ux, uy = dx / d, dy / d
+        cx, cy = hq.x + ux * FORTIFY_DIST, hq.y + uy * FORTIFY_DIST
+        span = BUILDINGS["wall"].half * 2
+        builder = min(free, key=lambda w: math.hypot(w.x - cx, w.y - cy))
+        placed = 0
+        for k in FORTIFY_OFFSETS:
+            p = g.snapped(cx - uy * k * span, cy + ux * k * span)
+            if not g.can_place("wall", p[0], p[1], margin=4):
+                continue
+            if any(b.kind == "wall" and abs(b.x - p[0]) < span / 2 and abs(b.y - p[1]) < span / 2 for b in bases):
+                continue
+            if g.resources[self.team] < BUILDINGS["wall"].cost + 150:
+                break
+            g.resources[self.team] -= BUILDINGS["wall"].cost
+            builder.order_build("wall", p[0], p[1], queue=placed > 0)
+            placed += 1
+        return placed
 
     def _produce(self, hq, bases, workers, reserve):
         g = self.game
@@ -448,8 +492,11 @@ class AI:
                     g.train("sniper", [b], self.team)
                 elif money() >= 50 and (want != "tank" or not g.has_built("factory", self.team) or money() >= 200):
                     g.train("marine", [b], self.team)
-            elif b.kind == "factory" and money() >= 150:
-                g.train("tank", [b], self.team)
+            elif b.kind == "factory":
+                if want == "gunship" and money() >= 200 and g.has_built("radar", self.team):
+                    g.train("gunship", [b], self.team)
+                elif money() >= 150 and (want != "gunship" or not g.has_built("radar", self.team) or money() >= 350):
+                    g.train("tank", [b], self.team)
 
     def _defend(self, bases, home):
         g = self.game

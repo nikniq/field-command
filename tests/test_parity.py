@@ -344,3 +344,9 @@ def test_openings_agree():
     assert float(re.search(r"let scoutAt: Double = ([\d.]+)", src).group(1)) == SCOUT_AT
     assert float(re.search(r"let scoutEvery: Double = ([\d.]+)", src).group(1)) == SCOUT_EVERY
     assert float(re.search(r"let expandAt: Double = ([\d.]+)", src).group(1)) == EXPAND_AT
+    from fieldcommand.ai import FORTIFY_AT, FORTIFY_BLOCKS, FORTIFY_DIST, FORTIFY_OFFSETS
+    assert float(re.search(r"let fortifyAt: Double = ([\d.]+)", src).group(1)) == FORTIFY_AT
+    assert float(re.search(r"let fortifyDist: Double = ([\d.]+)", src).group(1)) == FORTIFY_DIST
+    assert int(re.search(r"let fortifyBlocks = (\d+)", src).group(1)) == FORTIFY_BLOCKS
+    offs = [float(v) for v in re.findall(r"-?\d+", re.search(r"let fortifyOffsets: \[Double\] = \[(.*?)\]", src).group(1))]
+    assert offs == [float(v) for v in FORTIFY_OFFSETS]

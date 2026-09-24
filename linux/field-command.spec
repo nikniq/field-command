@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.28.0
+Version:        1.29.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,11 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.29.0-1
+- The computer fields Gunships (they answer massed tanks; its Rangers and Snipers answer yours) and walls
+  its approach with Barricades — a turtle from the third minute, anyone once its base has been hit —
+  in two lines either side of a gap so its own army still marches out
+
 * Thu Sep 24 2026 Field Command Developers <noreply@example.invalid> - 1.28.0-1
 - Music: five loops over four bars (A minor, F, C, G) at 100 beats a minute — sustained chords, a plucked
   melody with an echo that yields as the threat climbs, a bass line, drums with a fill at the turn, and a

@@ -102,7 +102,7 @@ def world_to_dict(world, label=""):
         if p.ai is not None:
             a = p.ai
             ai[str(s)] = {"wave_size": a.wave_size, "next_wave": a.next_wave, "attackers": [u.id for u in a.attackers if not u.dead],
-                          "seen": dict(a.seen), "next_raid": a.next_raid, "opening": a.opening,
+                          "seen": dict(a.seen), "next_raid": a.next_raid, "opening": a.opening, "hit_at": a.hit_at,
                           "scout": a.scout.id if a.scout is not None and not a.scout.dead else None,
                           "scout_route": [list(p) for p in a.scout_route], "next_scout": a.next_scout,
                           "guards": [u.id for u in a.guards if not u.dead], "home_crystal_start": a.home_crystal_start}
@@ -217,7 +217,8 @@ def world_from_dict(data):
         p = w.players[int(s)]
         p.ai = AI(w, p.slot, opening=a.get("opening"))
         p.ai.wave_size, p.ai.next_wave, p.ai.next_raid = a["wave_size"], a["next_wave"], a["next_raid"]
-        p.ai.seen = {k: float(v) for k, v in a["seen"].items()}
+        p.ai.seen = {**p.ai.seen, **{k: float(v) for k, v in a["seen"].items()}}
+        p.ai.hit_at = float(a.get("hit_at", -1e9))
         p.ai.attackers = [w.by_id[i] for i in a["attackers"] if i in w.by_id]
         p.ai.scout = w.by_id.get(a.get("scout")) if a.get("scout") is not None else None
         p.ai.scout_route = [tuple(pt) for pt in a.get("scout_route", [])]
