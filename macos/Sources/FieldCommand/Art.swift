@@ -1493,6 +1493,17 @@ enum Art {
         }
     }
 
+    /// An ingot: a steel-blue bar with a lit top face.
+    static var alloyIcon: SKTexture {
+        texture("alloyIcon", size: CGSize(width: 20, height: 20)) { ctx in
+            let p = poly([CGPoint(x: -8, y: 4), CGPoint(x: 8, y: 4), CGPoint(x: 6, y: -4), CGPoint(x: -6, y: -4)])
+            lit(ctx, p, .rgb(0.55, 0.62, 0.72))
+            fill(ctx, poly([CGPoint(x: -6, y: -4), CGPoint(x: 6, y: -4), CGPoint(x: 5, y: -8), CGPoint(x: -5, y: -8)]), .rgb(0.78, 0.84, 0.92))
+            stroke(ctx, p, NSColor(white: 0, alpha: 0.5), 1)
+            lines(ctx, [(CGPoint(x: -4, y: 0), CGPoint(x: 4, y: 0))], NSColor(white: 1, alpha: 0.35), 1)
+        }
+    }
+
     static var supplyIcon: SKTexture {
         texture("supplyIcon", size: CGSize(width: 20, height: 20)) { ctx in
             let p = rr(box(-7, -7, 14, 11), 2)

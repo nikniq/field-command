@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.37.0"
+let appVersion = "1.38.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -87,6 +87,7 @@ enum Palette {
     static let amber = NSColor.rgb(1.0, 0.76, 0.30)
     static let good = NSColor.rgb(0.45, 0.95, 0.50)
     static let bad = NSColor.rgb(1.0, 0.40, 0.35)
+    static let alloy = NSColor.rgb(0.72, 0.78, 0.86)
     static let panel = NSColor.rgb(0.06, 0.08, 0.09, 0.96)
     static let button = NSColor.rgb(0.12, 0.16, 0.19)
     static let buttonEdge = NSColor.rgb(0.35, 0.55, 0.75)
@@ -436,6 +437,13 @@ let smokeDuration: Double = 8
 let smokeFactor: Double = 0.5          // ranged damage taken inside smoke
 let smokeRanged: Double = 60           // a hit from further than this is ranged
 
+/// Alloy: the second resource. Gold deposits yield alloy instead of crystal (a trip's cargo either way), every
+/// side starts with alloyStart, and heavy armour, aircraft, the big guns and tech cost alloy on top of crystal.
+let alloyStart: Int = 100
+let alloyCost: [UnitKind: Int] = [.tank: 30, .gunship: 40]
+let alloyBuild: [BuildingKind: Int] = [.artillery: 50]
+let alloyUpgrade: [UpgradeKind: Int] = [.guns: 20, .entrench: 40, .stabilise: 60]
+
 /// The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
 /// derelictRadius, with nothing hostile inside that ring) for derelictTime seconds salvages it into a working
 /// Siege Tank of that side.
@@ -692,6 +700,7 @@ struct CommandButton {
     let cost: Int?
     let enabled: Bool
     let tip: String
+    var alloy: Int = 0                  // the alloy on top of the crystal, if any
     let action: () -> Void
 }
 

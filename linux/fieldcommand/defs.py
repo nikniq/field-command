@@ -300,6 +300,14 @@ SMOKE_DURATION = 8.0
 SMOKE_FACTOR = 0.5          # ranged damage taken inside smoke
 SMOKE_RANGED = 60.0         # a hit from further than this is ranged
 
+# Alloy: the second resource. Gold deposits yield alloy instead of crystal (a trip's cargo either way), every
+# side starts with ALLOY_START, and heavy armour, aircraft, the big guns and tech cost alloy on top of crystal.
+ALLOY_START = 100
+ALLOY_COST = {"tank": 30, "gunship": 40}                        # units
+ALLOY_BUILD = {"artillery": 50}                                 # buildings
+ALLOY_UPGRADE = {"guns": 20, "entrench": 40, "stabilise": 60}   # upgrades and tech
+ALLOY = (0.72, 0.78, 0.86, 1.0)                                 # the colour alloy is written in
+
 # The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
 # DERELICT_RADIUS, with nothing hostile inside that ring) for DERELICT_TIME seconds salvages it: it becomes a
 # working Siege Tank of that side. A reason to leave the base in the first minute.

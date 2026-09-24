@@ -746,10 +746,10 @@ final class SUnit: SEntity {
     override func surfaceDistance(_ px: Double, _ py: Double) -> Double { hyp(px - x, py - y) - radius }
 
     func refundBuilds(includeCurrent: Bool) {
-        if includeCurrent, case .build(let k, _, _) = order { world.refund(k.stats.cost, team) }
+        if includeCurrent, case .build(let k, _, _) = order { world.refund(k.stats.cost, team, alloy: alloyBuild[k] ?? 0) }
         if includeCurrent, case .rebuild = order { world.refund(bridgeCost, team) }
         for q in queued {
-            if case .build(let k, _, _) = q { world.refund(k.stats.cost, team) }
+            if case .build(let k, _, _) = q { world.refund(k.stats.cost, team, alloy: alloyBuild[k] ?? 0) }
             if case .rebuild = q { world.refund(bridgeCost, team) }
         }
     }
@@ -1021,7 +1021,7 @@ final class SUnit: SEntity {
                 if distanceTo(hq) > 6 {
                     target = (hq.x, hq.y)
                 } else {
-                    g.deposit(carrying, team, x, y)
+                    g.deposit(carrying, team, x, y, alloy: homeCrystal?.variant == 3)
                     carrying = 0
                     if !queued.isEmpty {
                         order = .idle
@@ -1314,7 +1314,7 @@ final class SBuilding: SEntity {
     /// Stops the research and hands the crystal back.
     func cancelUpgrade() {
         guard let k = upgrading else { return }
-        world.refund(k.cost(for: kind), team)
+        world.refund(k.cost(for: kind), team, alloy: alloyUpgrade[k] ?? 0)
         upgrading = nil
         upgradeProgress = 0
     }
@@ -1540,10 +1540,13 @@ final class SWorld {
     var reinforceAt: [Int: Double] = [:]
     /// Smoke on the ground that halves ranged damage inside it: (x, y, until).
     var smokes: [(x: Double, y: Double, until: Double)] = []
+    /// The second resource, per slot.
+    var alloy: [Int: Double] = [:]
 
     init(map: [String: Any], players list: [SPlayer], difficulty: Difficulty, seed: UInt64? = nil,
          startCrystal crystal: Int = startCrystalOptions[1], startBase base: String = "fresh") {
         self.startCrystal = crystal
+        for p in list { alloy[p.slot] = Double(alloyStart) }
         self.startBase = base == "established" ? "established" : "fresh"
         self.seed = seed ?? UInt64.random(in: 1..<(1 << 31))
         simRNG = SeededRNG(self.seed)
@@ -2346,7 +2349,7 @@ final class SWorld {
             emit(["msg", slot, "Can't build there", "bad"])
         } else if (resources[slot] ?? 0) < Double(s.cost) {
             emit(["msg", slot, "Not enough crystal", "bad"])
-        } else {
+        } else if spendAlloy(slot, alloyBuild[k] ?? 0) {
             resources[slot, default: 0] -= Double(s.cost)
             w.orderBuild(k, sx, sy, queue: queue)
         }
@@ -2362,6 +2365,7 @@ final class SWorld {
                 emit(["msg", slot, "Not enough crystal", "bad"])
                 return
             }
+            guard spendAlloy(slot, alloyUpgrade[k] ?? 0) else { return }
             resources[slot, default: 0] -= cost
             b.startUpgrade(k)
         }
@@ -2405,7 +2409,21 @@ final class SWorld {
         emit(["smoke", x, y, Double(k.stats.half) * 0.6])
     }
 
-    func refund(_ amount: Int, _ team: Int) { resources[team, default: 0] += Double(amount) }
+    func refund(_ amount: Int, _ team: Int, alloy back: Int = 0) {
+        resources[team, default: 0] += Double(amount)
+        if back > 0 { alloy[team, default: 0] += Double(back) }
+    }
+
+    /// Takes `amount` alloy from the side if it has it; says so if it does not.
+    func spendAlloy(_ slot: Int, _ amount: Int) -> Bool {
+        guard amount > 0 else { return true }
+        guard (alloy[slot] ?? 0) >= Double(amount) else {
+            emit(["msg", slot, "Not enough alloy — mine the gold deposit", "bad"])
+            return false
+        }
+        alloy[slot, default: 0] -= Double(amount)
+        return true
+    }
 
     func supplyUsed(_ team: Int) -> Int {
         units.filter { $0.team == team }.reduce(0) { $0 + $1.stats.supply }
@@ -2434,6 +2452,7 @@ final class SWorld {
             emit(["msg", team, "Not enough supply — build a Supply Depot (E)", "bad"])
             return false
         }
+        guard spendAlloy(team, alloyCost[k] ?? 0) else { return false }
         resources[team, default: 0] -= Double(k.stats.cost)
         b.queue.append(k)
         return true
@@ -2443,7 +2462,7 @@ final class SWorld {
     @discardableResult
     func unbuild(_ b: SBuilding) -> Bool {
         guard !b.built, !b.dead, b.progress < undoProgress else { return false }
-        refund(b.stats.cost, b.team)
+        refund(b.stats.cost, b.team, alloy: alloyBuild[b.kind] ?? 0)
         b.dead = true
         buildings.removeAll { $0 === b }
         byId[b.id] = nil
@@ -2456,7 +2475,7 @@ final class SWorld {
         guard index >= 0, index < b.queue.count else { return }
         let k = b.queue.remove(at: index)
         if index == 0 { b.queueProgress = 0 }
-        refund(k.stats.cost, b.team)
+        refund(k.stats.cost, b.team, alloy: alloyCost[k] ?? 0)
     }
 
     func spawnUnit(_ k: UnitKind, _ b: SBuilding) {
@@ -2481,11 +2500,15 @@ final class SWorld {
         crystals.first { !$0.dead && hyp($0.x - x, $0.y - y) < $0.radius + 10 }
     }
 
-    func deposit(_ amount: Int, _ team: Int, _ x: Double, _ y: Double) {
+    func deposit(_ amount: Int, _ team: Int, _ x: Double, _ y: Double, alloy isAlloy: Bool = false) {
         let mult = isAI(team) ? Double(difficulty.incomeMultiplier) : 1
-        resources[team, default: 0] += Double(amount) * mult
-        crystalsMined[team, default: 0] += amount
-        emit(["income", team, x, y, amount])
+        if isAlloy {
+            alloy[team, default: 0] += Double(amount) * mult
+        } else {
+            resources[team, default: 0] += Double(amount) * mult
+            crystalsMined[team, default: 0] += amount
+        }
+        emit(["income", team, x, y, amount, isAlloy ? 1 : 0])
     }
 
     func nearestCrystal(_ x: Double, _ y: Double, _ within: Double) -> SCrystal? {
@@ -2757,6 +2780,9 @@ final class SAI {
     private var nextRaid = 240.0
     /// The Engineer sent for the derelict Siege Tank.
     private var salvager: SUnit?
+    /// Engineers kept on the gold for alloy.
+    private var goldMiners: [SUnit] = []
+    var goldMinersForTests: [SUnit] { goldMiners }
     /// Time of the last allied alert point this side sent troops to.
     private var answeredPing = -1.0
     /// The route to the enemy: checked every few seconds; when it is cut, the crossing that reopens it.
@@ -2914,7 +2940,27 @@ final class SAI {
         if let s = scout, s.dead { scout = nil }
         let home = army.filter { u in !attackers.contains { $0 === u } && !guards.contains { $0 === u } && u !== scout }
         let dropoffs = bases.filter { $0.kind == .hq && $0.built }
+        goldMiners.removeAll { $0.dead }
+        let gold = g.crystals.filter { !$0.dead && $0.variant == 3 }
+        if !gold.isEmpty && workers.count >= 6 && g.hasBuilt(.factory, team) && goldMiners.count < 2 {
+            // Alloy for the tanks: two Engineers on the nearest gold node from the moment there is a Factory.
+            let node = gold.min { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }!
+            let free = workers.filter { w in
+                if goldMiners.contains(where: { $0 === w }) || w === salvager { return false }
+                if w.order.isIdle { return true }
+                if case .gather = w.order { return true }
+                return false
+            }
+            for w in free.sorted(by: { hyp($0.x - node.x, $0.y - node.y) < hyp($1.x - node.x, $1.y - node.y) }).prefix(2 - goldMiners.count) {
+                w.command(.gather(node))
+                goldMiners.append(w)
+            }
+        }
         for w in workers where w.order.isIdle && w !== salvager {
+            if goldMiners.contains(where: { $0 === w }), let node = gold.min(by: { hyp($0.x - w.x, $0.y - w.y) < hyp($1.x - w.x, $1.y - w.y) }) {
+                w.command(.gather(node))
+                continue
+            }
             let served = g.crystals.filter { c in !c.dead && dropoffs.contains { hyp($0.x - c.x, $0.y - c.y) < 700 } }
             if let c = served.min(by: { hyp($0.x - w.x, $0.y - w.y) < hyp($1.x - w.x, $1.y - w.y) }) ?? g.nearestCrystal(w.x, w.y, 6000) {
                 w.command(.gather(c))
@@ -3111,10 +3157,15 @@ final class SAI {
         guard let k = want, !workers.isEmpty else { return 0 }
         let cost = Double(k.stats.cost)
         if bank < cost { return cost }
-        let cands = workers.filter { if case .build = $0.order { return false }; return true }
+        if (g.alloy[team] ?? 0) < Double(alloyBuild[k] ?? 0) { return 0 }
+        let cands = workers.filter { w in
+            if case .build = w.order { return false }
+            return !goldMiners.contains { $0 === w } && w !== salvager
+        }
         guard let builder = cands.min(by: { hyp($0.x - hq.x, $0.y - hq.y) < hyp($1.x - hq.x, $1.y - hq.y) }),
               let spot = site ?? findSpot(k, hq.x, hq.y) else { return 0 }
         g.resources[team, default: 0] -= cost
+        g.alloy[team, default: 0] -= Double(alloyBuild[k] ?? 0)
         builder.orderBuild(k, spot.0, spot.1, queue: false)
         return 0
     }
@@ -3156,7 +3207,7 @@ final class SAI {
         wants += bases.filter { $0.kind == .turret }.map { ($0, .guns) }
         wants += bases.filter { $0.kind == .hq }.map { ($0, .defense) }
         wants += bases.filter { $0.kind == .depot }.map { ($0, .supply) }
-        for (b, k) in wants where b.canUpgrade(k) && (g.resources[team] ?? 0) >= Double(k.cost(for: b.kind)) + 300 {
+        for (b, k) in wants where b.canUpgrade(k) && (g.resources[team] ?? 0) >= Double(k.cost(for: b.kind)) + 300 && (g.alloy[team] ?? 0) >= Double(alloyUpgrade[k] ?? 0) {
             g.apply(team, ["upgrade", [b.id], k.wireName])
             return
         }
@@ -3249,9 +3300,10 @@ final class SAI {
                     _ = g.train(.marine, [b], team)
                 }
             } else if b.kind == .factory {
-                if want == .gunship && money() >= 200 && g.hasBuilt(.radar, team) {
+                let alloy = g.alloy[team] ?? 0
+                if want == .gunship && money() >= 200 && alloy >= Double(alloyCost[.gunship]!) && g.hasBuilt(.radar, team) {
                     _ = g.train(.gunship, [b], team)
-                } else if money() >= 150 && (want != .gunship || !g.hasBuilt(.radar, team) || money() >= 350) {
+                } else if money() >= 150 && alloy >= Double(alloyCost[.tank]!) && (want != .gunship || !g.hasBuilt(.radar, team) || money() >= 350) {
                     _ = g.train(.tank, [b], team)
                 }
             }

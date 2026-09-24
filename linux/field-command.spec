@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.37.0
+Version:        1.38.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.38.0-1
+- Alloy, a second resource: gold deposits now yield alloy instead of crystal, every side starts with 100,
+  and Siege Tanks (30), Gunships (40), Artillery (50), the Twin cannon (20), Entrenchment (40) and
+  Stabilisers (60) cost alloy on top of crystal; the computer keeps two Engineers on the gold once it has
+  a Factory; cancelled orders hand the alloy back; an ingot counter sits beside the crystal one
+- Protocol 20: alloy travels in snapshots and saves
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.37.0-1
 - Tech that changes the army, researched once for the whole side: Entrenchment at the Barracks (150,
   40 s; Rangers and Snipers that hold still for three seconds take 30% less damage, "dug in" on the

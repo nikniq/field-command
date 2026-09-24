@@ -100,6 +100,7 @@ extension GameScene {
         net.smokes = jArr(m["sm"]).map { jArr($0) }.filter { $0.count == 3 }.map { (CGPoint(x: jNum($0[0]), y: jNum($0[1])), Double(jNum($0[2]))) }
         updateSmokes()
         net.resources = jInt(m["res"])
+        net.alloy = jInt(m["al"])
         let mask = jInt(m["kit"])
         let owned = Set(kitIds.enumerated().filter { mask & (1 << $0.offset) != 0 }.map { $0.element })
         if owned != net.kits {
@@ -338,7 +339,9 @@ extension GameScene {
         case "crate": crateTaken(slot: jInt(e[1]), at: p(2), kind: jStr(e[4]), amount: jInt(e[5]))
         case "income":
             let at = p(2)
-            if visibleWorldRect().contains(at) { floatText("+\(jInt(e[4]))", at: at + CGPoint(x: 0, y: 14), color: Palette.crystal) }
+            if visibleWorldRect().contains(at) {
+                floatText("+\(jInt(e[4]))", at: at + CGPoint(x: 0, y: 14), color: e.count > 5 && jInt(e[5]) == 1 ? Palette.alloy : Palette.crystal)
+            }
         case "built":
             if let k = NetProtocol.buildingKind(jStr(e[2])) {
                 hud.flash("\(k.stats.name) complete", color: Palette.good)

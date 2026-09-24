@@ -13,8 +13,11 @@ final class HUD: SKNode {
     // Top bar
     private let topBar = SKSpriteNode()
     private let crystalIcon = SKSpriteNode(texture: Art.crystalIcon)
+    private let alloyIcon = SKSpriteNode(texture: Art.alloyIcon)
     private let supplyIcon = SKSpriteNode(texture: Art.supplyIcon)
     private let resLabel = makeLabel("", size: 17, color: Palette.crystal, font: Fonts.mono, valign: .center)
+    private let alloyLabel = makeLabel("", size: 17, color: Palette.alloy, font: Fonts.mono, valign: .center)
+    private var lastAlloy = -1
     private let supplyLabel = makeLabel("", size: 17, color: Palette.text, font: Fonts.mono, valign: .center)
     private let clockLabel = makeLabel("", size: 16, color: Palette.text, font: Fonts.mono, align: .center, valign: .center)
     private let topButtonLayer = SKNode()
@@ -105,7 +108,7 @@ final class HUD: SKNode {
         for n in [minimapFrame, infoFrame, cardFrame] { n.zPosition = 0; addChild(n) }
         crystalIcon.size = CGSize(width: 18, height: 18)
         supplyIcon.size = CGSize(width: 18, height: 18)
-        for n in [crystalIcon, supplyIcon, resLabel, supplyLabel, clockLabel, counterLayer] as [SKNode] { n.zPosition = 2; addChild(n) }
+        for n in [crystalIcon, alloyIcon, supplyIcon, resLabel, alloyLabel, supplyLabel, clockLabel, counterLayer] as [SKNode] { n.zPosition = 2; addChild(n) }
         tutorialLayer.zPosition = 4
         addChild(tutorialLayer)
         topButtonLayer.zPosition = 2
@@ -172,8 +175,10 @@ final class HUD: SKNode {
         let ty = h / 2 - topH / 2
         crystalIcon.position = CGPoint(x: -w / 2 + 24, y: ty)
         resLabel.position = CGPoint(x: -w / 2 + 38, y: ty)
-        supplyIcon.position = CGPoint(x: -w / 2 + 128, y: ty)
-        supplyLabel.position = CGPoint(x: -w / 2 + 142, y: ty)
+        alloyIcon.position = CGPoint(x: -w / 2 + 118, y: ty)
+        alloyLabel.position = CGPoint(x: -w / 2 + 132, y: ty)
+        supplyIcon.position = CGPoint(x: -w / 2 + 210, y: ty)
+        supplyLabel.position = CGPoint(x: -w / 2 + 224, y: ty)
         clockLabel.position = CGPoint(x: 0, y: ty)
         lastTopSignature = ""
 
@@ -260,6 +265,11 @@ final class HUD: SKNode {
         if res != lastRes {
             lastRes = res
             resLabel.text = "\(res)"
+        }
+        let al = game.myAlloy
+        if al != lastAlloy {
+            lastAlloy = al
+            alloyLabel.text = "\(al)"
         }
         let used = game.mySupplyUsed, cap = game.mySupplyCap
         let supply = "\(used)/\(cap)"
@@ -887,6 +897,11 @@ final class HUD: SKNode {
                 let cl = makeLabel("\(c)", size: 10, color: afford ? Palette.crystal : Palette.bad, font: Fonts.mono, align: .right, valign: .center)
                 cl.zPosition = 4
                 bg.addChild(at(cl, bs / 2 - 6, bs / 2 - 11))
+                if b.alloy > 0 {
+                    let al = makeLabel("\(b.alloy)", size: 10, color: game.myAlloy >= b.alloy ? Palette.alloy : Palette.bad, font: Fonts.mono, align: .right, valign: .center)
+                    al.zPosition = 4
+                    bg.addChild(at(al, bs / 2 - 6, bs / 2 - 22))
+                }
             } else if case .ability = b.icon, !b.enabled {
                 let cd = game.abilityUnits().0.map { $0.abilityCd }.min() ?? 0
                 let cl = makeLabel("\(Int(cd.rounded()))s", size: 10, color: Palette.dim, font: Fonts.mono, align: .right, valign: .center)
@@ -925,7 +940,7 @@ final class HUD: SKNode {
 
     private func showTooltip(_ b: CommandButton) {
         tooltipTitle.text = "\(b.title)   [\(b.hotkey)]"
-        tooltipCost.text = b.cost.map { "◆ \($0)" } ?? ""
+        tooltipCost.text = b.cost.map { (b.alloy > 0 ? "▰ \(b.alloy)   " : "") + "◆ \($0)" } ?? ""
         tooltipBody.text = b.tip
         let pad: CGFloat = 12
         let w = max(tooltipBody.frame.width, tooltipTitle.frame.width + tooltipCost.frame.width + 20) + pad * 2

@@ -98,6 +98,7 @@ final class GameScene: SKScene {
     var isMultiplayer: Bool { net.map { !$0.isLocal } ?? false }
 
     var myResources: CGFloat { net.map { CGFloat($0.resources) } ?? resources[0] }
+    var myAlloy: Int { net?.alloy ?? alloyStart }
     var mySupplyUsed: Int { net?.supplyUsed ?? supplyUsed(.player) }
     var mySupplyCap: Int { net?.supplyCap ?? supplyCap(.player) }
 
@@ -1829,6 +1830,10 @@ final class GameScene: SKScene {
             hud.flash("Not enough crystal", color: Palette.bad)
             return
         }
+        if myAlloy < (alloyBuild[k] ?? 0) {
+            hud.flash("Not enough alloy — mine the gold deposit", color: Palette.bad)
+            return
+        }
         attackMovePending = false
         placing = k
         ghost.texture = Art.building(k, Team.local)
@@ -2228,7 +2233,8 @@ final class GameScene: SKScene {
                     let s = k.stats
                     let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                     let tip = s.desc + (reqOK ? "" : "\nRequires \(s.requires!.stats.name).")
-                    list.append(CommandButton(icon: .building(k), title: s.short, hotkey: s.hotkey, cost: s.cost, enabled: reqOK, tip: tip) { [weak self] in
+                    list.append(CommandButton(icon: .building(k), title: s.short, hotkey: s.hotkey, cost: s.cost, enabled: reqOK, tip: tip,
+                                              alloy: alloyBuild[k] ?? 0) { [weak self] in
                         self?.beginPlacement(k)
                     })
                 }
@@ -2249,7 +2255,7 @@ final class GameScene: SKScene {
                 var tip = "\(s.desc)\nSupply \(s.supply) · \(Int(s.buildTime))s build time.\nRight-click the map to set a rally point."
                 if !reqOK { tip += "\nRequires \(s.requires!.stats.name)." }
                 return CommandButton(icon: .unit(k), title: s.name, hotkey: s.hotkey, cost: s.cost, enabled: reqOK,
-                                     tip: tip) { [weak self] in
+                                     tip: tip, alloy: alloyCost[k] ?? 0) { [weak self] in
                     guard let self else { return }
                     self.train(k, from: self.selectedOwnBuildings)
                 }
@@ -2280,7 +2286,8 @@ final class GameScene: SKScene {
                 if targets.count > 1 { tip += "\nApplies to \(targets.count) selected buildings, one price each." }
                 if installed { tip += "\nAlready installed." } else if busy { tip += "\nAlready researching something." }
                 list.append(CommandButton(icon: .upgrade(k), title: u.button, hotkey: u.hotkey,
-                                          cost: installed ? nil : k.cost(for: target.kind), enabled: ok, tip: tip) { [weak self] in
+                                          cost: installed ? nil : k.cost(for: target.kind), enabled: ok, tip: tip,
+                                          alloy: installed ? 0 : (alloyUpgrade[k] ?? 0)) { [weak self] in
                     guard let self else { return }
                     let ids = self.selectedOwnBuildings.filter { $0.canUpgrade(k) }.map { $0.netId }
                     if !ids.isEmpty { self.sendNet(["upgrade", ids, k.wireName]) }

@@ -422,6 +422,18 @@ Corners (either side of the gold). They are walkable and buildable, and anything
 included, sees 30% further and shoots 40 further. Hold the plateau and you hold the ground below it; the
 briefing map shows them as the lighter patches.
 
+## Alloy: the second resource
+
+Crystal pays for everything, but the heavy end of the army also costs **alloy**, shown as an ingot beside the
+crystal counter. Every side starts with **100**; the only source after that is a **gold deposit**, which
+yields alloy instead of crystal (a trip's cargo either way, so two Engineers on the gold bring in about an
+alloy a second). The prices, on top of crystal: Siege Tank **30**, Gunship **40**, Artillery **50**, Twin
+cannon **20**, Entrenchment **40**, Stabilisers **60**. Off-map reinforcement tanks stay crystal-only. A
+cancelled order or an undone placement hands the alloy back, and the card shows the alloy under the crystal
+price, red when you are short. The decision it makes you take: hold the middle for a heavy army, or stay
+light and fast and let the enemy walk out for it. The computer puts two Engineers on the nearest gold node
+as soon as it has a Factory.
+
 ## Tech: Entrenchment and Stabilisers
 
 Two upgrades are **tech**: researched once, at one building, and the whole side's army changes. Nobody can

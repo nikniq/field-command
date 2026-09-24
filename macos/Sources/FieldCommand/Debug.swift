@@ -413,6 +413,115 @@ enum Debug {
     /// FC_DERELICTTEST=1: the derelict Siege Tank — placement, salvage, contest, the wire and the save —
     /// matching linux/tests/test_derelict.py.
     /// FC_TECHTEST=1: side-wide tech — entrenchment and stabilisers — matching linux/tests/test_tech.py.
+    /// FC_ALLOYTEST=1: the second resource — mined from gold, spent on tanks, Gunships, Artillery and tech, refunded
+    /// when undone, carried on the wire and in saves — matching linux/tests/test_alloy.py.
+    static func runAlloyTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func setup() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }
+            w.resources[0] = 5000
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func stand(_ w: SWorld, _ k: BuildingKind, _ x: Double, _ y: Double, _ team: Int = 0) -> SBuilding {
+            w.startBuilding(k, x, y, team)
+            let b = w.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+            return b
+        }
+        func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); t += 1.0 / 30 } }
+        do {
+            let (w, _) = setup()
+            check(w.alloy[0] == Double(alloyStart) && w.alloy[1] == Double(alloyStart) && alloyStart == 100
+                  && Set(alloyCost.keys) == [.tank, .gunship] && Set(alloyBuild.keys) == [.artillery] && Set(alloyUpgrade.keys) == [.guns, .entrench, .stabilise],
+                  "every side starts with some alloy and the prices are set")
+        }
+        do {
+            let (w, hq) = setup()
+            let gold = w.crystals.first { $0.variant == 3 }!, plain = w.crystals.first { $0.variant != 3 }!
+            let e = SUnit(world: w, kind: .worker, team: 0, x: gold.x + 30, y: gold.y)
+            w.add(e)
+            e.carrying = e.carryCapacity
+            e.homeCrystal = gold
+            e.command(.ret)
+            e.x = hq.x + hq.half + 4; e.y = hq.y
+            let a0 = w.alloy[0]!, c0 = w.resources[0]!
+            run(w, 1)
+            let gotAlloy = w.alloy[0] == a0 + Double(e.carryCapacity) && w.resources[0] == c0
+            e.carrying = e.carryCapacity
+            e.homeCrystal = plain
+            e.command(.ret)
+            e.x = hq.x + hq.half + 4; e.y = hq.y
+            run(w, 1)
+            check(gotAlloy && w.alloy[0] == a0 + Double(e.carryCapacity) && w.resources[0] == c0 + Double(e.carryCapacity),
+                  "gold yields alloy and crystal yields crystal")
+        }
+        do {
+            let (w, hq) = setup()
+            let fc = stand(w, .factory, hq.x + 400, hq.y)
+            _ = stand(w, .barracks, hq.x + 400, hq.y + 250)
+            w.alloy[0] = Double(alloyCost[.tank]! - 1)
+            let refused = !w.train(.tank, [fc], 0) && fc.queue.isEmpty && w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("alloy") }
+            w.alloy[0] = Double(alloyCost[.tank]!)
+            let bought = w.train(.tank, [fc], 0) && fc.queue == [.tank] && w.alloy[0] == 0
+            w.cancelQueue(fc, 0)
+            check(refused && bought && w.alloy[0] == Double(alloyCost[.tank]!), "tanks cost alloy, the bank says no when it is empty, and a cancel refunds it")
+        }
+        do {
+            let (w, hq) = setup()
+            let fc = stand(w, .factory, hq.x + 400, hq.y)
+            _ = stand(w, .barracks, hq.x + 400, hq.y + 250)
+            let e = w.units.first { $0.team == 0 && $0.kind == .worker }!
+            w.updateVisibility()
+            var spot: (Double, Double)? = nil
+            outer: for dx in stride(from: -300.0, through: 300, by: 50) {
+                for dy in stride(from: -300.0, through: 300, by: 50) where w.canPlace(.artillery, hq.x + dx, hq.y + dy) && w.fogFor(0).isExplored(hq.x + dx, hq.y + dy) {
+                    spot = (hq.x + dx, hq.y + dy); break outer
+                }
+            }
+            let (sx, sy) = spot!
+            w.alloy[0] = 10
+            w.apply(0, ["build", e.id, "artillery", sx, sy, false])
+            var isBuild = false
+            if case .build = e.order { isBuild = true }
+            let refused = !isBuild
+            w.alloy[0] = Double(alloyBuild[.artillery]! + 5)
+            w.apply(0, ["build", e.id, "artillery", sx, sy, false])
+            if case .build = e.order { isBuild = true } else { isBuild = false }
+            let placed = isBuild && w.alloy[0] == 5
+            e.command(.idle)
+            let back = w.alloy[0] == Double(alloyBuild[.artillery]! + 5)
+            w.alloy[0] = Double(alloyUpgrade[.stabilise]!)
+            w.apply(0, ["upgrade", [fc.id], "stabilise"])
+            let researching = fc.upgrading == .stabilise && w.alloy[0] == 0
+            fc.cancelUpgrade()
+            check(refused && placed && back && researching && w.alloy[0] == Double(alloyUpgrade[.stabilise]!),
+                  "Artillery and tech take alloy too, and hand it back when undone")
+        }
+        do {
+            let (w, _) = setup()
+            w.alloy[0] = 77
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc)
+            check(w2.alloy[0] == 77 && w2.alloy[1] == Double(alloyStart), "alloy travels in saves")
+        }
+        do {
+            let (w, _) = setup()
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            let ai = SAI(world: w, team: 1)
+            for _ in 0..<4 { w.add(SUnit(world: w, kind: .worker, team: 1, x: hq.x - 100, y: hq.y + 80)) }
+            _ = stand(w, .factory, hq.x - 400, hq.y, 1)
+            ai.update(1.5)
+            var mining = ai.goldMinersForTests.count == 2
+            for m in ai.goldMinersForTests { if case .gather(let c) = m.order { mining = mining && c.variant == 3 } else { mining = false } }
+            check(mining, "the computer puts two Engineers on the gold once it has a Factory")
+        }
+        print(ok ? "ALLOY TEST PASSED" : "ALLOY TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runTechTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

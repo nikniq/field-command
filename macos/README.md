@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 19, so a 1.37.0 Mac and a 1.37.0 Linux client play together; neither accepts an
+Both editions speak protocol 20, so a 1.38.0 Mac and a 1.38.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -192,6 +192,13 @@ mixed by a threat meter fed by what the client sees and hears: the melody at the
 enemy comes into view, drums while your forces fight, brass at the top. Units answer with a radio call when
 selected and a quick acknowledgement on an order, each kind in its own voice with several lines. *Music:
 On/Off* beside *Sound*. Same recipe and numbers as the Linux edition (`FC_AUDIOTEST`).
+
+## Alloy
+
+The second resource: gold yields alloy, every side starts with 100, and tanks (30), Gunships (40), Artillery
+(50), the Twin cannon (20) and the two techs (40, 60) cost it on top of crystal. Refunded when undone, an
+ingot counter beside the crystal one, the computer mines it once it has a Factory. Same numbers as the Linux
+edition (`FC_ALLOYTEST`).
 
 ## Tech
 

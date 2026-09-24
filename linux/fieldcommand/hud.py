@@ -8,7 +8,7 @@ import os
 import pygame
 
 from . import art, audio, defs, ui
-from .defs import (AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, KITS, KOTH_HOLD, TEAM_COLOR, TEAM_LIGHT, TEXT,
+from .defs import (ALLOY, AMBER, BAD, BUILDINGS, COLOR_NAMES, CRYSTAL, DIM, GOOD, KITS, KOTH_HOLD, TEAM_COLOR, TEAM_LIGHT, TEXT,
                    UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS, fmt_time, to255)
 from .settings import settings
 
@@ -354,10 +354,13 @@ class HUD:
         ci = art.sprites.get("cicon18", art.crystal_icon(), 0, 18 / 40)
         screen.blit(ci, (24 - ci.get_width() / 2, cy - ci.get_height() / 2))
         ui.blit_text(screen, str(int(g.s.resources)), 17, CRYSTAL, (38, cy), bold=True, mono=True)
+        ai_ = art.sprites.get("aicon18", art.alloy_icon(), 0, 18 / 40)
+        screen.blit(ai_, (118 - ai_.get_width() / 2, cy - ai_.get_height() / 2))
+        ui.blit_text(screen, str(int(getattr(g.s, "alloy", 0))), 17, ALLOY, (132, cy), bold=True, mono=True)
         si = art.sprites.get("sicon18", art.supply_icon(), 0, 18 / 40)
-        screen.blit(si, (128 - si.get_width() / 2, cy - si.get_height() / 2))
+        screen.blit(si, (210 - si.get_width() / 2, cy - si.get_height() / 2))
         used, cap = g.s.supply_used, g.s.supply_cap
-        ui.blit_text(screen, f"{used}/{cap}", 17, BAD if used >= cap else TEXT, (142, cy), bold=True, mono=True)
+        ui.blit_text(screen, f"{used}/{cap}", 17, BAD if used >= cap else TEXT, (224, cy), bold=True, mono=True)
         idle = len(g.idle_workers())
         army = len(g.army())
         me = g.s.slot
@@ -629,6 +632,9 @@ class HUD:
             if b.cost is not None:
                 ok = g.s.resources >= b.cost
                 ui.blit_text(screen, str(b.cost), 10, CRYSTAL if ok else BAD, (r.right - 5, r.y + 11), align="right", mono=True)
+                if b.alloy:
+                    ok_a = getattr(g.s, "alloy", 0) >= b.alloy
+                    ui.blit_text(screen, str(b.alloy), 10, ALLOY if ok_a else BAD, (r.right - 5, r.y + 22), align="right", mono=True)
             elif kind == "ability" and not b.enabled:
                 cd = min((getattr(u, "ability_cd", 0.0) for u in g.ability_units()[0]), default=0.0)
                 ui.blit_text(screen, f"{cd:.0f}s", 10, DIM, (r.right - 5, r.y + 11), align="right", mono=True)
@@ -652,6 +658,10 @@ class HUD:
                     r = ui.blit_text(screen, str(b.cost), 13, CRYSTAL, (x + w - 12, y + 18), align="right", mono=True)
                     ci = art.sprites.get("cicon14", art.crystal_icon(), 0, 14 / 40)
                     screen.blit(ci, (r.x - 4 - ci.get_width(), y + 18 - ci.get_height() / 2))
+                    if b.alloy:
+                        r2 = ui.blit_text(screen, str(b.alloy), 13, ALLOY, (r.x - 10 - ci.get_width(), y + 18), align="right", mono=True)
+                        ai_ = art.sprites.get("aicon14", art.alloy_icon(), 0, 14 / 40)
+                        screen.blit(ai_, (r2.x - 4 - ai_.get_width(), y + 18 - ai_.get_height() / 2))
                 for j, l in enumerate(body):
                     ui.blit_text(screen, l, 12, DIM, (x + 12, y + 42 + j * 17))
                 return

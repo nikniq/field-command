@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ABILITIES, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ABILITIES, ALLOY_BUILD, ALLOY_COST, ALLOY_START, ALLOY_UPGRADE, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -57,6 +57,7 @@ class World:
         self.resources = {s: float(self.start_crystal) for s in self.players}
         self.reinforce_at = {s: -1e9 for s in self.players}     # when each side last called reinforcements in
         self.smokes = []                # (x, y, until): smoke on the ground that halves ranged damage inside
+        self.alloy = {s: float(ALLOY_START) for s in self.players}
         self.units_trained = {s: 0 for s in self.players}
         self.units_lost = {s: 0 for s in self.players}
         self.crystals_mined = {s: 0 for s in self.players}
@@ -865,7 +866,7 @@ class World:
             self.emit("msg", slot, "Can't build there", "bad")
         elif self.resources[slot] < s.cost:
             self.emit("msg", slot, "Not enough crystal", "bad")
-        else:
+        elif self.spend_alloy(slot, ALLOY_BUILD.get(kind, 0)):
             self.resources[slot] -= s.cost
             workers[0].order_build(kind, x, y, queue=queue)
 
@@ -878,6 +879,8 @@ class World:
             cost = upgrade_cost(kind, b.kind)
             if self.resources[slot] < cost:
                 self.emit("msg", slot, "Not enough crystal", "bad")
+                return
+            if not self.spend_alloy(slot, ALLOY_UPGRADE.get(kind, 0)):
                 return
             self.resources[slot] -= cost
             b.start_upgrade(kind)
@@ -944,8 +947,20 @@ class World:
     def building_completed(self, b):
         self.emit("built", b.team, b.kind, b.id)
 
-    def refund(self, amount, team):
+    def refund(self, amount, team, alloy=0):
         self.resources[team] += amount
+        if alloy:
+            self.alloy[team] += alloy
+
+    def spend_alloy(self, slot, amount):
+        """Takes `amount` alloy from the side if it has it; says so if it does not."""
+        if amount <= 0:
+            return True
+        if self.alloy[slot] < amount:
+            self.emit("msg", slot, "Not enough alloy — mine the gold deposit", "bad")
+            return False
+        self.alloy[slot] -= amount
+        return True
 
     def supply_used(self, team):
         return (sum(u.stats.supply for u in self.units if u.team == team)
@@ -970,6 +985,8 @@ class World:
         if self.supply_used(team) + s.supply > self.supply_cap(team):
             self.emit("msg", team, "Not enough supply — build a Supply Depot (E)", "bad")
             return False
+        if not self.spend_alloy(team, ALLOY_COST.get(kind, 0)):
+            return False
         self.resources[team] -= s.cost
         b.queue.append(kind)
         return True
@@ -978,7 +995,7 @@ class World:
         """Takes back a building that has barely started: the site goes and the full price comes back."""
         if b.built or b.dead or b.progress >= UNDO_PROGRESS:
             return False
-        self.refund(b.stats.cost, b.team)
+        self.refund(b.stats.cost, b.team, ALLOY_BUILD.get(b.kind, 0))
         b.dead = True
         self.buildings.remove(b)
         self.by_id.pop(b.id, None)
@@ -991,7 +1008,7 @@ class World:
             k = b.queue.pop(index)
             if index == 0:
                 b.queue_progress = 0.0
-            self.refund(UNITS[k].cost, b.team)
+            self.refund(UNITS[k].cost, b.team, ALLOY_COST.get(k, 0))
 
     def spawn_unit(self, kind, b):
         tx, ty = b.rally if b.rally else (b.x, b.y - 1)
@@ -1020,11 +1037,14 @@ class World:
                 return c
         return None
 
-    def deposit(self, amount, team, x, y):
+    def deposit(self, amount, team, x, y, alloy=False):
         mult = self.difficulty.income if self.is_ai(team) else 1.0
-        self.resources[team] += amount * mult
-        self.crystals_mined[team] += amount
-        self.emit("income", team, x, y, amount)
+        if alloy:
+            self.alloy[team] += amount * mult
+        else:
+            self.resources[team] += amount * mult
+            self.crystals_mined[team] += amount
+        self.emit("income", team, x, y, amount, 1 if alloy else 0)
 
     def nearest_crystal(self, x, y, within):
         best, best_d = None, within

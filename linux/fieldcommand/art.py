@@ -1314,6 +1314,17 @@ def crystal_icon():
     return texture("crystal_icon", (20, 20), d)
 
 
+def alloy_icon():
+    """An ingot: a steel-blue bar with a lit top face."""
+    def d(c):
+        p = poly([(-8, -4), (8, -4), (6, 4), (-6, 4)])
+        lit(c, p, rgb(0.55, 0.62, 0.72))
+        fill(c, poly([(-6, 4), (6, 4), (5, 8), (-5, 8)]), rgb(0.78, 0.84, 0.92))
+        stroke(c, p, rgb(0, 0, 0, 0.5), 1)
+        lines(c, [((-4, 0), (4, 0))], alpha(WHITE, 0.35), 1)
+    return texture("alloy_icon", (20, 20), d)
+
+
 def supply_icon():
     def d(c):
         p = rr(-7, -7, 14, 11, 2)

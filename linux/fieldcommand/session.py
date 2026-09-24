@@ -12,7 +12,7 @@ from . import mapgen
 from . import defs
 from .defs import CRATE_KINDS, CRATE_RADIUS, START_CRYSTAL
 from .defs import KIT_IDS
-from .defs import (BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
+from .defs import (ALLOY_START, BRIDGE_HP, BUILDINGS, BUILDING_KINDS, DEPOT_UPGRADED_SUPPLY, DIFFICULTIES, MODE_SIEGED,
                    MODE_SIEGING, MODE_UNSIEGING, TOWER_HALF, UNITS, UNIT_KINDS, UPGRADES, UPGRADE_KINDS,
                    VET_BONUS, angle_lerp, rect_distance, rects_intersect, square_rect, upgrade_applies)
 from .fog import FogGrid
@@ -216,6 +216,7 @@ class LocalSession(_Base):
         return self.world.mission_progress()
     bridges = property(lambda self: self.world.bridges)
     towers = property(lambda self: self.world.towers)
+    alloy = property(lambda self: self.world.alloy[self.slot])
     derelicts = property(lambda self: self.world.derelicts)
     kits = property(lambda self: self.world.kits[self.slot])
     elapsed = property(lambda self: self.world.elapsed)
@@ -517,6 +518,7 @@ class NetSession(_Base):
         self._fog_timer = 0.0
         self.elapsed = 0.0
         self.resources = int(start_msg.get("start_crystal", START_CRYSTAL))
+        self.alloy = ALLOY_START
         self._reinforce_left = 0.0
         self.smokes = []
         self.supply_used, self.supply_cap = 0, 10
@@ -594,6 +596,7 @@ class NetSession(_Base):
         self._snap_time = now
         self.elapsed = m["time"]
         self.resources = m["res"]
+        self.alloy = int(m.get("al", 0))
         mask = m.get("kit", 0)
         self.kits = {k for i, k in enumerate(KIT_IDS) if mask & (1 << i)}
         self.supply_used, self.supply_cap = m["sup"]
