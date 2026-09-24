@@ -95,7 +95,7 @@ enum Audio {
 
     /// A radio call: a squelch click, then tones with a little vibrato through a band-limited 'speaker' — two
     /// rising notes for a selection, one quick falling note for an acknowledgement.
-    static func voice(_ f0: Double, ack: Bool, _ rng: inout Noise) -> [Float] {
+    private static func voice(_ f0: Double, ack: Bool, _ rng: inout Noise) -> [Float] {
         var parts: [Float] = mul(noise(n(0.03), &rng), env(n(0.03), attack: 0.001, decay: 0.008)).map { $0 * 0.6 }
         let notes: [(Double, Double)] = ack ? [(f0 * 1.5, 0.07), (f0 * 1.1, 0.09)] : [(f0, 0.09), (f0 * 1.25, 0.12)]
         for (f, secs) in notes {

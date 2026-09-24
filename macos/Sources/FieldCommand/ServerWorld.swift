@@ -1820,6 +1820,7 @@ final class SWorld {
     func cleanupDeadForTests() { cleanupDead() }
 
     private func cleanupDead() {
+        let lost = units.contains { $0.dead } || buildings.contains { $0.dead }
         if units.contains(where: { $0.dead }) {
             for u in units where u.dead {
                 emit(["explode", u.x, u.y, u.kind == .tank ? 30 : u.radius * 1.3, u.kind == .tank ? 1 : 0, 0])
@@ -1853,6 +1854,21 @@ final class SWorld {
             for c in crystals where c.dead { byId[c.id] = nil }
             crystals.removeAll { $0.dead }
             navDirty = true
+        }
+        if lost {
+            // Orders on what just died are dropped at once, so a unit re-targets this tick and a save taken now
+            // says the same as the game does.
+            func onDead(_ o: SOrder) -> Bool {
+                switch o {
+                case .attack(let t), .repair(let t): return t.dead
+                case .heal(let u): return u.dead
+                default: return false
+                }
+            }
+            for u in units {
+                if onDead(u.order) { u.order = .idle }
+                u.queued.removeAll { onDead($0) }
+            }
         }
     }
 

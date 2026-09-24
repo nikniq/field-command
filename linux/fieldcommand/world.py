@@ -411,6 +411,7 @@ class World:
         return out
 
     def _cleanup_dead(self):
+        lost = any(u.dead for u in self.units) or any(b.dead for b in self.buildings)
         if any(u.dead for u in self.units):
             for u in self.units:
                 if not u.dead:
@@ -444,6 +445,13 @@ class World:
                     self.by_id.pop(c.id, None)
             self.crystals = [c for c in self.crystals if not c.dead]
             self._nav_dirty = True
+        if lost:
+            # Orders on what just died are dropped at once, so a unit re-targets this tick and a save taken now
+            # says the same as the game does.
+            for u in self.units:
+                if u.order[0] in ("attack", "repair", "heal") and getattr(u.order[1], "dead", False):
+                    u.order = IDLE
+                u.queued = [q for q in u.queued if not (q[0] in ("attack", "repair", "heal") and getattr(q[1], "dead", False))]
 
     def mission_progress(self):
         """Seconds toward a timed objective (survive: the clock; hold: time held in a row), else 0."""

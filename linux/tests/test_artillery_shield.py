@@ -101,6 +101,11 @@ def test_shield_travels_on_the_wire_and_in_a_save():
 
 
 def test_the_computer_builds_both_eventually():
-    w = make_world(ai=True, difficulty=2)
+    from fieldcommand import mapgen
+    from fieldcommand.defs import DIFFICULTIES
+    from fieldcommand.world import PlayerInfo, World
+    # Seeded: the opening and the whole game follow from it, so the run is the same every time.
+    ps = [PlayerInfo(i, f"P{i}", i + 1, is_ai=True, start=i) for i in range(2)]
+    w = World(mapgen.generate("twin_ridges"), ps, DIFFICULTIES[2], seed=3)
     run(w, 900, until=lambda: any(b.kind == "artillery" for b in w.buildings) and any(b.kind == "shield" for b in w.buildings))
     assert any(b.kind == "artillery" for b in w.buildings) and any(b.kind == "shield" for b in w.buildings)
