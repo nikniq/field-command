@@ -30,10 +30,13 @@ AppStream metadata and icons.
 ## Build an RPM
 
 ```sh
-sudo dnf install rpm-build make python3-devel desktop-file-utils libappstream-glib
+make rpm-deps        # once: installs rpm-build, python3-devel, desktop-file-utils, libappstream-glib
 make rpm
-sudo dnf install rpmbuild/RPMS/noarch/field-command-1.0.0-1.*.noarch.rpm
+sudo dnf install rpmbuild/RPMS/noarch/field-command-*.noarch.rpm
 ```
+
+`make rpm` checks for those packages first and names any that are missing ("Failed build dependencies"
+from rpmbuild means the same thing).
 
 ## Units and buildings
 

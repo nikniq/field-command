@@ -3,7 +3,7 @@
 #   make test              the test suite (pytest)
 #   make smoke             headless AI-vs-AI game, no window
 #   sudo make install      install to /usr/local (PREFIX=/usr for system packaging)
-#   make rpm               build a Fedora RPM into ./rpmbuild
+#   make rpm               build a Fedora RPM into ./rpmbuild (make rpm-deps first, once)
 
 NAME     := field-command
 VERSION  := 1.40.1
@@ -13,7 +13,7 @@ DATADIR  := $(PREFIX)/share
 APPDIR   := $(DATADIR)/$(NAME)
 PYTHON   ?= python3
 
-.PHONY: run test smoke install uninstall icons dist rpm clean
+.PHONY: run test smoke install uninstall icons dist rpm rpm-deps clean
 
 run:
 	./field-command
@@ -52,7 +52,15 @@ dist:
 	tar --exclude='__pycache__' --exclude='rpmbuild' --exclude='tests' --exclude='.pytest_cache' -czf rpmbuild/SOURCES/$(NAME)-$(VERSION).tar.gz \
 		--transform 's|^\.|$(NAME)-$(VERSION)|' .
 
+# The packages rpmbuild needs on the build machine (the spec's BuildRequires). `make rpm-deps` installs them.
+BUILD_DEPS := rpm-build make python3-devel desktop-file-utils libappstream-glib
+
+rpm-deps:
+	sudo dnf install -y $(BUILD_DEPS)
+
 rpm: dist
+	@for p in $(BUILD_DEPS); do rpm -q $$p >/dev/null 2>&1 || missing="$$missing $$p"; done; \
+	if [ -n "$$missing" ]; then echo "Missing build packages:$$missing"; echo "Install them with:  make rpm-deps   (or: sudo dnf install$$missing)"; exit 1; fi
 	rpmbuild --define "_topdir $(CURDIR)/rpmbuild" -ba $(NAME).spec
 	@echo; echo "RPMs:"; find rpmbuild/RPMS rpmbuild/SRPMS -name '*.rpm'
 
