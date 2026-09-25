@@ -203,6 +203,15 @@ With a group selected, every unit of that kind whose ability is ready uses it at
 and counts down while none is ready. The computer throws grenades into knots of your troops, marks your
 toughest unit in reach and smokes its hurt tanks.
 
+## Land mines
+
+The **Land Mine** (40 crystal, hotkey **M** on the Engineer card, needs a Barracks) is laid in four seconds
+where the Engineer stands and then buried: the enemy never sees it, never targets it, and walks straight
+over the spot. The first hostile on the ground within 30 sets it off: **90 damage** to everything hostile
+within 70, falling off with distance, no harm to your own, nothing to aircraft. It is gone once it blows,
+and a side with nothing but mines left is beaten. Hold **Shift** to lay several. The computer lays up to
+three in the gap of its Barricade line.
+
 ## Barricades
 
 The **Barricade** (30 crystal, hotkey **V** on the Engineer card, no requirements) is a block of wall: 700

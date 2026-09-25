@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 20, so a 1.40.2 Mac and a 1.40.2 Linux client play together; neither accepts an
+Both editions speak protocol 21, so a 1.41.0 Mac and a 1.41.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -173,6 +173,12 @@ the end screen. Same files and rules as the Linux edition (`FC_REPLAYTEST`).
 An aircraft from the Factory (needs a Radar Station, Q) that flies straight over cliffs, water, walls and
 units with a chain gun; tanks and artillery cannot fire at it, Rangers, Snipers, turrets and the Command
 Center's gun can. Same numbers and rules as the Linux edition (`FC_AIRTEST`).
+
+## Land mines
+
+M on the Engineer card, 40 crystal, needs a Barracks: buried, unseen by the enemy, in nobody's way; the first
+hostile on the ground within 30 sets it off for 90 damage to everything hostile within 70. The computer mines
+the gap in its wall. Same numbers as the Linux edition (`FC_MINETEST`).
 
 ## Barricades
 

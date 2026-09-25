@@ -614,6 +614,9 @@ def building(kind, team):
     h = BUILDINGS[kind].half
 
     def d(c):
+        if kind == "mine":
+            _mine(c, h, team)
+            return
         if kind != "turret":
             _foundation(c, h)
         _extrude(c, kind, h, team)
@@ -636,6 +639,8 @@ def _silhouette(kind, h):
         return _octagon(h * 0.9)
     if kind == "wall":
         return rr(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44, 3)
+    if kind == "mine":
+        return circle(0, 0, h * 0.9)
     if kind == "artillery":
         return rr(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76, 6)
     if kind == "depot":
@@ -941,6 +946,20 @@ def _shield_gen(c, h, team):
     stroke(c, core, col, 1.4)
     fill(c, circle(0, 0, h * 0.13), rgb(0.55, 0.9, 1.0))
     fill(c, circle(-h * 0.04, -h * 0.05, h * 0.05), alpha(WHITE, 0.8))
+
+
+def _mine(c, h, team):
+    """A Land Mine: a disc of dark steel pressed into the earth, a rim of dirt, three prongs and the team's
+    light on top. Only its owner ever sees it."""
+    fill(c, circle(0, 0, h * 1.25), rgb(0.22, 0.17, 0.11, 0.55))
+    body = circle(0, 0, h * 0.9)
+    lit(c, body, rgb(0.24, 0.26, 0.28))
+    stroke(c, body, rgb(0, 0, 0, 0.6), 1)
+    stroke(c, circle(0, 0, h * 0.55), rgb(0, 0, 0, 0.35), 0.8)
+    for i in range(3):
+        a = i * 2.094 + 0.5
+        fill(c, circle(math.cos(a) * h * 0.55, math.sin(a) * h * 0.55, h * 0.16), rgb(0.5, 0.52, 0.55))
+    fill(c, circle(0, 0, h * 0.22), TEAM_LIGHT[team])
 
 
 def _wall(c, h, team):

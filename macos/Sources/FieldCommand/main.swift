@@ -153,6 +153,9 @@ if Debug.env["FC_ALLOYTEST"] != nil {
 if Debug.env["FC_STAKESTEST"] != nil {
     Debug.runStakesTest()
 }
+if Debug.env["FC_MINETEST"] != nil {
+    Debug.runMineTest()
+}
 if Debug.env["FC_ICONSOAK"] != nil {
     Debug.runIconSoak()
 }

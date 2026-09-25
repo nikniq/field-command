@@ -344,6 +344,10 @@ def test_abilities_agree():
     from fieldcommand.defs import COVER_FACTOR, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME
     assert const("derelictRadius") == DERELICT_RADIUS
     assert const("derelictTime") == DERELICT_TIME
+    from fieldcommand.defs import MINE_DAMAGE, MINE_SPLASH, MINE_TRIGGER
+    assert const("mineTrigger") == MINE_TRIGGER
+    assert const("mineDamage") == MINE_DAMAGE
+    assert const("mineSplash") == MINE_SPLASH
     from fieldcommand.defs import ENTRENCH_FACTOR, ENTRENCH_KINDS, ENTRENCH_TIME, TECH
     assert const("entrenchTime") == ENTRENCH_TIME
     assert const("entrenchFactor") == ENTRENCH_FACTOR

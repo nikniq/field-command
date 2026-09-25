@@ -258,7 +258,7 @@ class World:
         return None
 
     def _rebuild_nav(self):
-        rects = list(self.walls) + [b.rect for b in self.buildings if not b.dead]
+        rects = list(self.walls) + [b.rect for b in self.buildings if not b.dead and b.kind != "mine"]
         circles = [(o[0], o[1], o[2]) for o in self.obstacles] + [(c.x, c.y, c.radius) for c in self.crystals if not c.dead]
         self.nav.rebuild(rects, circles)
         self._nav_dirty = False
@@ -283,6 +283,8 @@ class World:
         """True if `slot` can currently see entity `e` (own/allied entities always)."""
         if self.allied(e.team, slot):
             return True
+        if e.is_building and e.kind == "mine":
+            return False                                  # buried: the enemy never sees a mine
         bit = self.alliance_bit(slot)
         return bool(e.vis_mask & bit) or (e.is_building and bool(e.revealed_mask & bit))
 
@@ -400,7 +402,7 @@ class World:
                     a.y -= ny * overlap * wa
                     b.x += nx * overlap * (1 - wa)
                     b.y += ny * overlap * (1 - wa)
-        rects = [b.rect for b in self.buildings] + self.walls
+        rects = [b.rect for b in self.buildings if b.kind != "mine"] + self.walls
         for u in units:
             r = u.radius
             if u.stats.flies:
@@ -715,7 +717,7 @@ class World:
             # A side without a standing Command Center is out, and everything it owns goes with it.
             for p in self.players.values():
                 if p.alive and not any(b.team == p.slot and b.kind == "hq" and not b.dead for b in self.buildings) \
-                        and any(b.team == p.slot for b in self.buildings):
+                        and any(b.team == p.slot and b.kind != "mine" for b in self.buildings):
                     for b in self.buildings:
                         if b.team == p.slot:
                             b.dead = True
@@ -724,7 +726,7 @@ class World:
                             u.dead = True
                     self._cleanup_dead()
         for p in self.players.values():
-            if p.alive and not any(b.team == p.slot for b in self.buildings):
+            if p.alive and not any(b.team == p.slot and b.kind != "mine" for b in self.buildings):
                 p.alive = False
                 for u in self.units:
                     if u.team == p.slot:
@@ -1135,7 +1137,7 @@ class World:
     def primary_target(self, team, x, y):
         """The nearest enemy building — unless a Shield Generator covers it, in which case the generator: drop
         the field first and the rest comes down."""
-        bs = [b for b in self.buildings if not b.dead and self.enemies(b.team, team)]
+        bs = [b for b in self.buildings if not b.dead and b.kind != "mine" and self.enemies(b.team, team)]
         if bs:
             near = min(bs, key=lambda b: math.hypot(b.x - x, b.y - y))
             gens = [g for g in bs if g.kind == "shield" and g.team == near.team and g.built

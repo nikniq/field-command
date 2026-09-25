@@ -409,6 +409,7 @@ enum Art {
     static func building(_ k: BuildingKind, _ team: Team) -> SKTexture {
         texture("bld-\(k)-\(team.rawValue)", size: buildingCanvas(k)) { ctx in
             let h = k.stats.half
+            if k == .mine { drawMine(ctx, h, team); return }
             if k != .turret { foundation(ctx, h) }
             extrude(ctx, k, h, team)
             switch k {
@@ -421,6 +422,7 @@ enum Art {
             case .artillery: drawArtilleryBase(ctx, h, team)
             case .shield: drawShieldGen(ctx, h, team)
             case .wall: drawWall(ctx, h, team)
+            case .mine: break
             }
             if k != .wall { roofKit(ctx, k, h, team) }
         }
@@ -441,6 +443,7 @@ enum Art {
         case .radar: return octagon(h * 0.92)
         case .shield: return octagon(h * 0.9)
         case .wall: return rr(box(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44), 3)
+        case .mine: return circle(.zero, h * 0.9)
         case .artillery: return rr(box(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76), 6)
         case .depot: return rr(box(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74), 4)
         case .barracks: return rr(box(-h * 0.9, -h * 0.62, h * 1.8, h * 1.52), 4)
@@ -515,6 +518,7 @@ enum Art {
             mast(-h * 0.72, -h * 0.72, h * 0.22)
         case .turret, .radar, .artillery, .shield, .wall:
             break
+        case .mine: break
         }
 
         let n = k == .turret ? 12 : 18
@@ -740,6 +744,21 @@ enum Art {
 
     /// An octagonal pad with three pylons around a glowing emitter core.
     /// A Barricade: a squat block of poured concrete with a lighter cap, seams, and a team stripe.
+    /// A Land Mine: a disc of dark steel pressed into the earth, a rim of dirt, three prongs and the team's
+    /// light on top. Only its owner ever sees it.
+    private static func drawMine(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        fill(ctx, circle(.zero, h * 1.25), .rgb(0.22, 0.17, 0.11, 0.55))
+        let body = circle(.zero, h * 0.9)
+        lit(ctx, body, .rgb(0.24, 0.26, 0.28))
+        stroke(ctx, body, NSColor(white: 0, alpha: 0.6), 1)
+        stroke(ctx, circle(.zero, h * 0.55), NSColor(white: 0, alpha: 0.35), 0.8)
+        for i in 0..<3 {
+            let a = CGFloat(i) * 2.094 + 0.5
+            fill(ctx, circle(CGPoint(x: cos(a) * h * 0.55, y: sin(a) * h * 0.55), h * 0.16), .rgb(0.5, 0.52, 0.55))
+        }
+        fill(ctx, circle(.zero, h * 0.22), team.lightColor)
+    }
+
     private static func drawWall(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
         let body = silhouette(.wall, h)
         lit(ctx, body, concrete, 0.85)

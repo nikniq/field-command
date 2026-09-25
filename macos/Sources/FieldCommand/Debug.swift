@@ -912,6 +912,106 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
+    /// FC_MINETEST=1: land mines — laid by Engineers, hidden from the enemy, in nobody's way, gone when they go
+    /// off — matching linux/tests/test_mines.py.
+    static func runMineTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle) }
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u); u.command(.idle); u.cooldown = 1e9
+            return u
+        }
+        func lay(_ w: SWorld, _ x: Double, _ y: Double, team: Int = 0) -> SBuilding {
+            w.startBuilding(.mine, x, y, team)
+            let m = w.buildings.last!
+            m.built = true; m.progress = 1; m.hp = m.maxHp
+            return m
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); w.events.removeAll(); t += 1.0 / 30; if done() { return true } }
+            return done()
+        }
+        let s = BuildingKind.mine.stats
+        check(NetProtocol.buildingKinds.last == .mine && s.requires == .barracks && s.cost == 40
+              && !BuildingKind.allCases.filter({ $0 != .mine }).contains { $0.stats.hotkey == s.hotkey },
+              "the mine is in the catalogue on the Engineer card")
+        do {
+            let (w, hq) = fresh()
+            w.startBuilding(.barracks, hq.x + 300, hq.y, 0)
+            let bk = w.buildings.last!; bk.built = true; bk.progress = 1
+            let e = w.units.first { $0.team == 0 && $0.kind == .worker }!
+            w.resources[0] = 500
+            w.apply(0, ["build", e.id, "mine", hq.x + 200, hq.y + 200, false])
+            var ordered = false
+            if case .build(let k, _, _) = e.order, k == .mine { ordered = true }
+            let paid = w.resources[0] == 500 - Double(s.cost)
+            let built = run(w, 20) { w.buildings.contains { $0.kind == .mine && $0.built } }
+            let m = w.buildings.first { $0.kind == .mine }!
+            let foe = unit(w, .marine, 1, m.x + 150, m.y)
+            w.updateVisibility()
+            let hidden = w.sees(0, m) && !w.sees(1, m) && !m.targetable(by: 1)
+            let untargeted = !(w.findTarget(foe, 400) === m) && !(w.primaryTarget(1, foe.x, foe.y) === m)
+            check(ordered && paid && built && hidden && untargeted, "an Engineer lays a mine and the enemy never sees it")
+        }
+        do {
+            let (w, hq) = fresh()
+            let m = lay(w, hq.x + 400, hq.y + 400)
+            let own = unit(w, .marine, 0, m.x + 5, m.y)
+            _ = unit(w, .gunship, 1, m.x, m.y)
+            _ = run(w, 1)
+            let quiet = !m.dead
+            let foe = unit(w, .marine, 1, m.x + mineTrigger + 100, m.y)
+            let far = unit(w, .tank, 1, m.x + mineSplash + 200, m.y)
+            let (hp0, own0, far0) = (foe.hp, own.hp, far.hp)
+            foe.x = m.x + mineTrigger - 1
+            _ = run(w, 0.5)
+            check(quiet && m.dead && !w.buildings.contains { $0 === m } && foe.hp <= hp0 - mineDamage * 0.5 && own.hp == own0 && far.hp == far0,
+                  "the first hostile on the ground sets it off; friends and aircraft do not")
+        }
+        do {
+            let (w, hq) = fresh()
+            _ = lay(w, hq.x + 300, hq.y)
+            w.rebuildNavForTests()
+            let u = unit(w, .marine, 0, hq.x + 200, hq.y)
+            u.command(.move(hq.x + 400, hq.y))
+            _ = run(w, 6)
+            let through = abs(u.x - (hq.x + 400)) < 20 && abs(u.y - hq.y) < 20
+            for b in w.buildings where b.team == 1 { b.dead = true }
+            _ = lay(w, hq.x - 300, hq.y, team: 1)
+            w.cleanupDead()
+            w.checkVictoryForTests()
+            check(through && !(w.players[1]!.alive) && w.gameOver && w.winnerTeam == w.players[0]!.team,
+                  "mines are in nobody's way and do not keep a side alive")
+        }
+        do {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            let ai = SAI(world: w, team: 1, opening: "turtle")
+            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            w.startBuilding(.barracks, hq.x - 300, hq.y, 1)
+            let bk = w.buildings.last!; bk.built = true; bk.progress = 1
+            w.resources[1] = 3000
+            w.elapsed = 400
+            ai.hitAt = w.elapsed
+            let bases = w.buildings.filter { $0.team == 1 }
+            let workers = w.units.filter { $0.team == 1 && $0.kind == .worker }
+            ai.fortify(hq, bases, workers)
+            var walls = 0, mines = 0
+            for wk in workers { for o in [wk.order] + wk.queued { if case .build(let k, _, _) = o { if k == .wall { walls += 1 }; if k == .mine { mines += 1 } } } }
+            check(walls > 0 && mines >= 1, "the computer mines the gap in its wall")
+        }
+        print(ok ? "MINE TEST PASSED" : "MINE TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     /// FC_WALLTEST=1: Barricades block the way until they are shot down; the computer still attacks a walled base —
     /// matching linux/tests/test_walls.py.
     static func runWallTest() -> Never {
@@ -937,7 +1037,7 @@ enum Debug {
             return out
         }
         let s = BuildingKind.wall.stats
-        check(s.cost <= 40 && s.hp >= 500 && s.half <= 24 && s.requires == nil && NetProtocol.buildingKinds.last == .wall, "the Barricade is cheap, tough and last on the wire")
+        check(s.cost <= 40 && s.hp >= 500 && s.half <= 24 && s.requires == nil && NetProtocol.buildingKinds.suffix(2) == [.wall, .mine], "the Barricade is cheap, tough and late on the wire")
         let w = fresh()
         let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
         let x = hq.x + 500

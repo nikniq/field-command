@@ -10,7 +10,7 @@ import math
 import random
 
 from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
-from .defs import (ALLOY_BUILD, ALLOY_UPGRADE, COVER_KINDS, DERELICT_RADIUS, DERELICT_TIME, ENTRENCH_KINDS, ENTRENCH_TIME, TECH, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+from .defs import (ALLOY_BUILD, ALLOY_UPGRADE, COVER_KINDS, MINE_DAMAGE, MINE_SPLASH, MINE_TRIGGER, DERELICT_RADIUS, DERELICT_TIME, ENTRENCH_KINDS, ENTRENCH_TIME, TECH, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
@@ -92,7 +92,11 @@ class Entity:
 
     def targetable_by(self, slot):
         w = self.game
-        if w.is_ai(slot) or w.allied(self.team, slot):
+        if w.allied(self.team, slot):
+            return True
+        if self.is_building and self.kind == "mine":
+            return False                                  # buried: nobody shoots what nobody sees
+        if w.is_ai(slot):
             return True
         bit = w.alliance_bit(slot)
         return bool(self.vis_mask & bit) or (self.is_building and bool(self.revealed_mask & bit))
@@ -1096,6 +1100,21 @@ class Building(Entity):
             if self.upgrade_progress >= 1:
                 kind, self.upgrading, self.upgrade_progress = self.upgrading, None, 0.0
                 self._install(kind)
+
+        if self.kind == "mine":
+            # The first hostile on the ground within reach sets it off, and it takes the ground with it.
+            for u in g.units:
+                if u.dead or u.stats.flies or not g.enemies(u.team, self.team):
+                    continue
+                if math.hypot(u.x - self.x, u.y - self.y) <= MINE_TRIGGER + u.radius:
+                    g._splash(self.x, self.y, MINE_SPLASH, MINE_DAMAGE, self.team, self)
+                    g.emit("explode", self.x, self.y, 40, 1, 0)
+                    g.emit("sound", "cannon", self.x, self.y)
+                    g.emit("shake", self.x, self.y, 6)
+                    self.hp = 0
+                    self.dead = True
+                    return
+            return
 
         if self.shielded:
             if g.elapsed - self.shield_hit >= SHIELD_DELAY:

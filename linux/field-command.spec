@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.40.2
+Version:        1.41.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.41.0-1
+- Land mines (M on the Engineer card, 40 crystal, needs a Barracks): buried where they are laid, never
+  seen by the enemy, in nobody's way; the first hostile on the ground within 30 sets one off for 90
+  damage to everything hostile within 70; Shift lays several; the computer mines the gap in its wall
+- Protocol 21: the mine joins the building catalogue
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.40.2-1
 - Linux: pressing any upgrade button crashed the game since 1.38.0 (a misplaced argument on the button's
   action); fixed, with a test that presses every card button

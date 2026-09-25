@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.40.2"
+let appVersion = "1.41.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -262,7 +262,7 @@ struct BuildingStats {
 }
 
 enum BuildingKind: CaseIterable {
-    case hq, depot, barracks, factory, turret, radar, artillery, shield, wall
+    case hq, depot, barracks, factory, turret, radar, artillery, shield, wall, mine
 
     var stats: BuildingStats {
         switch self {
@@ -309,9 +309,19 @@ enum BuildingKind: CaseIterable {
                                  buildTime: 8, supply: 0, produces: [], requires: nil, range: 0, damage: 0,
                                  cooldown: 0, sight: 120, hotkey: "V",
                                  desc: "A block of wall: cheap, tough and in the way. Nothing walks through until it is shot down. Shift places a run.")
+        case .mine:
+            return BuildingStats(name: "Land Mine", short: "Mine", glyph: "LM", cost: 40, hp: 60, half: 10,
+                                 buildTime: 4, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
+                                 cooldown: 0, sight: 60, hotkey: "M",
+                                 desc: "Buried where it is laid: the enemy never sees it. The first hostile on the ground within 30 sets it off: 90 damage to everything hostile within 70. Shift lays several.")
         }
     }
 }
+
+/// Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
+let mineTrigger: Double = 30
+let mineDamage: Double = 90
+let mineSplash: Double = 70
 
 // MARK: - Difficulty
 

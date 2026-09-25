@@ -21,10 +21,10 @@ def wall_line(w, x, y0, y1, team):
     return out
 
 
-def test_the_barricade_is_in_the_catalogue_cheap_and_last_on_the_wire():
+def test_the_barricade_is_in_the_catalogue_cheap_and_late_on_the_wire():
     s = BUILDINGS["wall"]
     assert s.cost <= 40 and s.hp >= 500 and s.half <= 24 and s.requires is None and s.range == 0
-    assert BUILDING_KINDS[-1] == "wall" and BUILD_MENU[-1] == "wall"
+    assert BUILDING_KINDS[-2:] == ["wall", "mine"] and BUILD_MENU[-2:] == ["wall", "mine"]   # the mine came after
 
 
 def test_a_run_of_barricades_blocks_the_way_until_it_is_shot_down():

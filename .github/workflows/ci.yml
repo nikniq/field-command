@@ -217,6 +217,11 @@ jobs:
         run: |
           set -o pipefail
           FC_STAKESTEST=1 "$BIN" | tee /dev/stderr | grep -q "STAKES TEST PASSED"
+      - name: Headless Mines
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_MINETEST=1 "$BIN" | tee /dev/stderr | grep -q "MINE TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

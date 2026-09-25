@@ -652,7 +652,9 @@ class SEntity {
     func distanceTo(_ o: SEntity) -> Double { o.surfaceDistance(x, y) - bodyRadius }
 
     func targetable(by slot: Int) -> Bool {
-        if world.isAI(slot) || world.allied(team, slot) { return true }
+        if world.allied(team, slot) { return true }
+        if let b = self as? SBuilding, b.kind == .mine { return false }     // buried: nobody shoots what nobody sees
+        if world.isAI(slot) { return true }
         let bit = world.allianceBit(slot)
         return (visMask & bit) != 0 || (isBuilding && (revealedMask & bit) != 0)
     }
@@ -1394,6 +1396,19 @@ final class SBuilding: SEntity {
                 install(k)
             }
         }
+        if kind == .mine {
+            // The first hostile on the ground within reach sets it off, and it takes the ground with it.
+            for u in g.units where !u.dead && !u.stats.flies && g.enemies(u.team, team) && hyp(u.x - x, u.y - y) <= mineTrigger + u.radius {
+                g.splash(x, y, mineSplash, mineDamage, team, self)
+                g.emit(["explode", x, y, 40, 1, 0])
+                g.emit(["sound", "cannon", x, y])
+                g.emit(["shake", x, y, 6])
+                hp = 0
+                dead = true
+                return
+            }
+            return
+        }
         if shielded {
             if world.elapsed - shieldHit >= shieldDelay { shield = min(shieldMax, shield + shieldRegen * dt) }
         } else if shield > 0 {
@@ -1675,6 +1690,7 @@ final class SWorld {
 
     func sees(_ slot: Int, _ e: SEntity) -> Bool {
         if allied(e.team, slot) { return true }
+        if let b = e as? SBuilding, b.kind == .mine { return false }        // buried: the enemy never sees a mine
         let bit = allianceBit(slot)
         return (e.visMask & bit) != 0 || (e.isBuilding && (e.revealedMask & bit) != 0)
     }
@@ -1834,9 +1850,10 @@ final class SWorld {
     }
 
     func rebuildNavForTests() { rebuildNav() }
+    func checkVictoryForTests() { checkVictory() }
 
     private func rebuildNav() {
-        nav.rebuild(rects: walls + buildings.filter { !$0.dead }.map { $0.rect },
+        nav.rebuild(rects: walls + buildings.filter { !$0.dead && $0.kind != .mine }.map { $0.rect },
                     circles: obstacles + crystals.filter { !$0.dead }.map { ($0.x, $0.y, $0.radius) })
         navDirty = false
     }
@@ -1914,7 +1931,7 @@ final class SWorld {
                 }
             }
         }
-        let rects = buildings.map { $0.rect } + walls
+        let rects = buildings.filter { $0.kind != .mine }.map { $0.rect } + walls
         for u in units {
             let r = u.radius
             if u.stats.flies {
@@ -2225,14 +2242,14 @@ final class SWorld {
             var fell = false
             for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive
                 && !buildings.contains(where: { $0.team == p.slot && $0.kind == .hq && !$0.dead })
-                && buildings.contains(where: { $0.team == p.slot }) {
+                && buildings.contains(where: { $0.team == p.slot && $0.kind != .mine }) {
                 for b in buildings where b.team == p.slot { b.dead = true }
                 for u in units where u.team == p.slot { u.dead = true }
                 fell = true
             }
             if fell { cleanupDead() }
         }
-        for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive && !buildings.contains(where: { $0.team == p.slot }) {
+        for p in players.values.sorted(by: { $0.slot < $1.slot }) where p.alive && !buildings.contains(where: { $0.team == p.slot && $0.kind != .mine }) {
             p.alive = false
             for u in units where u.team == p.slot { u.dead = true }
             emit(["elim", p.slot, p.name])
@@ -2612,7 +2629,7 @@ final class SWorld {
     /// The nearest enemy building — unless a Shield Generator covers it, in which case the generator: drop the
     /// field first and the rest comes down.
     func primaryTarget(_ team: Int, _ x: Double, _ y: Double) -> SEntity? {
-        let bs = buildings.filter { !$0.dead && enemies($0.team, team) }
+        let bs = buildings.filter { !$0.dead && $0.kind != .mine && enemies($0.team, team) }
         if let near = bs.min(by: { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }) {
             let gens = bs.filter { $0.kind == .shield && $0.team == near.team && $0.built && hyp($0.x - near.x, $0.y - near.y) <= shieldRadius }
             return gens.min(by: { hyp($0.x - x, $0.y - y) < hyp($1.x - x, $1.y - y) }) ?? near
@@ -2724,6 +2741,19 @@ final class SWorld {
         for b in buildings {
             b.shielded = b.built && !b.dead && gens.contains { $0.team == b.team && hyp($0.x - b.x, $0.y - b.y) <= shieldRadius }
         }
+    }
+
+    /// A burst on the ground: enemies within `radius` take damage falling off with distance, enemy buildings and
+    /// bridges within half of it take it in full (linux/fieldcommand/world.py `_splash`).
+    func splash(_ x: Double, _ y: Double, _ radius: Double, _ damage: Double, _ team: Int, _ attacker: SEntity) {
+        for u in units where !u.dead && enemies(u.team, team) {
+            let d = hyp(u.x - x, u.y - y) - u.radius
+            if d <= radius { u.takeDamage(damage * (1 - 0.5 * max(0, d) / radius), from: attacker) }
+        }
+        for b in buildings where !b.dead && enemies(b.team, team) && b.rect.distance(x, y) <= radius * 0.5 {
+            b.takeDamage(damage, from: attacker)
+        }
+        for br in bridges where br.intact && br.rect.distance(x, y) <= radius * 0.5 { br.takeDamage(damage, from: attacker) }
     }
 
     private func updateShells(_ dt: Double) {
@@ -3088,6 +3118,21 @@ final class SAI {
             g.resources[team, default: 0] -= cost
             builder.orderBuild(.wall, p.0, p.1, queue: placed > 0)
             placed += 1
+        }
+        // Mines in the funnel: whatever comes through the gap pays for it.
+        var mines = bases.filter { $0.kind == .mine }.count + pending(.mine, workers)
+        let mineCost = Double(BuildingKind.mine.stats.cost)
+        if g.hasBuilt(.barracks, team) {
+            for k in [-0.5, 0.5, 0.0] {
+                if mines >= 3 || (g.resources[team] ?? 0) < mineCost + 150 { break }
+                let p = g.snapped(cx - uy * k * span + ux * 40, cy + ux * k * span + uy * 40)
+                if !g.canPlace(.mine, p.0, p.1, margin: 2) { continue }
+                if bases.contains(where: { $0.kind == .mine && abs($0.x - p.0) < 30 && abs($0.y - p.1) < 30 }) { continue }
+                g.resources[team, default: 0] -= mineCost
+                builder.orderBuild(.mine, p.0, p.1, queue: placed > 0)
+                placed += 1
+                mines += 1
+            }
         }
         return placed
     }

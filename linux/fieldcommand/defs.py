@@ -68,7 +68,7 @@ COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
 # Order matters: the network protocol sends a kind as its index here, so new kinds are appended
 # at the end and the macOS edition's NetProtocol lists must match exactly.
 UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic", "gunship"]
-BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall"]
+BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine"]
 
 
 # ---------------------------------------------------------------- stats
@@ -160,8 +160,15 @@ BUILDINGS = {
                             "Shields every building of yours within 320: 300 points soaked before the walls, recharging."),
     "wall": BuildingStats("Barricade", "Wall", "BR", 30, 700, 22, 8, 0, (), None, 0, 0, 0, 120, "V",
                           "A block of wall: cheap, tough and in the way. Nothing walks through until it is shot down. Shift places a run."),
+    "mine": BuildingStats("Land Mine", "Mine", "LM", 40, 60, 10, 4, 0, (), "barracks", 0, 0, 0, 60, "M",
+                          "Buried where it is laid: the enemy never sees it. The first hostile on the ground within 30 sets it off: "
+                          "90 damage to everything hostile within 70. Shift lays several."),
 }
-BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall"]
+BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine"]
+# Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
+MINE_TRIGGER = 30.0
+MINE_DAMAGE = 90.0
+MINE_SPLASH = 70.0
 
 # Bridges. They come with the map rather than being built from scratch, so their numbers live here
 # rather than in BUILDINGS: nobody owns one, anybody can shell it down, any Engineer can rebuild it.

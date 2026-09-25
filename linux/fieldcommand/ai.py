@@ -503,6 +503,21 @@ class AI:
             g.resources[self.team] -= BUILDINGS["wall"].cost
             builder.order_build("wall", p[0], p[1], queue=placed > 0)
             placed += 1
+        # Mines in the funnel: whatever comes through the gap pays for it.
+        mines = sum(1 for b in bases if b.kind == "mine") + self._pending("mine", workers)
+        if g.has_built("barracks", self.team):
+            for k in (-0.5, 0.5, 0.0):
+                if mines >= 3 or g.resources[self.team] < BUILDINGS["mine"].cost + 150:
+                    break
+                p = g.snapped(cx - uy * k * span + ux * 40, cy + ux * k * span + uy * 40)
+                if not g.can_place("mine", p[0], p[1], margin=2):
+                    continue
+                if any(b.kind == "mine" and abs(b.x - p[0]) < 30 and abs(b.y - p[1]) < 30 for b in bases):
+                    continue
+                g.resources[self.team] -= BUILDINGS["mine"].cost
+                builder.order_build("mine", p[0], p[1], queue=placed > 0)
+                placed += 1
+                mines += 1
         return placed
 
     def _produce(self, hq, bases, workers, reserve):
