@@ -123,3 +123,21 @@ def test_a_blank_icon_is_caught_and_redrawn(game):
     g.draw(app.screen, None)
     assert g.hud.icon_repairs == before + 1                         # repaired for good: the blank variant is gone
     assert icon_ink(app.screen, r, BTN_SIZE()) > 3
+
+
+def test_every_card_button_can_be_pressed_without_an_error(game):
+    """Every button's action runs (a bad lambda once crashed the game on the first upgrade click)."""
+    app, g, e = game
+    g.s.world.resources[g.s.slot] = 20000
+    scenarios = [[e["hq"]], [e["eng"]], [e["barracks"]], [e["factory"]], [e["tank"]], [e["turret"], e["depot"]]]
+    pressed = 0
+    for sel in scenarios:
+        g.set_selection(sel)
+        g.update(1 / 30, None)
+        for i in range(len(g.hud.current_buttons)):
+            g.hud.press_button(i)
+            g.update(1 / 30, None)
+            g.draw(app.screen, None)
+            g.cancel_modes()
+            pressed += 1
+    assert pressed > 20

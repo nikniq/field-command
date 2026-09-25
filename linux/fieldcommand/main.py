@@ -44,6 +44,9 @@ class App:
             env.setdefault("SDL_VIDEODRIVER", "dummy")
             env.setdefault("SDL_AUDIODRIVER", "dummy")
         env.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        # The desktop names a window by its class; without this it is "main.py" in the shell's dialogs.
+        env.setdefault("SDL_VIDEO_X11_WMCLASS", "Field Command")
+        env.setdefault("SDL_VIDEO_WAYLAND_WMCLASS", "Field Command")
         import pygame
         self.pg = pygame
         from . import audio
@@ -90,6 +93,57 @@ class App:
 
     def set_scene(self, scene):
         self.scene = scene
+
+    # ------------------------------------------------------------ loading
+
+    def loading(self, text):
+        """Called between the heavy steps of setting a game up: shows what is happening, keeps the window
+        answering the desktop (a slow machine otherwise gets a 'not responding' dialog), and notes the time
+        each step took for startup.txt beside the saves."""
+        now = time.time()
+        if not hasattr(self, "_loading"):
+            self._loading = []
+        self._loading.append([text, now])
+        if self.headless:
+            return
+        pg = self.pg
+        for e in pg.event.get():
+            if e.type == pg.QUIT:
+                self.running = False
+        try:
+            from . import ui
+            from .defs import AMBER, DIM, TEXT
+            self.screen.fill((14, 16, 18))
+            w, h = self.screen.get_size()
+            ui.blit_text(self.screen, "FIELD COMMAND", 30, AMBER, (w / 2, h / 2 - 40), align="center", bold=True)
+            ui.blit_text(self.screen, text + "…", 16, TEXT, (w / 2, h / 2 + 4), align="center")
+            done = [f"{t}  {self._loading[i + 1][1] - at:.1f}s" for i, (t, at) in enumerate(self._loading[:-1])][-4:]
+            for j, line in enumerate(done):
+                ui.blit_text(self.screen, line, 11, DIM, (w / 2, h / 2 + 40 + j * 15), align="center")
+            self.present()
+        except Exception:  # noqa: BLE001 — a loading frame is never worth a crash
+            pass
+
+    def loading_done(self):
+        """Closes the loading record and writes it where a bug report can find it."""
+        steps = getattr(self, "_loading", None)
+        if not steps:
+            return
+        steps.append(["ready", time.time()])
+        try:
+            from .save import saves_dir
+            from . import __version__
+            path = os.path.join(os.path.dirname(saves_dir()), "startup.txt")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(f"Field Command {__version__} · Python {sys.version.split()[0]} · pygame {self.pg.version.ver} on {sys.platform}\n")
+                fh.write(f"window {self.window.get_size()} logical {self.screen.get_size()} ui_scale {self.ui_scale}\n")
+                for (t, at), (_n, nxt) in zip(steps, steps[1:]):
+                    fh.write(f"{nxt - at:7.2f}s  {t}\n")
+                fh.write(f"{steps[-1][1] - steps[0][1]:7.2f}s  total\n")
+        except Exception:  # noqa: BLE001
+            pass
+        self._loading = []
 
     # ------------------------------------------------------------ window, scale and screenshots
 

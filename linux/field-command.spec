@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.40.1
+Version:        1.40.2
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.40.2-1
+- Linux: pressing any upgrade button crashed the game since 1.38.0 (a misplaced argument on the button's
+  action); fixed, with a test that presses every card button
+- Linux: a loading screen while a game is set up, so a slow machine no longer gets the desktop's
+  "not responding" dialog while the map is painted; the time each step took goes to startup.txt beside
+  the saves; the window carries the Field Command class instead of "main.py"
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.40.1-1
 - The computer's waves are capped at one and a half times their planned size, so a full bank makes a
   bigger army over time rather than one crushing first wave; what stays behind keeps its base

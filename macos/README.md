@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 20, so a 1.40.1 Mac and a 1.40.1 Linux client play together; neither accepts an
+Both editions speak protocol 20, so a 1.40.2 Mac and a 1.40.2 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent

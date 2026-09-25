@@ -599,7 +599,9 @@ macOS edition draws the same scene from the same recipes.
 
 An unhandled error writes `crash.txt` next to the saves folder (`~/.local/share/fieldcommand/crash.txt`, or
 `%APPDATA%\FieldCommand\crash.txt` on Windows) and the window says so for a few seconds before closing.
-Attach that file to a bug report.
+Attach that file to a bug report. Setting a game up (painting the map, drawing the water and cliffs) can
+take a while on a slow machine, especially on a giant map: a loading screen shows the steps, and
+`startup.txt` in the same folder records how long each took — attach it if starting a game seems to hang.
 
 ## Screen size and UI scale
 

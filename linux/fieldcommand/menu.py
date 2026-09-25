@@ -143,6 +143,7 @@ class MenuScene:
     def start(self, d):
         settings.set("last_difficulty", d.index)
         audio.play("click")
+        self.app.loading("Laying out the map")
         session = LocalSession(d, autoplay=self.app.autoplay, map_id=settings.map_id,
                                opponents=min(settings.opponents, settings.max_opponents), teams=settings.team_count,
                                mode=settings.mode, start_crystal=settings.start_crystal, start_base=settings.start_base)
@@ -160,6 +161,7 @@ class MenuScene:
     def deploy(self, m):
         from .defs import DIFFICULTIES
         audio.play("click")
+        self.app.loading("Laying out the map")
         session = LocalSession(DIFFICULTIES[m.difficulty], autoplay=self.app.autoplay, map_id=m.map,
                                opponents=m.opponents, teams=m.teams, mission=m.id, veterans=settings.campaign_veterans)
         self.app.set_scene(GameScene(self.app, session))
@@ -315,6 +317,7 @@ class MenuScene:
             return
         from .session import LocalSession
         try:
+            self.app.loading("Reading the save")
             session = LocalSession.load(latest[0], autoplay=self.app.autoplay)
         except (OSError, ValueError, KeyError):
             return
@@ -335,6 +338,7 @@ class MenuScene:
             return
         from .session import LocalSession
         try:
+            self.app.loading("Reading the replay")
             session = LocalSession.replay(name or reps[0][0])
         except (OSError, ValueError, KeyError):
             return

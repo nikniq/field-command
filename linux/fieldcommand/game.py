@@ -59,9 +59,10 @@ class Camera:
         return (cx - hw, cy - hh, cx + hw, cy + hh)
 
 
-def build_ground(map_spec):
+def build_ground(map_spec, progress=lambda text: None):
     """Bakes terrain, clearings, roads, rocks and tree shadows into one world-sized surface."""
     defs.set_world_size(map_spec.get("w", defs.DEFAULT_WORLD[0]), map_spec.get("h", defs.DEFAULT_WORLD[1]))
+    progress("Painting the ground")
     W, H = int(defs.WORLD_W), int(defs.WORLD_H)
     ground = pygame.Surface((W, H))
     if pygame.display.get_surface():
@@ -117,6 +118,7 @@ def build_ground(map_spec):
     # Terrain features: water and cliffs are one organic layer. Bridges are drawn per frame instead
     # of being baked in here, because they can be destroyed and rebuilt.
     m = art.TERRAIN_MARGIN
+    progress("Drawing water and cliffs")
     layer = terrain.render(map_spec)
     if layer is not None:
         ground.blit(layer, (0, 0))
@@ -156,11 +158,12 @@ class GameScene:
         w, h = app.screen.get_size()
         self.cam = Camera(w, h)
         self.fx = Effects()
+        app.loading("Charting the fog")
         self.fog_view = FogView(session.fog)
         self.obstacles = session.obstacles
         self.clearings = session.map["clearings"]
         self.roads = session.map["roads"]
-        self.ground = build_ground(session.map)
+        self.ground = build_ground(session.map, progress=app.loading)
         self._tree_grid = {}
         for i, t in enumerate(session.map.get("trees", [])):
             self._tree_grid.setdefault((int(t[0] // 128), int(t[1] // 128)), []).append((t[0], t[1], t[2]))
@@ -201,8 +204,10 @@ class GameScene:
         self._ground_key = None
         self._end_shown = False
         self._elim_shown = False
+        app.loading("Preparing the interface")
         self.hud = HUD(self)
         self.hud.fog_changed()
+        app.loading_done()
         my_hq = next((b for b in session.buildings if b.team == session.slot and b.kind == "hq"), None)
         start = (my_hq.x, my_hq.y) if my_hq else tuple(session.map["starts"][0][:2])
         # Look from the base toward the map centre.
@@ -1609,7 +1614,7 @@ class GameScene:
                 if k in TECH:
                     tip = tip.replace("this building only", "once, for the whole side")
                 out.append(CommandButton(("upgrade", k), u.button, u.hotkey, None if installed else cost, ok, tip,
-                                         lambda k=k: self.upgrade(k, alloy=0 if installed else ALLOY_UPGRADE.get(k, 0))))
+                                         lambda k=k: self.upgrade(k), alloy=0 if installed else ALLOY_UPGRADE.get(k, 0)))
             return out
         return []
 

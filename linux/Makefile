@@ -6,7 +6,7 @@
 #   make rpm               build a Fedora RPM into ./rpmbuild (make rpm-deps first, once)
 
 NAME     := field-command
-VERSION  := 1.40.1
+VERSION  := 1.40.2
 PREFIX   ?= /usr/local
 DESTDIR  ?=
 DATADIR  := $(PREFIX)/share
