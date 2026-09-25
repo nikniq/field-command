@@ -3439,8 +3439,11 @@ final class SAI {
         let counter = counterPending && home.count >= 3
         if (g.elapsed >= nextWave && (home.count >= waveSize || overdue)) || counter,
            let goal = objective(g.primaryTarget(team, hq.x, hq.y)) {
-            for u in home { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
-            attackers += home
+            // A wave is the planned size and a half at most: a full bank makes a big army, not one monstrous
+            // first wave, and what stays behind keeps the base.
+            let party = Array(home.prefix(max(3, Int(Double(waveSize) * 1.5))))
+            for u in party { let (x, y) = standoff(u, goal.0, goal.1); u.command(.amove(x, y)) }
+            attackers += party
             launched = attackers.count
             if counter {
                 lastCounter = g.elapsed

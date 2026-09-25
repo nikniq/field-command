@@ -687,9 +687,12 @@ class AI:
             target = g.primary_target(self.team, hq.x, hq.y)
             goal = self._objective(target)
             if goal:
-                for u in home:
+                # A wave is the planned size and a half at most: a full bank makes a big army, not one
+                # monstrous first wave, and what stays behind keeps the base.
+                party = home[:max(3, int(self.wave_size * 1.5))]
+                for u in party:
                     u.command(("amove", *self._standoff(u, *goal)))
-                self.attackers += home
+                self.attackers += party
                 self.launched = len(self.attackers)
                 if counter:
                     self.last_counter = g.elapsed

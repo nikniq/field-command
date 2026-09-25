@@ -88,7 +88,8 @@ where the raider was seen if nothing there can reach it — and it
 walls its approach with **Barricades**: a turtle from the third minute, anyone within a minute of a
 building taking damage, six blocks in two lines either side of a gap so its own army still marches out.
 
-It knows when a fight is lost: a wave that has lost more than 60% of itself with the enemy still on it
+A wave is at most one and a half times its planned size — a full bank buys a bigger army over the game, not
+one crushing first wave — and whatever stays behind keeps the base. It knows when a fight is lost: a wave that has lost more than 60% of itself with the enemy still on it
 **pulls back** to the Command Center rather than dying piecemeal, and the next wave waits at least forty
 seconds more to be worth sending — but after three pull-backs without the enemy losing a building, the
 next wave fights it out, so caution never becomes a stalemate. And it knows when you are spent: on Normal and Hard, within twenty seconds
@@ -590,6 +591,12 @@ while, and anything hit flashes white for a few frames. Buildings smoke below ha
 quarter. The ground is strewn with pebbles, tufts and wildflowers; anything on the move kicks up dust and
 tanks press tracks into the ground behind them; a selected unit of yours glows softly in your colour. The
 macOS edition draws the same scene from the same recipes.
+
+## If it crashes
+
+An unhandled error writes `crash.txt` next to the saves folder (`~/.local/share/fieldcommand/crash.txt`, or
+`%APPDATA%\FieldCommand\crash.txt` on Windows) and the window says so for a few seconds before closing.
+Attach that file to a bug report.
 
 ## Screen size and UI scale
 

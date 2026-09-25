@@ -16,6 +16,7 @@ Command line:
 import os
 import sys
 import time
+import traceback
 
 
 def _stats(scene):
@@ -208,6 +209,46 @@ class App:
     def run(self):
         if self.headless:
             return self._run_headless()
+        try:
+            self._run_windowed()
+        except Exception:  # noqa: BLE001 — anything: the traceback is written where it can be found, and shown
+            self._crashed(traceback.format_exc())
+            raise
+
+    def _crashed(self, text):
+        """An unhandled error would otherwise close the window with the traceback lost in a terminal nobody
+        is watching: it goes to crash.txt beside the saves, and the window says so for a few seconds."""
+        from .save import saves_dir
+        path = os.path.join(os.path.dirname(saves_dir()), "crash.txt")
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                from . import __version__
+                fh.write(f"Field Command {__version__} on {sys.platform}\n\n{text}")
+        except OSError:
+            path = "(could not write crash.txt)"
+        print(text, file=sys.stderr)
+        print(f"crash log: {path}", file=sys.stderr, flush=True)
+        try:
+            pg = self.pg
+            from . import ui
+            from .defs import BAD, DIM, TEXT
+            end = time.time() + 8
+            while time.time() < end:
+                for e in pg.event.get():
+                    if e.type in (pg.QUIT, pg.KEYDOWN, pg.MOUSEBUTTONDOWN):
+                        end = 0
+                self.screen.fill((14, 16, 18))
+                w, h = self.screen.get_size()
+                ui.blit_text(self.screen, "The game hit an error and has to stop.", 22, BAD, (w / 2, h / 2 - 40), align="center", bold=True)
+                ui.blit_text(self.screen, f"Details were saved to {path}", 14, TEXT, (w / 2, h / 2), align="center")
+                ui.blit_text(self.screen, "Please attach that file to a bug report. Any key closes this.", 12, DIM, (w / 2, h / 2 + 28), align="center")
+                self.present()
+                self.clock.tick(30)
+        except Exception:  # noqa: BLE001 — the display may be what broke
+            pass
+
+    def _run_windowed(self):
         pg = self.pg
         while self.running:
             dt = min(self.clock.tick(60) / 1000.0, 1 / 15)
