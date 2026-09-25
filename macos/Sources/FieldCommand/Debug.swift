@@ -2819,7 +2819,7 @@ enum Debug {
         for m in SMapGen.catalog {
             let map = SMapGen.generate(m.id)
             let players = (0..<m.players).map { SPlayer(slot: $0, name: "AI\($0)", team: $0 + 1, isAI: true, start: $0) }
-            let w = SWorld(map: map, players: players, difficulty: .normal)
+            let w = SWorld(map: map, players: players, difficulty: .normal, seed: 11)     // seeded: the same game every run
             let t0 = Date()
             let limit = m.players > 4 ? 2700.0 : 1500.0     // twelve sides, shields and artillery: longer games
             while !w.gameOver && w.elapsed < limit { w.step(1.0 / 30) }
