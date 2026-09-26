@@ -98,7 +98,7 @@ final class GameScene: SKScene {
     var isMultiplayer: Bool { net.map { !$0.isLocal } ?? false }
 
     var myResources: CGFloat { net.map { CGFloat($0.resources) } ?? resources[0] }
-    var myAlloy: Int { net?.alloy ?? alloyStart }
+    var myGas: Int { net?.gas ?? gasStart }
     var mySupplyUsed: Int { net?.supplyUsed ?? supplyUsed(.player) }
     var mySupplyCap: Int { net?.supplyCap ?? supplyCap(.player) }
 
@@ -1836,8 +1836,8 @@ final class GameScene: SKScene {
             hud.flash("Not enough crystal", color: Palette.bad)
             return
         }
-        if myAlloy < (alloyBuild[k] ?? 0) {
-            hud.flash("Not enough alloy — mine the gold deposit", color: Palette.bad)
+        if myGas < (gasBuild[k] ?? 0) {
+            hud.flash("Not enough gas — build a Refinery", color: Palette.bad)
             return
         }
         attackMovePending = false
@@ -2235,12 +2235,12 @@ final class GameScene: SKScene {
                 })
             }
             if us.contains(where: { $0.kind == .worker }) {
-                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall, .mine] {
+                for k in [BuildingKind.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall, .mine, .refinery] {
                     let s = k.stats
                     let reqOK = s.requires.map { hasBuilt($0, team: Team.local) } ?? true
                     let tip = s.desc + (reqOK ? "" : "\nRequires \(s.requires!.stats.name).")
                     list.append(CommandButton(icon: .building(k), title: s.short, hotkey: s.hotkey, cost: s.cost, enabled: reqOK, tip: tip,
-                                              alloy: alloyBuild[k] ?? 0) { [weak self] in
+                                              gas: gasBuild[k] ?? 0) { [weak self] in
                         self?.beginPlacement(k)
                     })
                 }
@@ -2261,7 +2261,7 @@ final class GameScene: SKScene {
                 var tip = "\(s.desc)\nSupply \(s.supply) · \(Int(s.buildTime))s build time.\nRight-click the map to set a rally point."
                 if !reqOK { tip += "\nRequires \(s.requires!.stats.name)." }
                 return CommandButton(icon: .unit(k), title: s.name, hotkey: s.hotkey, cost: s.cost, enabled: reqOK,
-                                     tip: tip, alloy: alloyCost[k] ?? 0) { [weak self] in
+                                     tip: tip, gas: gasCost[k] ?? 0) { [weak self] in
                     guard let self else { return }
                     self.train(k, from: self.selectedOwnBuildings)
                 }
@@ -2293,7 +2293,7 @@ final class GameScene: SKScene {
                 if installed { tip += "\nAlready installed." } else if busy { tip += "\nAlready researching something." }
                 list.append(CommandButton(icon: .upgrade(k), title: u.button, hotkey: u.hotkey,
                                           cost: installed ? nil : k.cost(for: target.kind), enabled: ok, tip: tip,
-                                          alloy: installed ? 0 : (alloyUpgrade[k] ?? 0)) { [weak self] in
+                                          gas: installed ? 0 : (gasUpgrade[k] ?? 0)) { [weak self] in
                     guard let self else { return }
                     let ids = self.selectedOwnBuildings.filter { $0.canUpgrade(k) }.map { $0.netId }
                     if !ids.isEmpty { self.sendNet(["upgrade", ids, k.wireName]) }

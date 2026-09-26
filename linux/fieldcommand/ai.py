@@ -14,7 +14,7 @@ Works for any slot; enemies are every player outside its alliance."""
 import math
 
 from . import defs
-from .defs import (ABILITIES, ALLOY_BUILD, ALLOY_COST, ALLOY_UPGRADE, DERELICT_RADIUS, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+from .defs import (ABILITIES, GAS_BUILD, GAS_COST, GAS_UPGRADE, DERELICT_RADIUS, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
 # Openings: how the first minutes are played. Each factor bends the timed plan — `barracks` and `turret`
@@ -78,7 +78,6 @@ class AI:
         self.route_bridge = None
         self.next_raid = 240.0
         self.salvager = None             # the Engineer sent for the derelict Siege Tank
-        self.gold_miners = []            # Engineers kept on the gold for alloy
         self.air_alarm = None            # (x, y, when): where a Gunship was last over one of this side's bases
         # A wave that is being beaten pulls back; a repelled attack on this base is answered at once.
         self.launched = 0                # how many went out with the current wave and raids
@@ -115,20 +114,8 @@ class AI:
         home = [u for u in army if id(u) not in away]
 
         dropoffs = [b for b in bases if b.kind == "hq" and b.built]
-        self.gold_miners = [w for w in self.gold_miners if not w.dead]
-        gold = [c for c in g.crystals if not c.dead and c.gold]
-        if gold and len(workers) >= 6 and g.has_built("factory", self.team) and len(self.gold_miners) < 2:
-            # Alloy for the tanks: two Engineers on the nearest gold node from the moment there is a Factory.
-            free = [w for w in workers if w not in self.gold_miners and w is not self.salvager and w.order[0] in ("idle", "gather")]
-            node = min(gold, key=lambda c: math.hypot(c.x - hq.x, c.y - hq.y))
-            for w in sorted(free, key=lambda w: math.hypot(w.x - node.x, w.y - node.y))[:2 - len(self.gold_miners)]:
-                w.command(("gather", node))
-                self.gold_miners.append(w)
         for w in workers:
             if w.order[0] != "idle" or w is self.salvager:
-                continue
-            if w in self.gold_miners and gold:
-                w.command(("gather", min(gold, key=lambda c: math.hypot(c.x - w.x, c.y - w.y))))
                 continue
             served = [c for c in g.crystals if not c.dead and any(math.hypot(d.x - c.x, d.y - c.y) < 700 for d in dropoffs)]
             c = min(served, key=lambda c: math.hypot(c.x - w.x, c.y - w.y)) if served else g.nearest_crystal(w.x, w.y, 6000)
@@ -157,8 +144,8 @@ class AI:
     def _plan(self, t):
         """The timed build plan, bent by the opening: (kind, how many by now)."""
         o = OPENINGS[self.opening]
-        base = [("barracks", 35, 1), ("turret", 140, 1), ("factory", 170, 1), ("barracks", 230, 2),
-                ("radar", 260, 1), ("turret", 300, 2), ("shield", 380, 1), ("factory", 420, 2),
+        base = [("barracks", 35, 1), ("turret", 140, 1), ("factory", 170, 1), ("refinery", 185, 1), ("barracks", 230, 2),
+                ("radar", 260, 1), ("turret", 300, 2), ("shield", 380, 1), ("factory", 420, 2), ("refinery", 440, 2),
                 ("artillery", 480, 1), ("barracks", 520, 3), ("turret", 560, 4), ("artillery", 720, 2)]
         out = []
         for k, at, n in base:
@@ -307,9 +294,9 @@ class AI:
         cost = BUILDINGS[want].cost
         if bank < cost:
             return cost
-        if g.alloy[self.team] < ALLOY_BUILD.get(want, 0):
+        if g.gas[self.team] < GAS_BUILD.get(want, 0):
             return 0
-        candidates = [w for w in workers if w.order[0] != "build" and w not in self.gold_miners and w is not self.salvager]
+        candidates = [w for w in workers if w.order[0] != "build" and w is not self.salvager]
         if not candidates:
             return 0
         builder = min(candidates, key=lambda w: math.hypot(w.x - hq.x, w.y - hq.y))
@@ -317,7 +304,7 @@ class AI:
         if spot is None:
             return 0
         g.resources[self.team] -= cost
-        g.alloy[self.team] -= ALLOY_BUILD.get(want, 0)
+        g.gas[self.team] -= GAS_BUILD.get(want, 0)
         builder.order_build(want, spot[0], spot[1])
         return 0
 
@@ -353,7 +340,7 @@ class AI:
         wants += [(b, "defense") for b in bases if b.kind == "hq"]
         wants += [(b, "supply") for b in bases if b.kind == "depot"]
         for b, k in wants:
-            if b.can_upgrade(k) and g.resources[self.team] >= upgrade_cost(k, b.kind) + 300 and g.alloy[self.team] >= ALLOY_UPGRADE.get(k, 0):
+            if b.can_upgrade(k) and g.resources[self.team] >= upgrade_cost(k, b.kind) + 300 and g.gas[self.team] >= GAS_UPGRADE.get(k, 0):
                 g.apply(self.team, ["upgrade", [b.id], k])
                 return
 
@@ -547,10 +534,10 @@ class AI:
                 elif money() >= 50 and (want != "tank" or not g.has_built("factory", self.team) or money() >= 200):
                     g.train("marine", [b], self.team)
             elif b.kind == "factory":
-                alloy = g.alloy[self.team]
-                if want == "gunship" and money() >= 200 and alloy >= ALLOY_COST["gunship"] and g.has_built("radar", self.team):
+                gas = g.gas[self.team]
+                if want == "gunship" and money() >= 200 and gas >= GAS_COST["gunship"] and g.has_built("radar", self.team):
                     g.train("gunship", [b], self.team)
-                elif money() >= 150 and alloy >= ALLOY_COST["tank"] and (want != "gunship" or not g.has_built("radar", self.team) or money() >= 350):
+                elif money() >= 150 and gas >= GAS_COST["tank"] and (want != "gunship" or not g.has_built("radar", self.team) or money() >= 350):
                     g.train("tank", [b], self.team)
 
     def _defend(self, bases, home):

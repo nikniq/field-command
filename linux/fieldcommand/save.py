@@ -114,7 +114,7 @@ def world_to_dict(world, label=""):
         "players": [{"slot": p.slot, "name": p.name, "team": p.team, "is_ai": p.is_ai, "start": p.start, "alive": p.alive}
                     for p in w.players.values()],
         "resources": {str(s): v for s, v in w.resources.items()},
-        "alloy": {str(s): v for s, v in w.alloy.items()},
+        "gas": {str(s): v for s, v in w.gas.items()},
         "kits": {str(s): sorted(k) for s, k in w.kits.items()},
         "units_trained": {str(s): v for s, v in w.units_trained.items()},
         "units_lost": {str(s): v for s, v in w.units_lost.items()},
@@ -227,8 +227,8 @@ def world_from_dict(data):
     w._next_id = max(data["next_id"], max((e.id for e in w.by_id.values()), default=0) + 1)
     w.elapsed = data["elapsed"]
     w.resources = {int(s): float(v) for s, v in data["resources"].items()}
-    for s, v in data.get("alloy", {}).items():
-        w.alloy[int(s)] = float(v)
+    for s, v in data.get("gas", data.get("alloy", {})).items():        # "alloy" was the name before 1.42
+        w.gas[int(s)] = float(v)
     w.units_trained = {int(s): v for s, v in data["units_trained"].items()}
     w.units_lost = {int(s): v for s, v in data["units_lost"].items()}
     w.crystals_mined = {int(s): v for s, v in data["crystals_mined"].items()}

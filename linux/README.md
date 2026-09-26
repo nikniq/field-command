@@ -450,17 +450,17 @@ campaign is yours to order. **Named units**: The Gold Run puts **Sergeant Kade**
 March **Colonel Rook**, a Siege Tank, at your Command Center from the first second. The briefing says
 *must survive*, the card carries the name, and the moment one falls the mission is lost.
 
-## Alloy: the second resource
+## Gas: the second resource
 
-Crystal pays for everything, but the heavy end of the army also costs **alloy**, shown as an ingot beside the
-crystal counter. Every side starts with **100**; the only source after that is a **gold deposit**, which
-yields alloy instead of crystal (a trip's cargo either way, so two Engineers on the gold bring in about an
-alloy a second). The prices, on top of crystal: Siege Tank **30**, Gunship **40**, Artillery **50**, Twin
-cannon **20**, Entrenchment **40**, Stabilisers **60**. Off-map reinforcement tanks stay crystal-only. A
-cancelled order or an undone placement hands the alloy back, and the card shows the alloy under the crystal
-price, red when you are short. The decision it makes you take: hold the middle for a heavy army, or stay
-light and fast and let the enemy walk out for it. The computer puts two Engineers on the nearest gold node
-as soon as it has a Factory.
+Crystal pays for everything, but the heavy end of the army also costs **gas**, shown as a canister beside
+the crystal counter. Every side starts with **100**; after that gas comes from **Refineries** (150 crystal,
+hotkey **R** on the Engineer card, no requirements), which draw it out of the ground wherever they stand:
+**30 a minute each**, and they stack, so the decision is how much crystal and space to give to gas plants
+against the army they feed. Gold deposits are minerals: a hundred fields' worth of crystal, and nothing
+else. The prices, on top of crystal: Siege Tank **30**, Gunship **40**, Artillery **50**, Twin cannon
+**20**, Entrenchment **40**, Stabilisers **60**. Off-map reinforcement tanks stay crystal-only. A cancelled
+order or an undone placement hands the gas back, and the card shows the gas under the crystal price, red
+when you are short. The computer builds a Refinery right after its Factory and a second one later.
 
 ## Tech: Entrenchment and Stabilisers
 

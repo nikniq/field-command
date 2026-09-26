@@ -26,7 +26,7 @@ from .defs import HISTORY_STEP, BUILDING_KINDS, CRATE_KINDS, DIFFICULTIES, KIT_I
 from .entities import Building, Crystal, Unit
 from .world import PlayerInfo, World
 
-PROTOCOL_VERSION = 21
+PROTOCOL_VERSION = 22
 GAME_PORT = 47777
 DISCOVERY_PORT = 47778
 TICK_RATE = 30
@@ -146,7 +146,7 @@ def snapshot_for(world, slot, events):
                           sum(1 << UPGRADE_INDEX[k] for k in b.upgrades),
                           [UPGRADE_INDEX[b.upgrading], int(b.upgrade_progress * 100)] if (own and b.upgrading) else 0,
                           int(b.shield)])
-    return {"t": "snap", "time": _r(world.elapsed, 2), "res": int(world.resources[slot]), "al": int(world.alloy[slot]),
+    return {"t": "snap", "time": _r(world.elapsed, 2), "res": int(world.resources[slot]), "gs": int(world.gas[slot]),
             "sup": [world.supply_used(slot), world.supply_cap(slot)],
             "u": units, "o": orders, "b": buildings,
             "br": [[b.id, int(b.intact), int(math.ceil(b.hp)), int(b.progress * 100)] for b in world.bridges],

@@ -413,8 +413,8 @@ enum Debug {
     /// FC_DERELICTTEST=1: the derelict Siege Tank — placement, salvage, contest, the wire and the save —
     /// matching linux/tests/test_derelict.py.
     /// FC_TECHTEST=1: side-wide tech — entrenchment and stabilisers — matching linux/tests/test_tech.py.
-    /// FC_ALLOYTEST=1: the second resource — mined from gold, spent on tanks, Gunships, Artillery and tech, refunded
-    /// when undone, carried on the wire and in saves — matching linux/tests/test_alloy.py.
+    /// FC_GASTEST=1: the second resource — mined from gold, spent on tanks, Gunships, Artillery and tech, refunded
+    /// when undone, carried on the wire and in saves — matching linux/tests/test_gas.py.
     /// FC_STAKESTEST=1: campaign stakes — veterans, branching unlocks and the named unit — matching
     /// linux/tests/test_campaign_stakes.py.
     static func runStakesTest() -> Never {
@@ -470,7 +470,7 @@ enum Debug {
         exit(ok ? 0 : 1)
     }
 
-    static func runAlloyTest() -> Never {
+    static func runGasTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
         func setup() -> (SWorld, SBuilding) {
@@ -489,40 +489,46 @@ enum Debug {
         func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); t += 1.0 / 30 } }
         do {
             let (w, _) = setup()
-            check(w.alloy[0] == Double(alloyStart) && w.alloy[1] == Double(alloyStart) && alloyStart == 100
-                  && Set(alloyCost.keys) == [.tank, .gunship] && Set(alloyBuild.keys) == [.artillery] && Set(alloyUpgrade.keys) == [.guns, .entrench, .stabilise],
-                  "every side starts with some alloy and the prices are set")
+            check(w.gas[0] == Double(gasStart) && w.gas[1] == Double(gasStart) && gasStart == 100
+                  && Set(gasCost.keys) == [.tank, .gunship] && Set(gasBuild.keys) == [.artillery] && Set(gasUpgrade.keys) == [.guns, .entrench, .stabilise],
+                  "every side starts with some gas and the prices are set")
         }
         do {
             let (w, hq) = setup()
-            let gold = w.crystals.first { $0.variant == 3 }!, plain = w.crystals.first { $0.variant != 3 }!
+            let s = BuildingKind.refinery.stats
+            let onCard = NetProtocol.buildingKinds.contains(.refinery) && s.requires == nil && s.cost == 150 && gasRate == 0.5
+                && !BuildingKind.allCases.filter({ $0 != .refinery }).contains { $0.stats.hotkey == s.hotkey }
+            _ = stand(w, .refinery, hq.x + 250, hq.y + 150)
+            let g0 = w.gas[0]!
+            run(w, 10)
+            let one = abs((w.gas[0]! - g0) - gasRate * 10) < gasRate * 0.5
+            _ = stand(w, .refinery, hq.x - 300, hq.y - 200)
+            let g1 = w.gas[0]!
+            run(w, 10)
+            let two = abs((w.gas[0]! - g1) - gasRate * 20) < gasRate
+            // Gold is minerals again: a trip from a gold node pays crystal, and no gas.
+            let gold = w.crystals.first { $0.variant == 3 }!
             let e = SUnit(world: w, kind: .worker, team: 0, x: gold.x + 30, y: gold.y)
             w.add(e)
             e.carrying = e.carryCapacity
             e.homeCrystal = gold
             e.command(.ret)
             e.x = hq.x + hq.half + 4; e.y = hq.y
-            let a0 = w.alloy[0]!, c0 = w.resources[0]!
+            let c0 = w.resources[0]!, g2 = w.gas[0]!
             run(w, 1)
-            let gotAlloy = w.alloy[0] == a0 + Double(e.carryCapacity) && w.resources[0] == c0
-            e.carrying = e.carryCapacity
-            e.homeCrystal = plain
-            e.command(.ret)
-            e.x = hq.x + hq.half + 4; e.y = hq.y
-            run(w, 1)
-            check(gotAlloy && w.alloy[0] == a0 + Double(e.carryCapacity) && w.resources[0] == c0 + Double(e.carryCapacity),
-                  "gold yields alloy and crystal yields crystal")
+            check(onCard && one && two && w.resources[0] == c0 + Double(e.carryCapacity) && w.gas[0]! - g2 < gasRate * 2.5,
+                  "a Refinery draws gas anywhere, two draw twice as much, and gold yields crystal (card \(onCard) one \(one) two \(two) crystal \(w.resources[0]! - c0) gas \(w.gas[0]! - g2))")
         }
         do {
             let (w, hq) = setup()
             let fc = stand(w, .factory, hq.x + 400, hq.y)
             _ = stand(w, .barracks, hq.x + 400, hq.y + 250)
-            w.alloy[0] = Double(alloyCost[.tank]! - 1)
-            let refused = !w.train(.tank, [fc], 0) && fc.queue.isEmpty && w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("alloy") }
-            w.alloy[0] = Double(alloyCost[.tank]!)
-            let bought = w.train(.tank, [fc], 0) && fc.queue == [.tank] && w.alloy[0] == 0
+            w.gas[0] = Double(gasCost[.tank]! - 1)
+            let refused = !w.train(.tank, [fc], 0) && fc.queue.isEmpty && w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("gas") }
+            w.gas[0] = Double(gasCost[.tank]!)
+            let bought = w.train(.tank, [fc], 0) && fc.queue == [.tank] && w.gas[0] == 0
             w.cancelQueue(fc, 0)
-            check(refused && bought && w.alloy[0] == Double(alloyCost[.tank]!), "tanks cost alloy, the bank says no when it is empty, and a cancel refunds it")
+            check(refused && bought && w.gas[0] == Double(gasCost[.tank]!), "tanks cost gas, the bank says no when it is empty, and a cancel refunds it")
         }
         do {
             let (w, hq) = setup()
@@ -537,43 +543,39 @@ enum Debug {
                 }
             }
             let (sx, sy) = spot!
-            w.alloy[0] = 10
+            w.gas[0] = 10
             w.apply(0, ["build", e.id, "artillery", sx, sy, false])
             var isBuild = false
             if case .build = e.order { isBuild = true }
             let refused = !isBuild
-            w.alloy[0] = Double(alloyBuild[.artillery]! + 5)
+            w.gas[0] = Double(gasBuild[.artillery]! + 5)
             w.apply(0, ["build", e.id, "artillery", sx, sy, false])
             if case .build = e.order { isBuild = true } else { isBuild = false }
-            let placed = isBuild && w.alloy[0] == 5
+            let placed = isBuild && w.gas[0] == 5
             e.command(.idle)
-            let back = w.alloy[0] == Double(alloyBuild[.artillery]! + 5)
-            w.alloy[0] = Double(alloyUpgrade[.stabilise]!)
+            let back = w.gas[0] == Double(gasBuild[.artillery]! + 5)
+            w.gas[0] = Double(gasUpgrade[.stabilise]!)
             w.apply(0, ["upgrade", [fc.id], "stabilise"])
-            let researching = fc.upgrading == .stabilise && w.alloy[0] == 0
+            let researching = fc.upgrading == .stabilise && w.gas[0] == 0
             fc.cancelUpgrade()
-            check(refused && placed && back && researching && w.alloy[0] == Double(alloyUpgrade[.stabilise]!),
-                  "Artillery and tech take alloy too, and hand it back when undone")
+            check(refused && placed && back && researching && w.gas[0] == Double(gasUpgrade[.stabilise]!),
+                  "Artillery and tech take gas too, and hand it back when undone")
         }
         do {
             let (w, _) = setup()
-            w.alloy[0] = 77
+            w.gas[0] = 77
             let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
             let w2 = try! SaveGame.decode(doc)
-            check(w2.alloy[0] == 77 && w2.alloy[1] == Double(alloyStart), "alloy travels in saves")
+            check(w2.gas[0] == 77 && w2.gas[1] == Double(gasStart), "gas travels in saves")
         }
         do {
             let (w, _) = setup()
-            let hq = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
             let ai = SAI(world: w, team: 1)
-            for _ in 0..<4 { w.add(SUnit(world: w, kind: .worker, team: 1, x: hq.x - 100, y: hq.y + 80)) }
-            _ = stand(w, .factory, hq.x - 400, hq.y, 1)
-            ai.update(1.5)
-            var mining = ai.goldMinersForTests.count == 2
-            for m in ai.goldMinersForTests { if case .gather(let c) = m.order { mining = mining && c.variant == 3 } else { mining = false } }
-            check(mining, "the computer puts two Engineers on the gold once it has a Factory")
+            func wanted(_ t: Double, _ k: BuildingKind) -> Int { ai.plan(t).filter { $0.0 == k }.map { $0.1 }.max() ?? 0 }
+            check(wanted(200, .refinery) == 1 && wanted(200, .factory) == 1 && wanted(100, .refinery) == 0 && wanted(500, .refinery) == 2,
+                  "the computer builds a Refinery after its Factory")
         }
-        print(ok ? "ALLOY TEST PASSED" : "ALLOY TEST FAILED")
+        print(ok ? "GAS TEST PASSED" : "GAS TEST FAILED")
         exit(ok ? 0 : 1)
     }
 
@@ -940,7 +942,7 @@ enum Debug {
             return done()
         }
         let s = BuildingKind.mine.stats
-        check(NetProtocol.buildingKinds.last == .mine && s.requires == .barracks && s.cost == 40
+        check(NetProtocol.buildingKinds.contains(.mine) && s.requires == .barracks && s.cost == 40
               && !BuildingKind.allCases.filter({ $0 != .mine }).contains { $0.stats.hotkey == s.hotkey },
               "the mine is in the catalogue on the Engineer card")
         do {
@@ -1037,7 +1039,7 @@ enum Debug {
             return out
         }
         let s = BuildingKind.wall.stats
-        check(s.cost <= 40 && s.hp >= 500 && s.half <= 24 && s.requires == nil && NetProtocol.buildingKinds.suffix(2) == [.wall, .mine], "the Barricade is cheap, tough and late on the wire")
+        check(s.cost <= 40 && s.hp >= 500 && s.half <= 24 && s.requires == nil && NetProtocol.buildingKinds.suffix(3) == [.wall, .mine, .refinery], "the Barricade is cheap, tough and late on the wire")
         let w = fresh()
         let hq = w.buildings.first { $0.team == 0 && $0.kind == .hq }!
         let x = hq.x + 500

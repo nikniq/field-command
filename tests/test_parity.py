@@ -358,11 +358,11 @@ def test_abilities_agree():
     assert tuple(re.findall(r"\.(\w+)", re.search(r"let coverKinds: \[UnitKind\] = \[(.*?)\]", src).group(1))) == COVER_KINDS
 
 
-def test_alloy_agrees():
-    from fieldcommand.defs import ALLOY_BUILD, ALLOY_COST, ALLOY_START, ALLOY_UPGRADE
+def test_gas_agrees():
+    from fieldcommand.defs import GAS_BUILD, GAS_COST, GAS_START, GAS_UPGRADE
     src = swift("Defs.swift")
-    assert int(re.search(r"let alloyStart: Int = (\d+)", src).group(1)) == ALLOY_START
-    for name, table in (("alloyCost", ALLOY_COST), ("alloyBuild", ALLOY_BUILD), ("alloyUpgrade", ALLOY_UPGRADE)):
+    assert int(re.search(r"let gasStart: Int = (\d+)", src).group(1)) == GAS_START
+    for name, table in (("gasCost", GAS_COST), ("gasBuild", GAS_BUILD), ("gasUpgrade", GAS_UPGRADE)):
         rows = re.findall(r"\.(\w+): (\d+)", re.search(r"let %s: \[\w+: Int\] = \[(.*?)\]" % name, src).group(1))
         assert {k: int(v) for k, v in rows} == table, name
 

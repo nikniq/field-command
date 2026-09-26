@@ -24,7 +24,7 @@ def wall_line(w, x, y0, y1, team):
 def test_the_barricade_is_in_the_catalogue_cheap_and_late_on_the_wire():
     s = BUILDINGS["wall"]
     assert s.cost <= 40 and s.hp >= 500 and s.half <= 24 and s.requires is None and s.range == 0
-    assert BUILDING_KINDS[-2:] == ["wall", "mine"] and BUILD_MENU[-2:] == ["wall", "mine"]   # the mine came after
+    assert BUILDING_KINDS[-3:] == ["wall", "mine", "refinery"] and BUILD_MENU[-3:] == ["wall", "mine", "refinery"]   # later kinds follow
 
 
 def test_a_run_of_barricades_blocks_the_way_until_it_is_shot_down():

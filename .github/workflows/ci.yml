@@ -207,11 +207,11 @@ jobs:
         run: |
           set -o pipefail
           FC_TECHTEST=1 "$BIN" | tee /dev/stderr | grep -q "TECH TEST PASSED"
-      - name: Headless Alloy
+      - name: Headless Gas
         working-directory: macos
         run: |
           set -o pipefail
-          FC_ALLOYTEST=1 "$BIN" | tee /dev/stderr | grep -q "ALLOY TEST PASSED"
+          FC_GASTEST=1 "$BIN" | tee /dev/stderr | grep -q "GAS TEST PASSED"
       - name: Headless Stakes
         working-directory: macos
         run: |

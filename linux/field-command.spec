@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.41.0
+Version:        1.42.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sat Sep 26 2026 Field Command Developers <noreply@example.invalid> - 1.42.0-1
+- Gas replaces alloy: gold deposits are minerals again (crystal, a hundred fields' worth), and gas comes
+  from the new Refinery (R on the Engineer card, 150 crystal, no requirements, buildable anywhere), which
+  draws 30 gas a minute; every side still starts with 100; the same things cost gas that cost alloy; the
+  computer builds a Refinery after its Factory and a second one later; old saves load with their alloy as gas
+- Protocol 22: the gas counter and the Refinery on the wire
+
 * Fri Sep 25 2026 Field Command Developers <noreply@example.invalid> - 1.41.0-1
 - Land mines (M on the Engineer card, 40 crystal, needs a Barracks): buried where they are laid, never
   seen by the enemy, in nobody's way; the first hostile on the ground within 30 sets one off for 90

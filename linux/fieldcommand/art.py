@@ -621,7 +621,7 @@ def building(kind, team):
             _foundation(c, h)
         _extrude(c, kind, h, team)
         {"hq": _hq, "depot": _depot, "barracks": _barracks, "factory": _factory, "turret": _turret_base,
-         "radar": _radar, "artillery": _artillery_base, "shield": _shield_gen, "wall": _wall}[kind](c, h, team)
+         "radar": _radar, "artillery": _artillery_base, "shield": _shield_gen, "wall": _wall, "refinery": _refinery}[kind](c, h, team)
         if kind != "wall":
             _roof_kit(c, kind, h, team)
     return texture(("bld", kind, team), building_canvas(kind), d)
@@ -641,6 +641,8 @@ def _silhouette(kind, h):
         return rr(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44, 3)
     if kind == "mine":
         return circle(0, 0, h * 0.9)
+    if kind == "refinery":
+        return rr(-h * 0.9, -h * 0.9, h * 1.8, h * 1.8, 6)
     if kind == "artillery":
         return rr(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76, 6)
     if kind == "depot":
@@ -946,6 +948,27 @@ def _shield_gen(c, h, team):
     stroke(c, core, col, 1.4)
     fill(c, circle(0, 0, h * 0.13), rgb(0.55, 0.9, 1.0))
     fill(c, circle(-h * 0.04, -h * 0.05, h * 0.05), alpha(WHITE, 0.8))
+
+
+def _refinery(c, h, team):
+    """A Refinery: a squat plant with two round tanks, a stack with a flame, and pipes across the roof."""
+    col = TEAM_COLOR[team]
+    for x in (-h * 0.42, h * 0.42):
+        tank = circle(x, -h * 0.25, h * 0.36)
+        lit(c, tank, mix(metal(team), WHITE, 0.08))
+        stroke(c, circle(x, -h * 0.25, h * 0.36), rgb(0, 0, 0, 0.5), 1)
+        stroke(c, circle(x, -h * 0.25, h * 0.2), rgb(0, 0, 0, 0.25), 0.8)
+    pipe = rr(-h * 0.8, -h * 0.34, h * 1.6, h * 0.14, 2)
+    lit(c, pipe, rgb(0.5, 0.52, 0.55))
+    stroke(c, pipe, rgb(0, 0, 0, 0.45), 0.8)
+    stack = rr(-h * 0.14, h * 0.2, h * 0.28, h * 0.6, 3)
+    lit(c, stack, rgb(0.3, 0.31, 0.34))
+    stroke(c, stack, rgb(0, 0, 0, 0.5), 1)
+    flame = poly([(-h * 0.1, h * 0.78), (0, h * 1.02), (h * 0.1, h * 0.78)])
+    fill(c, flame, rgb(1.0, 0.75, 0.3, 0.95))
+    fill(c, circle(0, h * 0.8, h * 0.06), rgb(1, 1, 0.8))
+    stripe = rr(-h * 0.8, h * 0.28, h * 0.5, h * 0.1, 1)
+    fill(c, stripe, alpha(col, 0.85))
 
 
 def _mine(c, h, team):
@@ -1333,15 +1356,16 @@ def crystal_icon():
     return texture("crystal_icon", (20, 20), d)
 
 
-def alloy_icon():
-    """An ingot: a steel-blue bar with a lit top face."""
+def gas_icon():
+    """A gas canister: a rounded steel bottle with a valve, a green band and a small flame above it."""
     def d(c):
-        p = poly([(-8, -4), (8, -4), (6, 4), (-6, 4)])
-        lit(c, p, rgb(0.55, 0.62, 0.72))
-        fill(c, poly([(-6, 4), (6, 4), (5, 8), (-5, 8)]), rgb(0.78, 0.84, 0.92))
-        stroke(c, p, rgb(0, 0, 0, 0.5), 1)
-        lines(c, [((-4, 0), (4, 0))], alpha(WHITE, 0.35), 1)
-    return texture("alloy_icon", (20, 20), d)
+        body = rr(-5, -8, 10, 13, 4)
+        lit(c, body, rgb(0.55, 0.62, 0.72))
+        stroke(c, body, rgb(0, 0, 0, 0.5), 1)
+        fill(c, rr(-5, -3, 10, 3, 1), rgb(0.45, 0.8, 0.55))
+        fill(c, rr(-2, 5, 4, 3, 1), rgb(0.35, 0.36, 0.38))
+        fill(c, poly([(-2.5, 8), (0, 11.5), (2.5, 8)]), rgb(1.0, 0.75, 0.3))
+    return texture("gas_icon", (20, 20), d)
 
 
 def supply_icon():

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.41.0"
+let appVersion = "1.42.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -87,7 +87,7 @@ enum Palette {
     static let amber = NSColor.rgb(1.0, 0.76, 0.30)
     static let good = NSColor.rgb(0.45, 0.95, 0.50)
     static let bad = NSColor.rgb(1.0, 0.40, 0.35)
-    static let alloy = NSColor.rgb(0.72, 0.78, 0.86)
+    static let gas = NSColor.rgb(0.72, 0.78, 0.86)
     static let panel = NSColor.rgb(0.06, 0.08, 0.09, 0.96)
     static let button = NSColor.rgb(0.12, 0.16, 0.19)
     static let buttonEdge = NSColor.rgb(0.35, 0.55, 0.75)
@@ -262,7 +262,7 @@ struct BuildingStats {
 }
 
 enum BuildingKind: CaseIterable {
-    case hq, depot, barracks, factory, turret, radar, artillery, shield, wall, mine
+    case hq, depot, barracks, factory, turret, radar, artillery, shield, wall, mine, refinery
 
     var stats: BuildingStats {
         switch self {
@@ -314,9 +314,16 @@ enum BuildingKind: CaseIterable {
                                  buildTime: 4, supply: 0, produces: [], requires: .barracks, range: 0, damage: 0,
                                  cooldown: 0, sight: 60, hotkey: "M",
                                  desc: "Buried where it is laid: the enemy never sees it. The first hostile on the ground within 30 sets it off: 90 damage to everything hostile within 70. Shift lays several.")
+        case .refinery:
+            return BuildingStats(name: "Refinery", short: "Refinery", glyph: "RF", cost: 150, hp: 600, half: 36,
+                                 buildTime: 30, supply: 0, produces: [], requires: nil, range: 0, damage: 0,
+                                 cooldown: 0, sight: 200, hotkey: "R",
+                                 desc: "Draws gas out of the ground anywhere it stands: 30 a minute, for tanks, Gunships, Artillery and tech.")
         }
     }
 }
+/// Gas a second from each finished Refinery.
+let gasRate: Double = 0.5
 
 /// Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
 let mineTrigger: Double = 30
@@ -460,12 +467,12 @@ let smokeDuration: Double = 8
 let smokeFactor: Double = 0.5          // ranged damage taken inside smoke
 let smokeRanged: Double = 60           // a hit from further than this is ranged
 
-/// Alloy: the second resource. Gold deposits yield alloy instead of crystal (a trip's cargo either way), every
-/// side starts with alloyStart, and heavy armour, aircraft, the big guns and tech cost alloy on top of crystal.
-let alloyStart: Int = 100
-let alloyCost: [UnitKind: Int] = [.tank: 30, .gunship: 40]
-let alloyBuild: [BuildingKind: Int] = [.artillery: 50]
-let alloyUpgrade: [UpgradeKind: Int] = [.guns: 20, .entrench: 40, .stabilise: 60]
+/// Gas: the second resource. Refineries draw it out of the ground (gasRate a second each, anywhere they stand),
+/// every side starts with gasStart, and heavy armour, aircraft, the big guns and tech cost gas on top of crystal.
+let gasStart: Int = 100
+let gasCost: [UnitKind: Int] = [.tank: 30, .gunship: 40]
+let gasBuild: [BuildingKind: Int] = [.artillery: 50]
+let gasUpgrade: [UpgradeKind: Int] = [.guns: 20, .entrench: 40, .stabilise: 60]
 
 /// The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
 /// derelictRadius, with nothing hostile inside that ring) for derelictTime seconds salvages it into a working
@@ -723,7 +730,7 @@ struct CommandButton {
     let cost: Int?
     let enabled: Bool
     let tip: String
-    var alloy: Int = 0                  // the alloy on top of the crystal, if any
+    var gas: Int = 0                  // the gas on top of the crystal, if any
     let action: () -> Void
 }
 

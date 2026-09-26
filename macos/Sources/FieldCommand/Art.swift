@@ -423,6 +423,7 @@ enum Art {
             case .shield: drawShieldGen(ctx, h, team)
             case .wall: drawWall(ctx, h, team)
             case .mine: break
+            case .refinery: drawRefinery(ctx, h, team)
             }
             if k != .wall { roofKit(ctx, k, h, team) }
         }
@@ -444,6 +445,7 @@ enum Art {
         case .shield: return octagon(h * 0.9)
         case .wall: return rr(box(-h * 0.92, -h * 0.72, h * 1.84, h * 1.44), 3)
         case .mine: return circle(.zero, h * 0.9)
+        case .refinery: return rr(box(-h * 0.9, -h * 0.9, h * 1.8, h * 1.8), 6)
         case .artillery: return rr(box(-h * 0.88, -h * 0.88, h * 1.76, h * 1.76), 6)
         case .depot: return rr(box(-h * 0.86, -h * 0.87, h * 1.72, h * 1.74), 4)
         case .barracks: return rr(box(-h * 0.9, -h * 0.62, h * 1.8, h * 1.52), 4)
@@ -519,6 +521,7 @@ enum Art {
         case .turret, .radar, .artillery, .shield, .wall:
             break
         case .mine: break
+        case .refinery: vent(-h * 0.6, h * 0.55, h * 0.3, h * 0.2)
         }
 
         let n = k == .turret ? 12 : 18
@@ -746,6 +749,25 @@ enum Art {
     /// A Barricade: a squat block of poured concrete with a lighter cap, seams, and a team stripe.
     /// A Land Mine: a disc of dark steel pressed into the earth, a rim of dirt, three prongs and the team's
     /// light on top. Only its owner ever sees it.
+    /// A Refinery: a squat plant with two round tanks, a stack with a flame, and pipes across the roof.
+    private static func drawRefinery(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
+        for x in [-h * 0.42, h * 0.42] {
+            let tank = circle(CGPoint(x: x, y: h * 0.25), h * 0.36)
+            lit(ctx, tank, metal(team).mix(.white, 0.08))
+            stroke(ctx, tank, NSColor(white: 0, alpha: 0.5), 1)
+            stroke(ctx, circle(CGPoint(x: x, y: h * 0.25), h * 0.2), NSColor(white: 0, alpha: 0.25), 0.8)
+        }
+        let pipe = rr(box(-h * 0.8, h * 0.2, h * 1.6, h * 0.14), 2)
+        lit(ctx, pipe, .rgb(0.5, 0.52, 0.55))
+        stroke(ctx, pipe, NSColor(white: 0, alpha: 0.45), 0.8)
+        let stack = rr(box(-h * 0.14, -h * 0.8, h * 0.28, h * 0.6), 3)
+        lit(ctx, stack, .rgb(0.3, 0.31, 0.34))
+        stroke(ctx, stack, NSColor(white: 0, alpha: 0.5), 1)
+        fill(ctx, poly([CGPoint(x: -h * 0.1, y: -h * 0.78), CGPoint(x: 0, y: -h * 1.02), CGPoint(x: h * 0.1, y: -h * 0.78)]), .rgb(1.0, 0.75, 0.3, 0.95))
+        fill(ctx, circle(CGPoint(x: 0, y: -h * 0.8), h * 0.06), .rgb(1, 1, 0.8))
+        fill(ctx, rr(box(-h * 0.8, -h * 0.38, h * 0.5, h * 0.1), 1), team.color.withAlphaComponent(0.85))
+    }
+
     private static func drawMine(_ ctx: CGContext, _ h: CGFloat, _ team: Team) {
         fill(ctx, circle(.zero, h * 1.25), .rgb(0.22, 0.17, 0.11, 0.55))
         let body = circle(.zero, h * 0.9)
@@ -1512,14 +1534,15 @@ enum Art {
         }
     }
 
-    /// An ingot: a steel-blue bar with a lit top face.
-    static var alloyIcon: SKTexture {
-        texture("alloyIcon", size: CGSize(width: 20, height: 20)) { ctx in
-            let p = poly([CGPoint(x: -8, y: 4), CGPoint(x: 8, y: 4), CGPoint(x: 6, y: -4), CGPoint(x: -6, y: -4)])
-            lit(ctx, p, .rgb(0.55, 0.62, 0.72))
-            fill(ctx, poly([CGPoint(x: -6, y: -4), CGPoint(x: 6, y: -4), CGPoint(x: 5, y: -8), CGPoint(x: -5, y: -8)]), .rgb(0.78, 0.84, 0.92))
-            stroke(ctx, p, NSColor(white: 0, alpha: 0.5), 1)
-            lines(ctx, [(CGPoint(x: -4, y: 0), CGPoint(x: 4, y: 0))], NSColor(white: 1, alpha: 0.35), 1)
+    /// A gas canister: a rounded steel bottle with a valve, a green band and a small flame above it.
+    static var gasIcon: SKTexture {
+        texture("gasIcon", size: CGSize(width: 20, height: 20)) { ctx in
+            let body = rr(box(-5, -5, 10, 13), 4)
+            lit(ctx, body, .rgb(0.55, 0.62, 0.72))
+            stroke(ctx, body, NSColor(white: 0, alpha: 0.5), 1)
+            fill(ctx, rr(box(-5, 0, 10, 3), 1), .rgb(0.45, 0.8, 0.55))
+            fill(ctx, rr(box(-2, -8, 4, 3), 1), .rgb(0.35, 0.36, 0.38))
+            fill(ctx, poly([CGPoint(x: -2.5, y: -8), CGPoint(x: 0, y: -11.5), CGPoint(x: 2.5, y: -8)]), .rgb(1.0, 0.75, 0.3))
         }
     }
 

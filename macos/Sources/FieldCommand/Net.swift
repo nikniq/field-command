@@ -7,13 +7,13 @@ import Compression
 /// Payload: UTF-8 JSON object with a "t" (type) field. The server is authoritative; this client sends commands and
 /// mirrors snapshots.
 enum NetProtocol {
-    static let version = 21     // … 19 tech (entrenchment, stabilisers); 20 alloy; 21 land mines
+    static let version = 22     // … 20 alloy; 21 land mines; 22 gas from Refineries, gold back to crystal
     static let gamePort: UInt16 = 47777
     static let discoveryPort: UInt16 = 47778
     /// Order matters: a kind travels as its index here, so new kinds are appended at the end and
     /// `defs.UNIT_KINDS` / `defs.BUILDING_KINDS` in the Python edition must match exactly.
     static let unitKinds: [UnitKind] = [.worker, .marine, .tank, .sniper, .medic, .gunship]
-    static let buildingKinds: [BuildingKind] = [.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall, .mine]
+    static let buildingKinds: [BuildingKind] = [.hq, .depot, .barracks, .factory, .turret, .radar, .artillery, .shield, .wall, .mine, .refinery]
 
     static func name(_ k: BuildingKind) -> String {
         switch k {
@@ -27,6 +27,7 @@ enum NetProtocol {
         case .shield: return "shield"
         case .wall: return "wall"
         case .mine: return "mine"
+        case .refinery: return "refinery"
         }
     }
 
@@ -292,7 +293,7 @@ final class NetSession {
     let difficulty: Difficulty
     var players: [Int: NetPlayer] = [:]
     var resources = startCrystal
-    var alloy = alloyStart
+    var gas = gasStart
     /// Seconds until this side can call reinforcements again.
     var reinforceLeft = 0.0
     /// The mission's named unit, if any: it must survive.

@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 21, so a 1.41.0 Mac and a 1.41.0 Linux client play together; neither accepts an
+Both editions speak protocol 22, so a 1.42.0 Mac and a 1.42.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -206,12 +206,13 @@ Up to eight ranked survivors of a won mission deploy with you in the next; missi
 middle two together); The Gold Run and The Long March each field a named unit whose death loses the mission.
 Same rules as the Linux edition (`FC_STAKESTEST`).
 
-## Alloy
+## Gas
 
-The second resource: gold yields alloy, every side starts with 100, and tanks (30), Gunships (40), Artillery
-(50), the Twin cannon (20) and the two techs (40, 60) cost it on top of crystal. Refunded when undone, an
-ingot counter beside the crystal one, the computer mines it once it has a Factory. Same numbers as the Linux
-edition (`FC_ALLOYTEST`).
+The second resource: Refineries (R on the Engineer card, 150 crystal, anywhere) draw 30 gas a minute each,
+every side starts with 100, gold deposits are minerals again, and tanks (30), Gunships (40), Artillery (50),
+the Twin cannon (20) and the two techs (40, 60) cost gas on top of crystal. Refunded when undone, a canister
+counter beside the crystal one, the computer builds one after its Factory. Same numbers as the Linux edition
+(`FC_GASTEST`).
 
 ## Tech
 

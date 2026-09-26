@@ -68,7 +68,7 @@ COLOR_NAMES = {i: n for i, (_r, _g, _b, n) in enumerate(_TEAM_RGB)}
 # Order matters: the network protocol sends a kind as its index here, so new kinds are appended
 # at the end and the macOS edition's NetProtocol lists must match exactly.
 UNIT_KINDS = ["worker", "marine", "tank", "sniper", "medic", "gunship"]
-BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine"]
+BUILDING_KINDS = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine", "refinery"]
 
 
 # ---------------------------------------------------------------- stats
@@ -163,8 +163,11 @@ BUILDINGS = {
     "mine": BuildingStats("Land Mine", "Mine", "LM", 40, 60, 10, 4, 0, (), "barracks", 0, 0, 0, 60, "M",
                           "Buried where it is laid: the enemy never sees it. The first hostile on the ground within 30 sets it off: "
                           "90 damage to everything hostile within 70. Shift lays several."),
+    "refinery": BuildingStats("Refinery", "Refinery", "RF", 150, 600, 36, 30, 0, (), None, 0, 0, 0, 200, "R",
+                              "Draws gas out of the ground anywhere it stands: 30 a minute, for tanks, Gunships, Artillery and tech."),
 }
-BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine"]
+BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine", "refinery"]
+GAS_RATE = 0.5           # gas a second from each finished Refinery
 # Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
 MINE_TRIGGER = 30.0
 MINE_DAMAGE = 90.0
@@ -320,13 +323,14 @@ SMOKE_DURATION = 8.0
 SMOKE_FACTOR = 0.5          # ranged damage taken inside smoke
 SMOKE_RANGED = 60.0         # a hit from further than this is ranged
 
-# Alloy: the second resource. Gold deposits yield alloy instead of crystal (a trip's cargo either way), every
-# side starts with ALLOY_START, and heavy armour, aircraft, the big guns and tech cost alloy on top of crystal.
-ALLOY_START = 100
-ALLOY_COST = {"tank": 30, "gunship": 40}                        # units
-ALLOY_BUILD = {"artillery": 50}                                 # buildings
-ALLOY_UPGRADE = {"guns": 20, "entrench": 40, "stabilise": 60}   # upgrades and tech
-ALLOY = (0.72, 0.78, 0.86, 1.0)                                 # the colour alloy is written in
+# Gas: the second resource. Refineries draw it out of the ground (GAS_RATE a second each, anywhere they
+# stand), every side starts with GAS_START, and heavy armour, aircraft, the big guns and tech cost gas on
+# top of crystal.
+GAS_START = 100
+GAS_COST = {"tank": 30, "gunship": 40}                        # units
+GAS_BUILD = {"artillery": 50}                                 # buildings
+GAS_UPGRADE = {"guns": 20, "entrench": 40, "stabilise": 60}   # upgrades and tech
+GAS = (0.72, 0.78, 0.86, 1.0)                                 # the colour gas is written in
 
 # The derelict: a wrecked Siege Tank left near the middle of every map. An Engineer alone beside it (within
 # DERELICT_RADIUS, with nothing hostile inside that ring) for DERELICT_TIME seconds salvages it: it becomes a

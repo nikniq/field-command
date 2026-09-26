@@ -24,7 +24,7 @@ def lay(w, x, y, team=0):
 
 def test_the_mine_is_in_the_catalogue_on_the_engineer_card():
     s = BUILDINGS["mine"]
-    assert BUILD_MENU[-1] == "mine" and BUILDING_KINDS[-1] == "mine" and s.requires == "barracks" and s.cost == 40
+    assert "mine" in BUILD_MENU and BUILDING_KINDS.index("mine") == BUILDING_KINDS.index("wall") + 1 and s.requires == "barracks" and s.cost == 40
     assert s.hotkey not in {BUILDINGS[k].hotkey for k in BUILD_MENU if k != "mine"}
 
 

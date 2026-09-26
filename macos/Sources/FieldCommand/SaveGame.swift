@@ -99,7 +99,7 @@ enum SaveGame {
             "elapsed": w.elapsed, "next_id": w.nextIdForSave,
             "players": w.players.values.sorted { $0.slot < $1.slot }.map {
                 ["slot": $0.slot, "name": $0.name, "team": $0.team, "is_ai": $0.isAI, "start": $0.start, "alive": $0.alive] as [String: Any] },
-            "resources": slots(w.resources) { $0 }, "alloy": slots(w.alloy) { $0 }, "kits": slots(w.playerKits) { $0.sorted() },
+            "resources": slots(w.resources) { $0 }, "gas": slots(w.gas) { $0 }, "kits": slots(w.playerKits) { $0.sorted() },
             "units_trained": slots(w.unitsTrained) { $0 }, "units_lost": slots(w.unitsLost) { $0 },
             "crystals_mined": slots(w.crystalsMined) { $0 }, "trained_kinds": slots(w.unitsTrained) { _ in [String: Int]() },
             "crystals": w.crystals.filter { !$0.dead }.map {
@@ -215,7 +215,7 @@ enum SaveGame {
         }
         w.elapsed = Double(jNum(d["elapsed"]))
         for (s, v) in jDict(d["resources"]) { w.resources[Int(s) ?? -1] = Double(jNum(v)) }
-        for (s, v) in jDict(d["alloy"]) { w.alloy[Int(s) ?? -1] = Double(jNum(v)) }
+        for (s, v) in jDict(d["gas"] ?? d["alloy"]) { w.gas[Int(s) ?? -1] = Double(jNum(v)) }        // "alloy" before 1.42
         for (s, v) in jDict(d["units_trained"]) { w.unitsTrained[Int(s) ?? -1] = jInt(v) }
         for (s, v) in jDict(d["units_lost"]) { w.unitsLost[Int(s) ?? -1] = jInt(v) }
         for (s, v) in jDict(d["crystals_mined"]) { w.crystalsMined[Int(s) ?? -1] = jInt(v) }

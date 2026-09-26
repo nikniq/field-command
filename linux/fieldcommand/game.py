@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, VETERAN_CARRY, VETERAN_KINDS, VET_THRESHOLDS, ALLOY, ALLOY_BUILD, ALLOY_COST, ALLOY_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, VETERAN_CARRY, VETERAN_KINDS, VET_THRESHOLDS, GAS, GAS_BUILD, GAS_COST, GAS_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -29,10 +29,10 @@ ORDER_COLORS = {STATUS["move"]: GOOD, STATUS["amove"]: BAD, STATUS["attack"]: BA
 
 
 class CommandButton:
-    def __init__(self, icon, title, hotkey, cost, enabled, tip, action, alloy=0):
+    def __init__(self, icon, title, hotkey, cost, enabled, tip, action, gas=0):
         self.icon, self.title, self.hotkey, self.cost = icon, title, hotkey, cost
         self.enabled, self.tip, self.action = enabled, tip, action
-        self.alloy = alloy                  # the alloy on top of the crystal, if any
+        self.gas = gas                  # the gas on top of the crystal, if any
 
 
 # The tilt: the camera looks down at an angle, so the world's north-south axis is foreshortened on screen by
@@ -394,7 +394,7 @@ class GameScene:
             self._crate_taken(ev[1], ev[2], ev[3], ev[4], ev[5])
         elif k == "income":
             if self._on_screen(ev[2], ev[3]):
-                fx.text(f"+{ev[4]}", ev[2], ev[3] + 14, ALLOY if len(ev) > 5 and ev[5] else CRYSTAL)
+                fx.text(f"+{ev[4]}", ev[2], ev[3] + 14, GAS if len(ev) > 5 and ev[5] else CRYSTAL)
         elif k == "built":
             self.hud.flash(f"{BUILDINGS[ev[2]].name} complete", GOOD)
             audio.play("complete")
@@ -1463,8 +1463,8 @@ class GameScene:
         if self.s.resources < s.cost:
             self.hud.flash("Not enough crystal", BAD)
             return
-        if self.s.alloy < ALLOY_BUILD.get(kind, 0):
-            self.hud.flash("Not enough alloy — mine the gold deposit", BAD)
+        if self.s.gas < GAS_BUILD.get(kind, 0):
+            self.hud.flash("Not enough gas — build a Refinery", BAD)
             return
         self.attack_pending = False
         self.placing = kind
@@ -1557,7 +1557,7 @@ class GameScene:
                     ok = s.requires is None or self.s.has_built(s.requires)
                     tip = s.desc + ("" if ok else f"\nRequires {BUILDINGS[s.requires].name}.")
                     out.append(CommandButton(("building", k), s.short, s.hotkey, s.cost, ok, tip,
-                                             lambda k=k: self.begin_placement(k), alloy=ALLOY_BUILD.get(k, 0)))
+                                             lambda k=k: self.begin_placement(k), gas=GAS_BUILD.get(k, 0)))
             return out
         bs = [b for b in self.selected_own_buildings() if b.built]
         if bs:
@@ -1578,7 +1578,7 @@ class GameScene:
                 if not ok:
                     tip += f"\nRequires {BUILDINGS[s.requires].name}."
                 out.append(CommandButton(("unit", k), s.name, s.hotkey, s.cost, ok, tip,
-                                         lambda k=k: self.train(k), alloy=ALLOY_COST.get(k, 0)))
+                                         lambda k=k: self.train(k), gas=GAS_COST.get(k, 0)))
             if "hq" in kinds:
                 # Off-map reinforcements, for crystal: a column walks in from your edge of the map.
                 from .defs import REINFORCEMENTS, REINFORCE_COOLDOWN, REINFORCE_ORDER
@@ -1614,7 +1614,7 @@ class GameScene:
                 if k in TECH:
                     tip = tip.replace("this building only", "once, for the whole side")
                 out.append(CommandButton(("upgrade", k), u.button, u.hotkey, None if installed else cost, ok, tip,
-                                         lambda k=k: self.upgrade(k), alloy=0 if installed else ALLOY_UPGRADE.get(k, 0)))
+                                         lambda k=k: self.upgrade(k), gas=0 if installed else GAS_UPGRADE.get(k, 0)))
             return out
         return []
 

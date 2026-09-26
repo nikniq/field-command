@@ -646,7 +646,7 @@ final class GameServer {
         var alive: [String: Any] = [:]
         for (s, p) in w.players { alive[String(s)] = p.alive ? 1 : 0 }
         let packed: [[Any]] = events.filter { visible(w, slot, $0) }.map { e in e.map { v in (v as? Double).map { r1($0) } ?? v } }
-        return ["t": "snap", "time": (w.elapsed * 100).rounded() / 100, "res": Int(w.resources[slot] ?? 0), "al": Int(w.alloy[slot] ?? 0),
+        return ["t": "snap", "time": (w.elapsed * 100).rounded() / 100, "res": Int(w.resources[slot] ?? 0), "gs": Int(w.gas[slot] ?? 0),
                 "sup": [w.supplyUsed(slot), w.supplyCap(slot)], "u": units, "o": orders, "b": buildings,
                 "br": w.bridges.map { [$0.id, $0.intact ? 1 : 0, Int($0.hp.rounded(.up)), Int($0.progress * 100)] },
                 "kit": w.playerKits[slot].map { owned in kitIds.enumerated().reduce(0) { owned.contains($1.element) ? $0 | (1 << $1.offset) : $0 } } ?? 0,

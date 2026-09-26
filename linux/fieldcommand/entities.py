@@ -10,7 +10,7 @@ import math
 import random
 
 from .defs import AIR_GUNS, CARRY_CAP, HIGH_RANGE, HIGH_SIGHT
-from .defs import (ALLOY_BUILD, ALLOY_UPGRADE, COVER_KINDS, MINE_DAMAGE, MINE_SPLASH, MINE_TRIGGER, DERELICT_RADIUS, DERELICT_TIME, ENTRENCH_KINDS, ENTRENCH_TIME, TECH, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
+from .defs import (GAS_BUILD, GAS_RATE, GAS_UPGRADE, COVER_KINDS, MINE_DAMAGE, MINE_SPLASH, MINE_TRIGGER, DERELICT_RADIUS, DERELICT_TIME, ENTRENCH_KINDS, ENTRENCH_TIME, TECH, ARMOR_FACTOR, DEPOT_UPGRADED_SUPPLY, TOWER_CAPTURE_TIME, TOWER_HALF, TOWER_RADIUS, TOWER_SIGHT,
                    TURRET_UPGRADED_DAMAGE, TURRET_UPGRADED_RANGE, UPGRADES, VET_BONUS, VET_THRESHOLDS,
                    upgrade_applies, upgrade_cost)
 from .defs import (BRIDGE_COST, BRIDGE_HP, BRIDGE_REBUILD_TIME, BUILDINGS, MODE_MOBILE, MODE_SIEGED,
@@ -457,7 +457,7 @@ class Unit(Entity):
         if o == "attack":
             return ("Sieged — engaging " if self.sieged else "Engaging ") + self.order[1].name + self._rank_tag()
         if o == "gather":
-            return "Returning cargo" if self.carrying else ("Mining alloy" if self.order[1].gold else "Mining crystal")
+            return "Returning cargo" if self.carrying else "Mining crystal"
         if o == "return":
             return "Returning cargo"
         if o == "rebuild":
@@ -495,12 +495,12 @@ class Unit(Entity):
 
     def refund_builds(self, include_current):
         if include_current and self.order[0] == "build":
-            self.game.refund(BUILDINGS[self.order[1]].cost, self.team, ALLOY_BUILD.get(self.order[1], 0))
+            self.game.refund(BUILDINGS[self.order[1]].cost, self.team, GAS_BUILD.get(self.order[1], 0))
         if include_current and self.order[0] == "rebuild":
             self.game.refund(BRIDGE_COST, self.team)
         for q in self.queued:
             if q[0] == "build":
-                self.game.refund(BUILDINGS[q[1]].cost, self.team, ALLOY_BUILD.get(q[1], 0))
+                self.game.refund(BUILDINGS[q[1]].cost, self.team, GAS_BUILD.get(q[1], 0))
             elif q[0] == "rebuild":
                 self.game.refund(BRIDGE_COST, self.team)
 
@@ -716,8 +716,7 @@ class Unit(Entity):
                 elif self.distance_to(hq) > 6:
                     target = (hq.x, hq.y)
                 else:
-                    hc0 = self.home_crystal
-                    g.deposit(self.carrying, self.team, self.x, self.y, alloy=hc0 is not None and hc0.gold)
+                    g.deposit(self.carrying, self.team, self.x, self.y)
                     self.carrying = 0
                     hc = self.home_crystal
                     if self.queued:
@@ -1031,7 +1030,7 @@ class Building(Entity):
         """Stops the research and hands the crystal back."""
         if self.upgrading is None:
             return
-        self.game.refund(upgrade_cost(self.upgrading, self.kind), self.team, ALLOY_UPGRADE.get(self.upgrading, 0))
+        self.game.refund(upgrade_cost(self.upgrading, self.kind), self.team, GAS_UPGRADE.get(self.upgrading, 0))
         self.upgrading, self.upgrade_progress = None, 0.0
 
     def _install(self, kind):
@@ -1101,6 +1100,8 @@ class Building(Entity):
                 kind, self.upgrading, self.upgrade_progress = self.upgrading, None, 0.0
                 self._install(kind)
 
+        if self.kind == "refinery":
+            g.gas[self.team] += GAS_RATE * dt * (self.game.difficulty.income if g.is_ai(self.team) else 1.0)
         if self.kind == "mine":
             # The first hostile on the ground within reach sets it off, and it takes the ground with it.
             for u in g.units:
