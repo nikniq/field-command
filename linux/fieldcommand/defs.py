@@ -168,6 +168,7 @@ BUILDINGS = {
 }
 BUILD_MENU = ["hq", "depot", "barracks", "factory", "turret", "radar", "artillery", "shield", "wall", "mine", "refinery"]
 GAS_RATE = 0.5           # gas a second from each finished Refinery
+SELL_FRACTION = 0.5      # what a sold building pays back of its price (crystal and gas alike)
 # Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
 MINE_TRIGGER = 30.0
 MINE_DAMAGE = 90.0

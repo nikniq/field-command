@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 22, so a 1.42.0 Mac and a 1.42.0 Linux client play together; neither accepts an
+Both editions speak protocol 23, so a 1.43.0 Mac and a 1.43.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -173,6 +173,12 @@ the end screen. Same files and rules as the Linux edition (`FC_REPLAYTEST`).
 An aircraft from the Factory (needs a Radar Station, Q) that flies straight over cliffs, water, walls and
 units with a chain gun; tanks and artillery cannot fire at it, Rangers, Snipers, turrets and the Command
 Center's gun can. Same numbers and rules as the Linux edition (`FC_AIRTEST`).
+
+## Cancelling and selling buildings
+
+Cancel (C) on a site still going up returns what has not been built yet; Sell (S) on a finished building pays
+half its price and gas and refunds its queue and research in full. Same rules as the Linux edition
+(`FC_SELLTEST`).
 
 ## Land mines
 

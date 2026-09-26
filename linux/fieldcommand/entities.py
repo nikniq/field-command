@@ -733,7 +733,7 @@ class Unit(Entity):
             self.build_timer += dt
             if self.stuck > 3 or self.build_timer > 45:
                 # Site unreachable (boxed in by trees or buildings): give up and refund.
-                g.refund(BUILDINGS[bk].cost, self.team)
+                g.refund(BUILDINGS[bk].cost, self.team, GAS_BUILD.get(bk, 0))
                 self.order = IDLE
                 self.build_timer = 0.0
                 g.emit("msg", self.team, "An Engineer couldn't reach the build site", "bad")

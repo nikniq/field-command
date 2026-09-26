@@ -10,7 +10,7 @@ import pygame
 
 from . import art, audio, defs, terrain, ui
 from .defs import KIT_BY_ID
-from .defs import (ABILITIES, VETERAN_CARRY, VETERAN_KINDS, VET_THRESHOLDS, GAS, GAS_BUILD, GAS_COST, GAS_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
+from .defs import (ABILITIES, SELL_FRACTION, VETERAN_CARRY, VETERAN_KINDS, VET_THRESHOLDS, GAS, GAS_BUILD, GAS_COST, GAS_UPGRADE, COVER_KINDS, COVER_REACH, DERELICT_RADIUS, DERELICT_TIME, GRENADE_DAMAGE, TECH, GRENADE_SPLASH, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_RADIUS,
                    AMBER, ARTILLERY_MIN_RANGE, BAD, BRIDGE_COST, BUILDINGS, BUILD_MENU, CRYSTAL, DIM, GOOD, SHIELD_MAX,
                    SHIELD_RADIUS, TEAM_COLOR,
                    TEAM_LIGHT, TEXT, TOWER_RADIUS, UNITS, UPGRADES, UPGRADE_KINDS, clamp, rects_intersect,
@@ -1504,6 +1504,16 @@ class GameScene:
     def train(self, kind):
         self.s.send(["train", self._ids(self.selected_own_buildings()), kind])
 
+    def cancel_sites(self, sites):
+        for b in sites:
+            self.s.send(["cancelbuild", b.id])
+        audio.play("click")
+
+    def sell_buildings(self, bs):
+        for b in bs:
+            self.s.send(["sell", b.id])
+        audio.play("click")
+
     def upgrade(self, kind):
         bs = [b for b in self.selected_own_buildings() if b.can_upgrade(kind)]
         if bs:
@@ -1559,7 +1569,14 @@ class GameScene:
                     out.append(CommandButton(("building", k), s.short, s.hotkey, s.cost, ok, tip,
                                              lambda k=k: self.begin_placement(k), gas=GAS_BUILD.get(k, 0)))
             return out
+        sites = [b for b in self.selected_own_buildings() if not b.built and not b.dead]
         bs = [b for b in self.selected_own_buildings() if b.built]
+        if sites and not bs:
+            # Still going up: the one thing to do with it is call it off.
+            back = sum(int(round(BUILDINGS[b.kind].cost * max(0.0, 1.0 - b.progress))) for b in sites)
+            tip = (f"Stop building and take back what has not been built yet: {back} crystal"
+                   + (" and the gas" if any(GAS_BUILD.get(b.kind, 0) for b in sites) else "") + ".")
+            return [CommandButton(("cancel",), "Cancel", "C", None, True, tip, lambda: self.cancel_sites(sites))]
         if bs:
             # A mixed selection (say a Barracks and a Factory) shows every button any of them offers: training
             # goes to the buildings that can do it, upgrades to the ones they apply to. The card is never blank.
@@ -1615,6 +1632,11 @@ class GameScene:
                     tip = tip.replace("this building only", "once, for the whole side")
                 out.append(CommandButton(("upgrade", k), u.button, u.hotkey, None if installed else cost, ok, tip,
                                          lambda k=k: self.upgrade(k), gas=0 if installed else GAS_UPGRADE.get(k, 0)))
+            back = sum(int(BUILDINGS[b.kind].cost * SELL_FRACTION) for b in bs)
+            gas_back = sum(int(GAS_BUILD.get(b.kind, 0) * SELL_FRACTION) for b in bs)
+            tip = (f"Sell for {int(SELL_FRACTION * 100)}% of the price: {back} crystal" + (f" and {gas_back} gas" if gas_back else "")
+                   + ". Anything it was training or researching is refunded in full. The building comes down.")
+            out.append(CommandButton(("sell",), "Sell", "S", None, True, tip, lambda bs=bs: self.sell_buildings(bs)))
             return out
         return []
 

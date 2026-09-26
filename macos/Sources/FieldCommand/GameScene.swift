@@ -2247,7 +2247,18 @@ final class GameScene: SKScene {
             }
             return list
         }
+        let sites = selectedOwnBuildings.filter { !$0.built && !$0.dead }
         let bs = selectedOwnBuildings.filter { $0.built }
+        if !sites.isEmpty && bs.isEmpty {
+            // Still going up: the one thing to do with it is call it off.
+            let back = sites.reduce(0) { $0 + Int((Double($1.kind.stats.cost) * max(0, 1 - Double($1.progress))).rounded()) }
+            let gasToo = sites.contains { (gasBuild[$0.kind] ?? 0) > 0 }
+            let tip = "Stop building and take back what has not been built yet: \(back) crystal" + (gasToo ? " and the gas" : "") + "."
+            return [CommandButton(icon: .cancel, title: "Cancel", hotkey: "C", cost: nil, enabled: true, tip: tip) { [weak self] in
+                guard let self else { return }
+                for b in sites { self.sendNet(["cancelbuild", b.netId]) }
+            }]
+        }
         if !bs.isEmpty {
             // A mixed selection (say a Barracks and a Factory) shows every button any of them offers: training
             // goes to the buildings that can do it, upgrades to the ones they apply to. The card is never blank.
@@ -2299,6 +2310,14 @@ final class GameScene: SKScene {
                     if !ids.isEmpty { self.sendNet(["upgrade", ids, k.wireName]) }
                 })
             }
+            let back = bs.reduce(0) { $0 + Int(Double($1.kind.stats.cost) * sellFraction) }
+            let gasBack = bs.reduce(0) { $0 + Int(Double(gasBuild[$1.kind] ?? 0) * sellFraction) }
+            let sellTip = "Sell for \(Int(sellFraction * 100))% of the price: \(back) crystal" + (gasBack > 0 ? " and \(gasBack) gas" : "")
+                + ". Anything it was training or researching is refunded in full. The building comes down."
+            list.append(CommandButton(icon: .sell, title: "Sell", hotkey: "S", cost: nil, enabled: true, tip: sellTip) { [weak self] in
+                guard let self else { return }
+                for b in bs { self.sendNet(["sell", b.netId]) }
+            })
             return list
         }
         return []

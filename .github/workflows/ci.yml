@@ -222,6 +222,11 @@ jobs:
         run: |
           set -o pipefail
           FC_MINETEST=1 "$BIN" | tee /dev/stderr | grep -q "MINE TEST PASSED"
+      - name: Headless Sell
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_SELLTEST=1 "$BIN" | tee /dev/stderr | grep -q "SELL TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

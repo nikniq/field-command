@@ -916,6 +916,87 @@ enum Debug {
 
     /// FC_MINETEST=1: land mines — laid by Engineers, hidden from the enemy, in nobody's way, gone when they go
     /// off — matching linux/tests/test_mines.py.
+    /// FC_SELLTEST=1: cancelling a building under construction and selling a finished one — matching
+    /// linux/tests/test_sell.py.
+    static func runSellTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func setup() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle) }
+            w.resources[0] = 5000; w.gas[0] = 100
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func stand(_ w: SWorld, _ k: BuildingKind, _ x: Double, _ y: Double, _ team: Int = 0) -> SBuilding {
+            w.startBuilding(k, x, y, team)
+            let b = w.buildings.last!
+            b.built = true; b.progress = 1; b.hp = b.maxHp
+            return b
+        }
+        func run(_ w: SWorld, _ secs: Double, until done: () -> Bool = { false }) -> Bool {
+            var t = 0.0
+            while t < secs { w.step(1.0 / 30); if done() { return true }; t += 1.0 / 30 }
+            return done()
+        }
+        do {
+            let (w, hq) = setup()
+            _ = stand(w, .barracks, hq.x + 400, hq.y - 250)
+            _ = stand(w, .factory, hq.x + 400, hq.y + 250)
+            let e = w.units.first { $0.team == 0 && $0.kind == .worker }!
+            w.updateVisibility()
+            var spot: (Double, Double)? = nil
+            outer: for dx in stride(from: -300.0, through: 300, by: 50) {
+                for dy in stride(from: -300.0, through: 300, by: 50) where w.canPlace(.artillery, hq.x + dx, hq.y + dy) && w.fogFor(0).isExplored(hq.x + dx, hq.y + dy) {
+                    spot = (hq.x + dx, hq.y + dy); break outer
+                }
+            }
+            w.apply(0, ["build", e.id, "artillery", spot!.0, spot!.1, false])
+            _ = run(w, 40) { w.buildings.contains { $0.kind == .artillery } }
+            let site = w.buildings.first { $0.kind == .artillery }!
+            _ = run(w, BuildingKind.artillery.stats.buildTime * 0.4)
+            let partWay = site.progress > 0.3 && site.progress < 0.5 && !site.built
+            let c0 = w.resources[0]!, g0 = w.gas[0]!
+            w.apply(0, ["cancelbuild", site.id])
+            let gone = site.dead && !w.buildings.contains { $0 === site } && w.byId[site.id] == nil
+            let crystalBack = abs(w.resources[0]! - c0 - Double(BuildingKind.artillery.stats.cost) * (1 - site.progress)) <= 1
+            let gasBack = abs(w.gas[0]! - g0 - Double(gasBuild[.artillery]!) * (1 - site.progress)) <= 1
+            let said = w.events.contains { jStr($0.first) == "msg" && jStr($0[2]).contains("cancelled") }
+            _ = run(w, 1)
+            var free = true
+            if case .build = e.order { free = false }
+            check(partWay && gone && crystalBack && gasBack && said && free, "cancelling a site returns what has not been built yet")
+        }
+        do {
+            let (w, hq) = setup()
+            let bk = stand(w, .barracks, hq.x + 400, hq.y)
+            _ = w.train(.marine, [bk], 0)
+            w.apply(0, ["upgrade", [bk.id], "hp"])
+            let c0 = w.resources[0]!, g0 = w.gas[0]!
+            let noCancel = !w.cancelBuilding(bk)
+            w.apply(0, ["sell", bk.id])
+            let back = Double(Int(Double(BuildingKind.barracks.stats.cost) * sellFraction) + UnitKind.marine.stats.cost + UpgradeKind.hp.cost(for: .barracks))
+            check(noCancel && w.resources[0] == c0 + back && w.gas[0] == g0 && bk.dead, "selling a finished building pays half and refunds its work")
+        }
+        do {
+            let (w, hq) = setup()
+            let enemy = w.buildings.first { $0.team == 1 && $0.kind == .hq }!
+            w.apply(0, ["sell", enemy.id])
+            w.startBuilding(.depot, hq.x + 300, hq.y, 0)
+            let site = w.buildings.last!
+            let noSell = !w.sellBuilding(site)
+            w.apply(1, ["cancelbuild", site.id])
+            check(!enemy.dead && noSell && !site.dead, "selling is yours alone, and a site cannot be sold")
+            for b in w.buildings where b.team == 0 && b !== hq { b.dead = true }
+            w.cleanupDead()
+            w.apply(0, ["sell", hq.id])
+            _ = run(w, 0.2)
+            check(!(w.players[0]!.alive) && w.gameOver, "selling the last Command Center is the end")
+        }
+        print(ok ? "SELL TEST PASSED" : "SELL TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runMineTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

@@ -203,6 +203,15 @@ With a group selected, every unit of that kind whose ability is ready uses it at
 and counts down while none is ready. The computer throws grenades into knots of your troops, marks your
 toughest unit in reach and smokes its hurt tanks.
 
+## Cancelling and selling buildings
+
+Select a building that is still going up and its card has one button, **Cancel (C)**: the site goes and
+whatever has not been built yet comes back, crystal and gas alike (cancel at 40% and 60% of the price
+returns). A finished building's card ends with **Sell (S)**: half its price back, half its gas, anything it
+was training or researching refunded in full, and the building comes down. Selling your last Command
+Center ends the game, so the card says what a sale pays before you press it. Both work on a group: select
+several and one press sells or cancels them all.
+
 ## Land mines
 
 The **Land Mine** (40 crystal, hotkey **M** on the Engineer card, needs a Barracks) is laid in four seconds

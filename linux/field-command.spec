@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.42.0
+Version:        1.43.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,13 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sat Sep 26 2026 Field Command Developers <noreply@example.invalid> - 1.43.0-1
+- Cancel (C) on a building still going up, at any point: the site goes and whatever has not been built yet
+  comes back, crystal and gas alike; Sell (S) on a finished building: half its price back, anything it was
+  training or researching refunded in full, and the building comes down
+- An Engineer that gives up an unreachable site now gets the gas back as well as the crystal
+- Protocol 23: the two new orders
+
 * Sat Sep 26 2026 Field Command Developers <noreply@example.invalid> - 1.42.0-1
 - Gas replaces alloy: gold deposits are minerals again (crystal, a hundred fields' worth), and gas comes
   from the new Refinery (R on the Engineer card, 150 crystal, no requirements, buildable anywhere), which

@@ -1241,6 +1241,8 @@ enum Art {
         case .upgrade(let k): stem = "icon-upgrade-\(k.rawValue)"
         case .siege(let on): stem = "icon-siege-\(on)"
         case .ability(let id): stem = "icon-ability-\(id)"
+        case .cancel: stem = "icon-cancel"
+        case .sell: stem = "icon-sell"
         case .attack: stem = "icon-attack"
         case .stop: stem = "icon-stop"
         }
@@ -1504,6 +1506,24 @@ enum Art {
                     for (x, y, r, k) in puffs { fill(ctx, circle(CGPoint(x: x, y: y), r), .rgb(k, k, k + 0.02)) }
                     fill(ctx, rr(box(-4, -16, 8, 6), 1), .rgb(0.35, 0.36, 0.38))
                 }
+            }
+        case .cancel:
+            // A red cross over a scaffold: stop building this.
+            return texture("icon-cancel", size: CGSize(width: 40, height: 40)) { ctx in
+                let x: [(CGPoint, CGPoint)] = [(CGPoint(x: -12, y: -12), CGPoint(x: 12, y: 12)), (CGPoint(x: -12, y: 12), CGPoint(x: 12, y: -12))]
+                lines(ctx, x, NSColor(white: 0, alpha: 0.6), 6)
+                lines(ctx, x, Palette.bad, 3)
+                stroke(ctx, rr(box(-15, -15, 30, 30), 3), .rgb(0.6, 0.62, 0.65, 0.7), 1.2)
+            }
+        case .sell:
+            // A crystal with an arrow leaving it: sell this.
+            return texture("icon-sell", size: CGSize(width: 40, height: 40)) { ctx in
+                let p = poly([CGPoint(x: -8, y: -6), CGPoint(x: -2, y: 2), CGPoint(x: -8, y: 10), CGPoint(x: -14, y: 2)])
+                linear(ctx, p, [.rgb(0.8, 1, 1), .rgb(0.2, 0.7, 1)], CGPoint(x: -13, y: -5), CGPoint(x: -3, y: 9))
+                stroke(ctx, p, NSColor(white: 1, alpha: 0.8), 1)
+                lines(ctx, [(CGPoint(x: 0, y: 0), CGPoint(x: 12, y: 0))], NSColor(white: 0, alpha: 0.6), 5)
+                lines(ctx, [(CGPoint(x: 0, y: 0), CGPoint(x: 12, y: 0))], Palette.amber, 2.5)
+                fill(ctx, poly([CGPoint(x: 10, y: 5), CGPoint(x: 16, y: 0), CGPoint(x: 10, y: -5)]), Palette.amber)
             }
         case .stop:
             return texture("icon-stop", size: CGSize(width: 40, height: 40)) { ctx in

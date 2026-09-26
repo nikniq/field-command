@@ -2348,6 +2348,10 @@ final class SWorld {
             _ = useAbility(slot, ownUnits(slot, ids(cmd[1])), num(2), num(3), tid)
         case "unbuild" where cmd.count >= 2:
             if let b = ownBuildings(slot, [jInt(cmd[1])]).first { _ = unbuild(b) }
+        case "cancelbuild" where cmd.count >= 2:
+            if let b = ownBuildings(slot, [jInt(cmd[1])]).first { cancelBuilding(b) }
+        case "sell" where cmd.count >= 2:
+            if let b = ownBuildings(slot, [jInt(cmd[1])]).first { sellBuilding(b) }
         case "rally" where cmd.count >= 4:
             for b in ownBuildings(slot, ids(cmd[1])) where !b.stats.produces.isEmpty { b.rally = (num(2), num(3)) }
         default:
@@ -2509,6 +2513,37 @@ final class SWorld {
         guard spendGas(team, gasCost[k] ?? 0) else { return false }
         resources[team, default: 0] -= Double(k.stats.cost)
         b.queue.append(k)
+        return true
+    }
+
+    /// Stops a building under construction at any point: the site goes, and what has not been built yet comes
+    /// back, crystal and gas alike.
+    @discardableResult
+    func cancelBuilding(_ b: SBuilding) -> Bool {
+        guard !b.built, !b.dead else { return false }
+        let frac = max(0, 1 - b.progress)
+        let back = Int((Double(b.stats.cost) * frac).rounded())
+        refund(back, b.team, gas: Int((Double(gasBuild[b.kind] ?? 0) * frac).rounded()))
+        b.dead = true
+        buildings.removeAll { $0 === b }
+        byId[b.id] = nil
+        navDirty = true
+        emit(["msg", b.team, "\(b.stats.name) cancelled: \(back) crystal back", "good"])
+        return true
+    }
+
+    /// Sells a finished building for sellFraction of its price; whatever it was training or researching is
+    /// refunded in full, and the building comes down.
+    @discardableResult
+    func sellBuilding(_ b: SBuilding) -> Bool {
+        guard b.built, !b.dead else { return false }
+        for i in b.queue.indices.reversed() { cancelQueue(b, i) }
+        b.cancelUpgrade()
+        let back = Int(Double(b.stats.cost) * sellFraction)
+        refund(back, b.team, gas: Int(Double(gasBuild[b.kind] ?? 0) * sellFraction))
+        b.hp = 0
+        b.dead = true
+        emit(["msg", b.team, "\(b.stats.name) sold for \(back) crystal", "good"])
         return true
     }
 

@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.42.0"
+let appVersion = "1.43.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -324,6 +324,8 @@ enum BuildingKind: CaseIterable {
 }
 /// Gas a second from each finished Refinery.
 let gasRate: Double = 0.5
+/// What a sold building pays back of its price (crystal and gas alike).
+let sellFraction: Double = 0.5
 
 /// Land mines: hidden from the enemy, in nobody's way, and gone the moment they go off.
 let mineTrigger: Double = 30
@@ -720,7 +722,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind), ability(String)
+    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind), ability(String), cancel, sell
 }
 
 struct CommandButton {

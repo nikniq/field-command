@@ -1338,6 +1338,28 @@ def icon_attack():
     return texture("icon_attack", (40, 40), d)
 
 
+def icon_cancel():
+    """Command-card icon: a red cross over a scaffold — stop building this."""
+    def d(c):
+        lines(c, [((-12, -12), (12, 12)), ((-12, 12), (12, -12))], rgb(0, 0, 0, 0.6), 6)
+        lines(c, [((-12, -12), (12, 12)), ((-12, 12), (12, -12))], BAD, 3)
+        stroke(c, rr(-15, -15, 30, 30, 3), rgb(0.6, 0.62, 0.65, 0.7), 1.2)
+    return texture("icon_cancel", (40, 40), d)
+
+
+def icon_sell():
+    """Command-card icon: a crystal with an arrow leaving it — sell this."""
+    def d(c):
+        p = poly([(-8, 6), (-2, -2), (-8, -10), (-14, -2)])
+        linear(c, p, [rgb(0.8, 1, 1), rgb(0.2, 0.7, 1)], (-13, 5), (-3, -9))
+        stroke(c, p, alpha(WHITE, 0.8), 1)
+        lines(c, [((0, 0), (12, 0))], rgb(0, 0, 0, 0.6), 5)
+        lines(c, [((0, 0), (12, 0))], AMBER, 2.5)
+        fill(c, poly([(10, -5), (16, 0), (10, 5)]), AMBER)
+        fill(c, poly([(10, -5), (16, 0), (10, 5)]), AMBER)
+    return texture("icon_sell", (40, 40), d)
+
+
 def icon_stop():
     def d(c):
         o = _octagon(15)

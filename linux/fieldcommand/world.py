@@ -10,7 +10,7 @@ import random
 
 from .ai import AI
 from . import defs
-from .defs import (ABILITIES, VETERAN_KINDS, VETERAN_CARRY, VET_BONUS, VET_THRESHOLDS, UNITS, GAS_BUILD, GAS_COST, GAS_START, GAS_UPGRADE, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
+from .defs import (ABILITIES, SELL_FRACTION, VETERAN_KINDS, VETERAN_CARRY, VET_BONUS, VET_THRESHOLDS, UNITS, GAS_BUILD, GAS_COST, GAS_START, GAS_UPGRADE, ENTRENCH_FACTOR, COVER_FACTOR, COVER_KINDS, COVER_REACH, ESTABLISHED, GRENADE_DAMAGE, GRENADE_SPLASH, HIGH_SIGHT, MARK_BONUS, MARK_DURATION, SMOKE_DURATION, SMOKE_FACTOR, SMOKE_RADIUS, SMOKE_RANGED, HISTORY_STEP, KOTH_HOLD, KOTH_RADIUS, MODE_BY_ID, REINFORCEMENTS, REINFORCE_COOLDOWN, UNDO_PROGRESS, ARTILLERY_SHELL_SPEED, CRATE_CRYSTAL, MISSION_BY_ID, START_CRYSTAL, CRATE_FIRST, CRATE_INTERVAL, CRATE_KINDS, CRATE_LIFE, CRATE_MAX,
                    CRATE_SQUAD, SHIELD_RADIUS, TANK_SHELL_SPEED)
 from .defs import (BRIDGE_COST, BUILDINGS, KITS, KIT_BY_ID, REVEAL_RADIUS, REVEAL_TIME, TOWER_HALF, TOWER_SIGHT,
                    UNITS, clamp, rect_distance, rects_intersect, square_rect, upgrade_cost)
@@ -833,6 +833,14 @@ class World:
                 bs = self._own_buildings(slot, [cmd[1]])
                 if bs:
                     self.cancel_queue(bs[0], int(cmd[2]))
+            elif op == "cancelbuild":
+                b = self.by_id.get(cmd[1])
+                if isinstance(b, Building) and b.team == slot:
+                    self.cancel_building(b)
+            elif op == "sell":
+                b = self.by_id.get(cmd[1])
+                if isinstance(b, Building) and b.team == slot:
+                    self.sell_building(b)
             elif op == "unbuild":
                 bs = self._own_buildings(slot, [cmd[1]])
                 if bs:
@@ -1034,6 +1042,36 @@ class World:
         self.by_id.pop(b.id, None)
         self._nav_dirty = True
         self.emit("msg", b.team, f"{b.stats.name} placement undone", "good")
+        return True
+
+    def cancel_building(self, b):
+        """Stops a building under construction at any point: the site goes, and what has not been built yet
+        comes back, crystal and gas alike."""
+        if b.built or b.dead:
+            return False
+        frac = max(0.0, 1.0 - b.progress)
+        back = int(round(b.stats.cost * frac))
+        self.refund(back, b.team, int(round(GAS_BUILD.get(b.kind, 0) * frac)))
+        b.dead = True
+        self.buildings.remove(b)
+        self.by_id.pop(b.id, None)
+        self._nav_dirty = True
+        self.emit("msg", b.team, f"{b.stats.name} cancelled: {back} crystal back", "good")
+        return True
+
+    def sell_building(self, b):
+        """Sells a finished building for SELL_FRACTION of its price; whatever it was training or researching
+        is refunded in full, and the building comes down."""
+        if not b.built or b.dead:
+            return False
+        for i in reversed(range(len(b.queue))):
+            self.cancel_queue(b, i)
+        b.cancel_upgrade()
+        back = int(b.stats.cost * SELL_FRACTION)
+        self.refund(back, b.team, int(GAS_BUILD.get(b.kind, 0) * SELL_FRACTION))
+        b.hp = 0
+        b.dead = True
+        self.emit("msg", b.team, f"{b.stats.name} sold for {back} crystal", "good")
         return True
 
     def cancel_queue(self, b, index):
