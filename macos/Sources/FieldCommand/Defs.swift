@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.43.0"
+let appVersion = "1.44.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -345,6 +345,12 @@ enum Difficulty: Int, CaseIterable {
     var pace: CGFloat { [1.35, 1.0, 0.75][rawValue] }
     var workerTarget: Int { [12, 16, 20][rawValue] }
 }
+
+/// How much production the computer may run, by difficulty: (Barracks, Factories). A full bank buys a bigger
+/// army over the game, not a wall of Barracks in the third minute; and spare crystal only goes into extra
+/// production after productionFloatAt seconds.
+let productionCap: [(Int, Int)] = [(2, 1), (4, 2), (6, 3)]
+let productionFloatAt: Double = 300
 
 // Bridges come with the map rather than being built from scratch, so their numbers live here rather
 // than in BuildingStats: nobody owns one, anybody can shell it down, any Engineer can rebuild it.

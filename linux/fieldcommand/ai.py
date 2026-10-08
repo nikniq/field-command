@@ -14,7 +14,7 @@ Works for any slot; enemies are every player outside its alliance."""
 import math
 
 from . import defs
-from .defs import (ABILITIES, GAS_BUILD, GAS_COST, GAS_UPGRADE, DERELICT_RADIUS, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
+from .defs import (ABILITIES, PRODUCTION_CAP, PRODUCTION_FLOAT_AT, GAS_BUILD, GAS_COST, GAS_UPGRADE, DERELICT_RADIUS, GRENADE_SPLASH, BRIDGE_COST, BUILDINGS, KITS, SIEGE_MIN_RANGE, SIEGE_RANGE, rect_distance, square_rect,
                    upgrade_cost)
 
 # Openings: how the first minutes are played. Each factor bends the timed plan — `barracks` and `turret`
@@ -276,18 +276,22 @@ class AI:
                 if spot:
                     want, site = "turret", spot
         if want is None:
+            max_barracks, max_factories = PRODUCTION_CAP[self.diff.index]
+            cap = {"barracks": max_barracks, "factory": max_factories}
             for k, n in self._plan(t):
+                n = min(n, cap.get(k, n))
                 if n > 0 and count(k) < n:
                     req = BUILDINGS[k].requires
                     if req and not g.has_built(req, self.team):
                         continue
                     want = k
                     break
-            # Floating crystal: add production so income gets spent.
-            if want is None and bank > 450 and g.has_built("barracks", self.team):
-                if count("factory") < 3 and count("factory") * 2 < count("barracks"):
+            # Floating crystal: add production so income gets spent — within the difficulty's cap, and not in
+            # the opening, where a full bank would otherwise become a wall of Barracks.
+            if want is None and bank > 450 and g.elapsed > PRODUCTION_FLOAT_AT and g.has_built("barracks", self.team):
+                if count("factory") < max_factories and count("factory") * 2 < count("barracks"):
                     want = "factory"
-                elif count("barracks") < 6:
+                elif count("barracks") < max_barracks:
                     want = "barracks"
         if want is None or not workers:
             return 0

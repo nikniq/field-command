@@ -347,6 +347,10 @@ def test_abilities_agree():
     from fieldcommand.defs import GAS_RATE, MINE_DAMAGE, MINE_SPLASH, MINE_TRIGGER, SELL_FRACTION
     assert const("gasRate") == GAS_RATE
     assert const("sellFraction") == SELL_FRACTION
+    from fieldcommand.defs import PRODUCTION_CAP, PRODUCTION_FLOAT_AT
+    assert const("productionFloatAt") == PRODUCTION_FLOAT_AT
+    caps = re.findall(r"\((\d+), (\d+)\)", re.search(r"let productionCap: \[\(Int, Int\)\] = \[(.*?)\]", src).group(1))
+    assert [(int(a), int(b)) for a, b in caps] == PRODUCTION_CAP
     assert const("mineTrigger") == MINE_TRIGGER
     assert const("mineDamage") == MINE_DAMAGE
     assert const("mineSplash") == MINE_SPLASH

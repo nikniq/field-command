@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.43.0
+Version:        1.44.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,12 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Thu Oct 08 2026 Field Command Developers <noreply@example.invalid> - 1.44.0-1
+- Balance against a human: the computer's production is capped by difficulty (Easy 2 Barracks and 1
+  Factory, Normal 4 and 2, Hard 6 and 3) and spare crystal only becomes extra production after the fifth
+  minute, so a full starting bank no longer turns into six Barracks by the third minute; at three minutes
+  on Normal it now fields one Barracks and about nine Rangers instead of six and a flood
+
 * Sat Sep 26 2026 Field Command Developers <noreply@example.invalid> - 1.43.0-1
 - Cancel (C) on a building still going up, at any point: the site goes and whatever has not been built yet
   comes back, crystal and gas alike; Sell (S) on a finished building: half its price back, anything it was

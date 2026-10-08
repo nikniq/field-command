@@ -91,7 +91,10 @@ where the raider was seen if nothing there can reach it — and it
 walls its approach with **Barricades**: a turtle from the third minute, anyone within a minute of a
 building taking damage, six blocks in two lines either side of a gap so its own army still marches out.
 
-A wave is at most one and a half times its planned size — a full bank buys a bigger army over the game, not
+Its production is capped by difficulty — Easy two Barracks and one Factory, Normal four and two, Hard six
+and three — and spare crystal only becomes extra production after the fifth minute, so a full starting
+bank buys a bigger army over the game rather than a wall of Barracks in the third minute. A wave is at most
+one and a half times its planned size — a full bank buys a bigger army over the game, not
 one crushing first wave — and whatever stays behind keeps the base. It knows when a fight is lost: a wave that has lost more than 60% of itself with the enemy still on it
 **pulls back** to the Command Center rather than dying piecemeal, and the next wave waits at least forty
 seconds more to be worth sending — but after three pull-backs without the enemy losing a building, the

@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 23, so a 1.43.0 Mac and a 1.43.0 Linux client play together; neither accepts an
+Both editions speak protocol 23, so a 1.44.0 Mac and a 1.44.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -88,7 +88,8 @@ your door, expands when its home field runs low or its Engineers crowd it, and k
 at every expansion, fields Gunships against massed tanks, answers a Gunship raid with what can shoot up and a
 turret, and walls its approach with Barricades. Watches
 what it can see of your army and builds to counter it, keeps its Snipers at range, and raids between waves
-on Normal and Hard. Pulls a beaten wave back and counterattacks a repelled threat (`FC_COUNTERTEST`). Same
+on Normal and Hard. Pulls a beaten wave back and counterattacks a repelled threat (`FC_COUNTERTEST`). Its production is capped by
+difficulty (2/1, 4/2, 6/3 Barracks/Factories) and spare crystal becomes extra production only after five minutes. Same
 reasoning as the Linux edition (`FC_AITEST`).
 
 ## The Armory

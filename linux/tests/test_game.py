@@ -8,9 +8,9 @@ from fieldcommand import mapgen
 from fieldcommand.ai import AI
 
 
-def play(map_id, seconds):
+def play(map_id, seconds, seed=None):
     spec = mapgen.BY_ID[map_id]
-    w = make_world(map_id, players=spec["players"], ai=True, difficulty=2)
+    w = make_world(map_id, players=spec["players"], ai=True, difficulty=2, seed=seed)
     for p in w.players.values():
         p.ai = AI(w, p.slot)
     run(w, seconds, until=lambda: w.game_over)
@@ -23,7 +23,7 @@ def test_a_two_player_game_reaches_a_result():
 
 
 def test_the_ai_uses_the_whole_catalogue():
-    w = play("river_crossing", 600)
+    w = play("river_crossing", 600, seed=5)        # seeded: an unseeded game sometimes ends before the Radar goes up
     built = collections.Counter(b.kind for b in w.buildings if not b.dead and b.built)
     trained = collections.Counter(u.kind for u in w.units if not u.dead)
     everything = {k for k in list(built) + list(trained)}

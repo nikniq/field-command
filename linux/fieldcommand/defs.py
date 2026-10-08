@@ -516,6 +516,11 @@ DIFFICULTIES = [
     Difficulty(1, "Normal", "A balanced commander", 1.0, 330, 8, 1.0, 16),
     Difficulty(2, "Hard", "Aggressive, rich economy", 1.35, 230, 10, 0.75, 20),
 ]
+# How much production the computer may run, by difficulty: (Barracks, Factories). A full bank buys a bigger
+# army over the game, not a wall of Barracks in the third minute; and spare crystal only goes into extra
+# production after PRODUCTION_FLOAT_AT seconds.
+PRODUCTION_CAP = [(2, 1), (4, 2), (6, 3)]
+PRODUCTION_FLOAT_AT = 300.0
 
 
 # ---------------------------------------------------------------- geometry

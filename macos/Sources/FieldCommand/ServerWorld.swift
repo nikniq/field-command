@@ -3246,14 +3246,19 @@ final class SAI {
             site = spot
         }
         if want == nil {
-            for (k, n) in plan(t) where n > 0 && count(k) < n {
+            let (maxBarracks, maxFactories) = productionCap[diff.rawValue]
+            for (k, planned) in plan(t) {
+                let n = k == .barracks ? min(planned, maxBarracks) : k == .factory ? min(planned, maxFactories) : planned
+                guard n > 0 && count(k) < n else { continue }
                 if let r = k.stats.requires, !g.hasBuilt(r, team) { continue }
                 want = k
                 break
             }
-            if want == nil && bank > 450 && g.hasBuilt(.barracks, team) {
-                if count(.factory) < 3 && count(.factory) * 2 < count(.barracks) { want = .factory }
-                else if count(.barracks) < 6 { want = .barracks }
+            // Floating crystal: add production so income gets spent — within the difficulty's cap, and not in
+            // the opening, where a full bank would otherwise become a wall of Barracks.
+            if want == nil && bank > 450 && g.elapsed > productionFloatAt && g.hasBuilt(.barracks, team) {
+                if count(.factory) < maxFactories && count(.factory) * 2 < count(.barracks) { want = .factory }
+                else if count(.barracks) < maxBarracks { want = .barracks }
             }
         }
         guard let k = want, !workers.isEmpty else { return 0 }
