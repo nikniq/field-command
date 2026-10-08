@@ -450,6 +450,8 @@ class Unit(Entity):
             return "Packing up"
         if o == "idle":
             return ("Sieged" if self.sieged else "Idle") + self._rank_tag()
+        if o == "hold":
+            return ("Sieged — holding" if self.sieged else "Holding position") + self._rank_tag()
         if o == "move":
             return "Moving"
         if o == "amove":
@@ -579,7 +581,27 @@ class Unit(Entity):
         o = self.order
         kind = o[0]
 
-        if kind == "idle":
+        if kind == "hold":
+            # Holding position: stands its ground and fires at whatever comes within reach; never chases. A
+            # Medic on hold still treats anyone wounded within reach of its arm.
+            if self.scan <= 0:
+                self.scan = 0.3
+                if self.kind == "medic":
+                    w = g.find_wounded(self, HEAL_RANGE + 40)
+                    if w is not None and self.distance_to(w) - w.radius - self.radius <= HEAL_RANGE:
+                        self._aim(w.x, w.y, dt)
+                        w.hp = min(w.max_hp, w.hp + HEAL_RATE * (1 + self._kit("heal")) * dt * 9)
+                elif self.kind != "worker":
+                    self.hold_target = g.find_target(self, self.attack_range, min_range=self.min_range)
+            t = getattr(self, "hold_target", None)
+            if t is not None and not t.dead and t.targetable_by(self.team) and self.in_range(t):
+                self._aim(t.x, t.y, dt)
+                if self.cooldown <= 0:
+                    self._fire(t)
+            else:
+                self.hold_target = None
+
+        elif kind == "idle":
             if self.kind == "medic":
                 if self.scan <= 0 and not self.queued:
                     self.scan = 0.3

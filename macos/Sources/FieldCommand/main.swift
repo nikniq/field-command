@@ -159,6 +159,9 @@ if Debug.env["FC_MINETEST"] != nil {
 if Debug.env["FC_SELLTEST"] != nil {
     Debug.runSellTest()
 }
+if Debug.env["FC_HOLDTEST"] != nil {
+    Debug.runHoldTest()
+}
 if Debug.env["FC_ICONSOAK"] != nil {
     Debug.runIconSoak()
 }

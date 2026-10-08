@@ -78,7 +78,7 @@ Factory stands; 330 range, which outranges Siege Tanks and Gun Turrets, but only
 Station** (175 crystal, needs a Barracks; 900 sight, unarmed) and the **Medic**. See `../linux/README.md` for
 the numbers.
 
-Both editions speak protocol 23, so a 1.44.0 Mac and a 1.44.0 Linux client play together; neither accepts an
+Both editions speak protocol 24, so a 1.45.0 Mac and a 1.45.0 Linux client play together; neither accepts an
 older client, which would mis-read the newer units, orders and the state of the bridges.
 
 ## The computer opponent
@@ -192,6 +192,11 @@ the gap in its wall. Same numbers as the Linux edition (`FC_MINETEST`).
 A 30-crystal block of wall (V on the Engineer card, Shift for a run) that blocks movement until it is shot
 down; attackers stop and fire at it, and the computer still attacks a walled base. Same rules and numbers
 as the Linux edition (`FC_WALLTEST`).
+
+## Hold position and the tactical pause
+
+Hold (X) stands a unit where it is, firing at what comes in reach and never chasing; the tactical pause (F1)
+stops the clock in single player while orders are still taken. Same rules as the Linux edition (`FC_HOLDTEST`).
 
 ## Polish
 

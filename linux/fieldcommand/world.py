@@ -794,6 +794,10 @@ class World:
             elif op == "stop":
                 for u in self._own_units(slot, cmd[1]):
                     u.command(IDLE)
+            elif op == "hold":
+                for u in self._own_units(slot, cmd[1]):
+                    if u.kind != "worker":
+                        u.command(("hold",))
             elif op == "build":
                 self._build(slot, cmd[1], cmd[2], float(cmd[3]), float(cmd[4]), bool(cmd[5]))
             elif op == "upgrade":

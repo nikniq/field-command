@@ -571,6 +571,8 @@ class HUD:
             return art.icon_ability(b.icon[1])
         if kind == "cancel":
             return art.icon_cancel()
+        if kind == "hold":
+            return art.icon_hold()
         if kind == "sell":
             return art.icon_sell()
         if kind == "upgrade":
@@ -601,7 +603,7 @@ class HUD:
             screen.blit(art.button(r.w, r.h, state), r.topleft)
             tex = self._icon_source(b)
             kind = b.icon[0]
-            fit = 30 if kind in ("attack", "stop", "cancel", "sell") else 34 if kind in ("siege", "upgrade", "ability") else \
+            fit = 30 if kind in ("attack", "stop", "cancel", "sell", "hold") else 34 if kind in ("siege", "upgrade", "ability") else \
                 (40 if b.icon[1] == "tank" else 30) if kind in ("unit", "reinforce") else 38
             rot = 90 if kind in ("unit", "reinforce") else 0
             if not b.enabled:

@@ -227,6 +227,11 @@ jobs:
         run: |
           set -o pipefail
           FC_SELLTEST=1 "$BIN" | tee /dev/stderr | grep -q "SELL TEST PASSED"
+      - name: Headless Hold
+        working-directory: macos
+        run: |
+          set -o pipefail
+          FC_HOLDTEST=1 "$BIN" | tee /dev/stderr | grep -q "HOLD TEST PASSED"
       - name: Headless Crates
         working-directory: macos
         run: |

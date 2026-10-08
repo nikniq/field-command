@@ -3,7 +3,7 @@ import AppKit
 
 /// Version shown on the title screen. `build_app.sh` reads this line for the bundle's Info.plist,
 /// so the version on screen and the version in the bundle cannot drift apart.
-let appVersion = "1.44.0"
+let appVersion = "1.45.0"
 
 /// Size of the map in play. Maps carry their own size (the mega maps are larger), so this is set from the map
 /// data when a game starts — see `setWorldSize`.
@@ -531,6 +531,7 @@ let keyActions: [(action: String, label: String, key: String)] = [
     ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
     ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "backspace"),
     ("pause", "Game menu", "p"), ("help", "Help", "h"),
+    ("tactical", "Tactical pause (give orders while stopped)", "f1"),
 ]
 
 // Supply crates: one drops somewhere open every crateInterval seconds (at most crateMax on the field, each
@@ -728,7 +729,7 @@ func lineupText(opponents: Int, teams: Int) -> String {
 }
 
 enum ButtonIcon {
-    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind), ability(String), cancel, sell
+    case attack, stop, siege(Bool), upgrade(UpgradeKind), unit(UnitKind), building(BuildingKind), reinforce(UnitKind), ability(String), cancel, sell, hold
 }
 
 struct CommandButton {

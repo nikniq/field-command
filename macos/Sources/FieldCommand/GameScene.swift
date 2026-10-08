@@ -78,6 +78,8 @@ final class GameScene: SKScene {
     private var lastTime: TimeInterval = 0
     var elapsed: CGFloat = 0
     var gamePaused = false
+    /// Tactical pause: the clock stopped, orders still taken (single player).
+    var tacticalPause = false
     var gameOver = false
     var minimapDragging = false
     private var lastAlertTime: CGFloat = -100
@@ -614,10 +616,12 @@ final class GameScene: SKScene {
         Audio.Music.update(threat.update(Double(realDt), Double(elapsed)))
         updateOrderLines(realDt)
         if fog.render(dt: realDt) { hud.setFog(fog.texture) }
-        if let net, net.isLocal, net.sentPause != gamePaused {
-            net.sentPause = gamePaused
-            net.conn.send(["t": "pause", "paused": gamePaused])
+        let stopped = gamePaused || tacticalPause
+        if let net, net.isLocal, net.sentPause != stopped {
+            net.sentPause = stopped
+            net.conn.send(["t": "pause", "paused": stopped])
         }
+        hud.setTactical(tacticalPause && !hud.overlayVisible, key: Settings.key("tactical"))
         if let net, net.isLocal { GameServer.hosted?.timeScale = Double(Settings.gameSpeed) }
         if isNet {
             netUpdate(realDt)
@@ -1002,6 +1006,13 @@ final class GameScene: SKScene {
         if !gameOver { recordReplay() }
         leaveNetGame()
         view?.presentScene(MenuScene(size: size), transition: .fade(withDuration: 0.5))
+    }
+
+    /// Tactical pause: the clock stops, the orders do not. Everything given now carries out on resume.
+    func toggleTactical() {
+        guard !isMultiplayer, !gameOver else { hud.flash("Tactical pause is for single player", color: Palette.dim); return }
+        tacticalPause.toggle()
+        hud.flash(tacticalPause ? "Tactical pause: give your orders, \(Settings.key("tactical").uppercased()) resumes" : "Resumed", color: Palette.text)
     }
 
     func togglePause() {
@@ -1398,6 +1409,7 @@ final class GameScene: SKScene {
         }
         if key == Settings.key("idle") || chars == "." { selectIdleWorker(); return }
         if key == Settings.key("ping") { beginPing(kind: event.modifierFlags.contains(.shift) ? 1 : 0); return }
+        if key == Settings.key("tactical") { toggleTactical(); return }
         for (i, b) in hud.currentButtons.enumerated() where b.hotkey.lowercased() == chars {
             hud.pressButton(i)
             return
@@ -2205,6 +2217,14 @@ final class GameScene: SKScene {
                 CommandButton(icon: .stop, title: "Stop", hotkey: "S", cost: nil, enabled: true,
                               tip: "Halt all current and queued orders.") { [weak self] in self?.stopSelected() },
             ]
+            if us.contains(where: { $0.kind != .worker }) {
+                list.append(CommandButton(icon: .hold, title: "Hold", hotkey: "X", cost: nil, enabled: true,
+                                          tip: "Hold position: stand here and fire at whatever comes within reach, never chase. Dug-in Rangers and Snipers keep their entrenchment.") { [weak self] in
+                    guard let self else { return }
+                    let ids = self.selectedOwnUnits.filter { $0.kind != .worker }.map { $0.netId }
+                    if !ids.isEmpty { self.sendNet(["hold", ids]); self.unitVoice("ack_") }
+                })
+            }
             let (able, ready) = abilityUnits()
             if let first = able.first, let spec = abilities[first.kind] {
                 var tip: String

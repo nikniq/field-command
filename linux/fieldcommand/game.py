@@ -171,6 +171,7 @@ class GameScene:
         self._known_units = {}      # id -> (kind, team, x, y, angle): to mark where the fallen dropped
         self.selection = []
         self.paused = False
+        self.tactical = False           # the clock stopped, orders still taken (single player)
         self.placing = None
         self.attack_pending = False
         self.ability_pending = None     # the ability spec awaiting a click on the ground or a target
@@ -250,7 +251,7 @@ class GameScene:
         self._update_camera(dt, mouse)
         self._update_hover(mouse)
         self._dash += dt * 22
-        running = not (self.paused and self.s.can_pause)
+        running = not ((self.paused or self.tactical) and self.s.can_pause)
         for ev in self.s.update(dt, paused=not running):
             self._on_event(ev)
         if running:
@@ -1038,6 +1039,8 @@ class GameScene:
             self.select_idle_worker()
         elif name == settings.key("ping"):
             self.begin_ping(1 if mods & pygame.KMOD_SHIFT else 0)
+        elif name == settings.key("tactical"):
+            self.toggle_tactical()
         else:
             self.hud.current_buttons = self.command_buttons()  # selection may have changed this frame
             for i, b in enumerate(self.hud.current_buttons):
@@ -1372,6 +1375,20 @@ class GameScene:
     def stop_selected(self):
         self.s.send(["stop", self._ids(self.selected_own_units())])
 
+    def hold_selected(self):
+        us = [u for u in self.selected_own_units() if u.kind != "worker"]
+        if us:
+            self.s.send(["hold", self._ids(us)])
+            self._voice("ack_", us[:1])
+
+    def toggle_tactical(self):
+        """Tactical pause: the clock stops, the orders do not. Everything given now carries out on resume."""
+        if not self.s.can_pause or self.s.game_over:
+            self.hud.flash("Tactical pause is for single player", DIM)
+            return
+        self.tactical = not self.tactical
+        self.hud.flash("Tactical pause: give your orders, F1 resumes" if self.tactical else "Resumed", TEXT)
+
     def cancel_modes(self):
         self.placing = None
         self.attack_pending = False
@@ -1542,6 +1559,10 @@ class GameScene:
             out = [CommandButton(("attack",), "Attack", "A", None, True,
                                  "Attack-move: units engage any enemy they meet on the way. Shift+click to queue.", attack),
                    CommandButton(("stop",), "Stop", "S", None, True, "Halt all current and queued orders.", self.stop_selected)]
+            if any(u.kind != "worker" for u in us):
+                out.append(CommandButton(("hold",), "Hold", "X", None, True,
+                                         "Hold position: stand here and fire at whatever comes within reach, never chase. "
+                                         "Dug-in Rangers and Snipers keep their entrenchment.", self.hold_selected))
             able, ready = self.ability_units()
             if able:
                 aid, name, reach, cooldown, needs = ABILITIES[able[0].kind]
@@ -1738,6 +1759,10 @@ class GameScene:
         self._draw_overlays(screen, mouse)
         screen.blit(art.vignette(cam.w * 1.1, cam.h * 1.1), (-cam.w * 0.05, -cam.h * 0.05))
         self.hud.draw(screen, mouse)
+        if self.tactical and not self.hud.overlay_visible:
+            w = screen.get_width()
+            ui.blit_text(screen, "TACTICAL PAUSE", 20, AMBER, (w / 2, 54), align="center", bold=True)
+            ui.blit_text(screen, f"Give your orders · {settings.key('tactical').upper()} resumes", 12, TEXT, (w / 2, 76), align="center")
 
     def _draw_ground(self, screen):
         cam = self.cam

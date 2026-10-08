@@ -546,6 +546,17 @@ per game, and the world always steps by exactly 1/30 s (game speed changes how m
 who won, how long it took, what was trained, built, lost and mined — then prints win rates by start slot,
 average length and the unit mix, and from 1.20 the wins by opening (rush, economy, turtle) per map. Balance changes are judged on those numbers.
 
+## Hold position and the tactical pause
+
+**Hold (X)** on any fighting unit's card: it stands where it is and fires at whatever comes within reach,
+and never chases — a Ranger that would otherwise run after a passing scout stays on its line, dug-in
+Rangers and Snipers keep their entrenchment, and a Medic on hold still treats anyone wounded beside it. A
+move, attack or stop order ends it. Combine it with cover and Entrenchment and a treeline becomes a wall.
+
+**Tactical pause (F1, rebindable on the Keys screen)**: in single player the clock stops but the game keeps
+taking orders — select, build, queue, attack-move — and everything you gave carries out the moment you press
+F1 again. The banner at the top says it is on. The game menu (P) still pauses everything.
+
 ## Polish: the timeline, undo, the counter, keys, the first run
 
 The end screen carries a **timeline**: every side's army size over the game, one line per side in its

@@ -431,6 +431,7 @@ final class Unit: Entity {
             case 7: return "Rebuilding a bridge"
             case 8: return "Repairing"
             case 9: return "Treating a casualty"
+            case 10: return sieged ? "Sieged — holding" : "Holding position"
             default: return "Idle"
             }
         }

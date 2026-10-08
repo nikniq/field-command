@@ -19,6 +19,7 @@ enum SaveGame {
     private static func orderOut(_ o: SOrder) -> [Any] {
         switch o {
         case .idle: return ["idle"]
+        case .hold: return ["hold"]
         case .move(let x, let y): return ["move", x, y]
         case .amove(let x, let y): return ["amove", x, y]
         // A target that died this very tick is not in the file; the unit would find itself idle next tick anyway.
@@ -40,6 +41,7 @@ enum SaveGame {
         case "attack" where d.count >= 2: return (w.byId[jInt(d[1])] as? SEntity).map { .attack($0) } ?? .idle
         case "gather" where d.count >= 2: return (w.byId[jInt(d[1])] as? SCrystal).map { .gather($0) } ?? .idle
         case "return": return .ret
+        case "hold": return .hold
         case "build" where d.count >= 4: return NetProtocol.buildingKind(jStr(d[1])).map { .build($0, Double(jNum(d[2])), Double(jNum(d[3]))) } ?? .idle
         case "rebuild" where d.count >= 2: return (w.byId[jInt(d[1])] as? SBridge).map { .rebuild($0) } ?? .idle
         case "repair" where d.count >= 2: return (w.byId[jInt(d[1])] as? SEntity).map { .repair($0) } ?? .idle

@@ -1243,6 +1243,7 @@ enum Art {
         case .ability(let id): stem = "icon-ability-\(id)"
         case .cancel: stem = "icon-cancel"
         case .sell: stem = "icon-sell"
+        case .hold: stem = "icon-hold"
         case .attack: stem = "icon-attack"
         case .stop: stem = "icon-stop"
         }
@@ -1506,6 +1507,16 @@ enum Art {
                     for (x, y, r, k) in puffs { fill(ctx, circle(CGPoint(x: x, y: y), r), .rgb(k, k, k + 0.02)) }
                     fill(ctx, rr(box(-4, -16, 8, 6), 1), .rgb(0.35, 0.36, 0.38))
                 }
+            }
+        case .hold:
+            // A shield over a line in the ground: hold position.
+            return texture("icon-hold", size: CGSize(width: 40, height: 40)) { ctx in
+                lines(ctx, [(CGPoint(x: -16, y: -12), CGPoint(x: 16, y: -12))], NSColor(white: 0, alpha: 0.6), 4)
+                lines(ctx, [(CGPoint(x: -16, y: -12), CGPoint(x: 16, y: -12))], Palette.amber, 2)
+                let sh = poly([CGPoint(x: -11, y: 12), CGPoint(x: 11, y: 12), CGPoint(x: 11, y: 0), CGPoint(x: 0, y: -10), CGPoint(x: -11, y: 0)])
+                lit(ctx, sh, .rgb(0.3, 0.42, 0.55))
+                stroke(ctx, sh, NSColor(white: 0, alpha: 0.6), 1.2)
+                lines(ctx, [(CGPoint(x: 0, y: 12), CGPoint(x: 0, y: -10))], NSColor(white: 1, alpha: 0.4), 1)
             }
         case .cancel:
             // A red cross over a scaffold: stop building this.

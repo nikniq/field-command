@@ -374,6 +374,7 @@ KEY_ACTIONS = [
     ("ping", "Attack point (Shift: alert)", "z"), ("objectives", "Objectives panel", "o"),
     ("armory", "The Armory", "y"), ("undo", "Undo the last placement", "backspace"),
     ("pause", "Game menu", "p"), ("help", "Help", "h"),
+    ("tactical", "Tactical pause (give orders while stopped)", "f1"),
 ]
 DEFAULT_KEYS = {a: k for a, _l, k in KEY_ACTIONS}
 

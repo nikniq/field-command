@@ -1360,6 +1360,18 @@ def icon_sell():
     return texture("icon_sell", (40, 40), d)
 
 
+def icon_hold():
+    """Command-card icon: a shield over a line in the ground — hold position."""
+    def d(c):
+        lines(c, [((-16, 12), (16, 12))], rgb(0, 0, 0, 0.6), 4)
+        lines(c, [((-16, 12), (16, 12))], AMBER, 2)
+        sh = poly([(-11, -12), (11, -12), (11, 0), (0, 10), (-11, 0)])
+        lit(c, sh, rgb(0.3, 0.42, 0.55))
+        stroke(c, sh, rgb(0, 0, 0, 0.6), 1.2)
+        lines(c, [((0, -12), (0, 10))], alpha(WHITE, 0.4), 1)
+    return texture("icon_hold", (40, 40), d)
+
+
 def icon_stop():
     def d(c):
         o = _octagon(15)

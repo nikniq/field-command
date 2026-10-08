@@ -409,10 +409,12 @@ enum SOrder {
     case rebuild(SBridge)
     case repair(SEntity)          // a building, or a Siege Tank
     case heal(SUnit)
+    case hold
 
     var code: Int {
         switch self {
         case .idle: return 0
+        case .hold: return 10
         case .move: return 1
         case .amove: return 2
         case .attack: return 3
@@ -689,6 +691,8 @@ final class SUnit: SEntity {
     var abilityCd = 0.0
     /// Seconds without moving: entrenched infantry digs in after entrenchTime.
     var stillFor = 0.0
+    /// What a unit holding position is firing at.
+    var holdTarget: SEntity?
     /// Entrenched infantry that has held still long enough takes less damage.
     var dugIn: Bool { entrenchKinds.contains(kind) && stillFor >= entrenchTime && world.hasTech(.entrench, team) }
     var carrying = 0
@@ -898,6 +902,26 @@ final class SUnit: SEntity {
         var target: (Double, Double)?
 
         switch order {
+        case .hold:
+            // Holding position: stands its ground and fires at whatever comes within reach; never chases. A
+            // Medic on hold still treats anyone wounded within reach of its arm.
+            if scan <= 0 {
+                scan = 0.3
+                if kind == .medic {
+                    if let w = g.findWounded(self, healRange + 40), distanceTo(w) - w.radius - radius <= healRange {
+                        aim(w.x, w.y, dt)
+                        w.hp = min(w.maxHp, w.hp + healRate * (1 + kit("heal")) * dt * 9)
+                    }
+                } else if kind != .worker {
+                    holdTarget = g.findTarget(self, attackRange, minRange: minRange)
+                }
+            }
+            if let t = holdTarget, !t.dead, t.targetable(by: team), inRange(t) {
+                aim(t.x, t.y, dt)
+                if cooldown <= 0 { fire(t) }
+            } else {
+                holdTarget = nil
+            }
         case .idle:
             if kind == .medic {
                 if scan <= 0 && queued.isEmpty {
@@ -2333,6 +2357,8 @@ final class SWorld {
             for u in ownUnits(slot, ids(cmd[1])) where u.kind == .worker && u.carrying > 0 { give(u, .ret, flag(2)) }
         case "stop" where cmd.count >= 2:
             for u in ownUnits(slot, ids(cmd[1])) { u.command(.idle) }
+        case "hold" where cmd.count >= 2:
+            for u in ownUnits(slot, ids(cmd[1])) where u.kind != .worker { u.command(.hold) }
         case "build" where cmd.count >= 6:
             build(slot, jInt(cmd[1]), jStr(cmd[2]), num(3), num(4), queue: flag(5))
         case "train" where cmd.count >= 3:

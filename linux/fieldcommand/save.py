@@ -57,7 +57,7 @@ def _order_in(d, by_id):
         return (k, t) if t is not None else IDLE
     if k == "build":
         return (k, d[1], float(d[2]), float(d[3]))
-    return IDLE if k not in ("idle", "return") else (k,)
+    return IDLE if k not in ("idle", "return", "hold") else (k,)
 
 
 # ---------------------------------------------------------------- fog

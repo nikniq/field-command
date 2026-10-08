@@ -1,5 +1,5 @@
 Name:           field-command
-Version:        1.44.0
+Version:        1.45.0
 Release:        1%{?dist}
 Summary:        Real-time strategy game: mine crystal, build an army, destroy the enemy base
 
@@ -49,6 +49,14 @@ appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/%{name}.metain
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Oct 09 2026 Field Command Developers <noreply@example.invalid> - 1.45.0-1
+- Hold position (X on the unit card): the unit stands its ground and fires at whatever comes within reach,
+  never chasing — dug-in Rangers and Snipers keep their entrenchment, Medics on hold still treat the
+  wounded beside them; a move or attack order ends it
+- Tactical pause (F1, rebindable): in single player the clock stops but orders are still taken, and
+  everything given carries out on resume
+- Protocol 24: the hold order and its status
+
 * Thu Oct 08 2026 Field Command Developers <noreply@example.invalid> - 1.44.0-1
 - Balance against a human: the computer's production is capped by difficulty (Easy 2 Barracks and 1
   Factory, Normal 4 and 2, Hard 6 and 3) and spare crystal only becomes extra production after the fifth

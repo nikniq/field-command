@@ -903,7 +903,7 @@ enum Debug {
         check(w.buildings.contains { $0 === site2 }, "one further along stays, and nobody else's can be touched")
 
         Settings.resetKeys()
-        check(Settings.key("ping") == "z" && keyActions.count == 10, "keys have defaults")
+        check(Settings.key("ping") == "z" && keyActions.count == 11 && Settings.key("tactical") == "f1", "keys have defaults")
         Settings.bind("ping", "x")
         let moved = Settings.key("ping") == "x"
         Settings.bind("undo", "x")
@@ -918,6 +918,70 @@ enum Debug {
     /// off — matching linux/tests/test_mines.py.
     /// FC_SELLTEST=1: cancelling a building under construction and selling a finished one — matching
     /// linux/tests/test_sell.py.
+    /// FC_HOLDTEST=1: hold position — stands, fires at what comes in reach, never chases; Engineers refuse; a
+    /// move order ends it; it survives a save — matching linux/tests/test_hold.py.
+    static func runHoldTest() -> Never {
+        var ok = true
+        func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }
+        func fresh() -> (SWorld, SBuilding) {
+            let ps = (0..<2).map { SPlayer(slot: $0, name: "P\($0)", team: $0 + 1, isAI: false, start: $0) }
+            let w = SWorld(map: SMapGen.generate("twin_ridges"), players: ps, difficulty: .normal, seed: 3)
+            for u in w.units { u.command(.idle); u.cooldown = 1e9 }
+            return (w, w.buildings.first { $0.team == 0 && $0.kind == .hq }!)
+        }
+        func unit(_ w: SWorld, _ k: UnitKind, _ team: Int, _ x: Double, _ y: Double) -> SUnit {
+            let u = SUnit(world: w, kind: k, team: team, x: x, y: y)
+            w.add(u); u.command(.idle)
+            return u
+        }
+        func run(_ w: SWorld, _ secs: Double) { var t = 0.0; while t < secs { w.step(1.0 / 30); t += 1.0 / 30 } }
+        do {
+            let (w, hq) = fresh()
+            let r = unit(w, .marine, 0, hq.x + 500, hq.y)
+            w.apply(0, ["hold", [r.id]])
+            var holding = false
+            if case .hold = r.order { holding = true }
+            let far = unit(w, .marine, 1, r.x + Double(UnitKind.marine.stats.range) + 120, r.y)
+            far.cooldown = 1e9
+            far.command(.hold)
+            let x0 = r.x
+            run(w, 4)
+            var still = false
+            if case .hold = r.order { still = true }
+            let stood = abs(r.x - x0) < 1 && still && far.hp == far.maxHp
+            far.x = r.x + Double(UnitKind.marine.stats.range) - 10
+            run(w, 3)
+            var yet = false
+            if case .hold = r.order { yet = true }
+            check(holding && stood && far.hp < far.maxHp && abs(r.x - x0) < 1 && yet && SOrder.hold.code == 10,
+                  "a holding unit fires at what comes in reach and never chases")
+        }
+        do {
+            let (w, hq) = fresh()
+            let e = w.units.first { $0.team == 0 && $0.kind == .worker }!
+            w.apply(0, ["hold", [e.id]])
+            var engineerHeld = false
+            if case .hold = e.order { engineerHeld = true }
+            let r = unit(w, .marine, 0, hq.x + 300, hq.y)
+            w.apply(0, ["hold", [r.id]])
+            w.apply(0, ["move", [r.id], hq.x + 400, hq.y, false, false])
+            var moving = false
+            if case .move = r.order { moving = true }
+            let doc = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let r2 = unit(w, .marine, 0, hq.x + 300, hq.y + 100)
+            w.apply(0, ["hold", [r2.id]])
+            let doc2 = try! JSONSerialization.jsonObject(with: try! JSONSerialization.data(withJSONObject: SaveGame.encode(w))) as! [String: Any]
+            let w2 = try! SaveGame.decode(doc2)
+            var saved = false
+            if let u = w2.byId[r2.id] as? SUnit, case .hold = u.order { saved = true }
+            _ = doc
+            check(!engineerHeld && moving && saved, "Engineers do not hold, a move order ends it, and hold survives a save")
+        }
+        check(keyActions.contains { $0.action == "tactical" && $0.key == "f1" }, "the tactical pause is a bound key")
+        print(ok ? "HOLD TEST PASSED" : "HOLD TEST FAILED")
+        exit(ok ? 0 : 1)
+    }
+
     static func runSellTest() -> Never {
         var ok = true
         func check(_ cond: Bool, _ what: String) { print("  \(cond ? "ok  " : "FAIL") \(what)"); ok = ok && cond }

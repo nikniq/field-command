@@ -20,6 +20,22 @@ final class HUD: SKNode {
     private var lastGas = -1
     private let supplyLabel = makeLabel("", size: 17, color: Palette.text, font: Fonts.mono, valign: .center)
     private let clockLabel = makeLabel("", size: 16, color: Palette.text, font: Fonts.mono, align: .center, valign: .center)
+    private let tacticalTitle = makeLabel("TACTICAL PAUSE", size: 20, color: Palette.amber, font: Fonts.heavy, align: .center, valign: .center)
+    private let tacticalHint = makeLabel("", size: 12, color: Palette.text, font: Fonts.medium, align: .center, valign: .center)
+
+    /// The tactical-pause banner under the top bar.
+    func setTactical(_ on: Bool, key: String) {
+        if tacticalTitle.parent == nil {
+            for n in [tacticalTitle, tacticalHint] { n.zPosition = 3; addChild(n) }
+        }
+        tacticalTitle.isHidden = !on
+        tacticalHint.isHidden = !on
+        if on {
+            tacticalHint.text = "Give your orders · \(key.uppercased()) resumes"
+            tacticalTitle.position = CGPoint(x: 0, y: size.height / 2 - Self.topHeight - 20)
+            tacticalHint.position = CGPoint(x: 0, y: size.height / 2 - Self.topHeight - 42)
+        }
+    }
     private let topButtonLayer = SKNode()
     private var topButtons: [(CGRect, () -> Void)] = []
     private var lastTopSignature = ""
@@ -864,7 +880,7 @@ final class HUD: SKNode {
             case .unit(let k), .reinforce(let k): fit = k == .tank ? 40 : 30
             case .building: fit = 38
             case .siege, .upgrade, .ability: fit = 34
-            case .cancel, .sell: fit = 30
+            case .cancel, .sell, .hold: fit = 30
             default: fit = 30
             }
             let k = fit / max(ts.width, ts.height)
