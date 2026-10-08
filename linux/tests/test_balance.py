@@ -6,7 +6,7 @@ from fieldcommand.defs import DIFFICULTIES, PRODUCTION_CAP, PRODUCTION_FLOAT_AT
 
 
 def ai_world(difficulty):
-    w = make_world("twin_ridges", players=2, difficulty=difficulty)
+    w = make_world("twin_ridges", players=2, difficulty=difficulty, seed=3)     # seeded: the opening is part of the plan
     ai = AI(w, 1)
     w.players[1].is_ai, w.players[1].ai = True, ai
     hq = hq_of(w, 1)
@@ -50,6 +50,8 @@ def test_spare_crystal_does_not_become_barracks_in_the_opening():
     stand(w, "factory", hq.x - 300, hq.y - 250)
     stand(w, "refinery", hq.x + 200, hq.y + 250)
     stand(w, "radar", hq.x + 250, hq.y - 100)
+    stand(w, "shield", hq.x + 300, hq.y + 50)
+    stand(w, "turret", hq.x - 150, hq.y + 300)
     for i in range(4):
         stand(w, "depot", hq.x + 150 + i * 90, hq.y - 250)
     for i in range(2):
